@@ -232,7 +232,7 @@ describe('MessageReader', () => {
     expect(downloadNames).toEqual(['message.eml'])
   })
 
-  it('returns from the mobile reader to the message list', async () => {
+  it('returns from the reader to the message list', async () => {
     const wrapper = mount(MessageReader, { props: { token: 'signed', id: 'one' } })
     await flushPromises()
 

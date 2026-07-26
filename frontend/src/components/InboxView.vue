@@ -2,14 +2,13 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError, api } from '../api'
 import type { AddressSession, HydraCollection, MessageSummary } from '../types'
+import AppIcon from './AppIcon.vue'
 import MessageReader from './MessageReader.vue'
 
-const props = withDefaults(defineProps<{
+const props = defineProps<{
   session: AddressSession
   fetchSeconds: number
-  appName?: string
-  logoDataUrl?: string
-}>(), { appName: 'Temporary Inbox', logoDataUrl: '' })
+}>()
 const emit = defineEmits<{ newAddress: [] }>()
 
 const collection = ref<HydraCollection<MessageSummary> | null>(null)
@@ -176,117 +175,113 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="inbox-view three-pane" aria-labelledby="inbox-title">
-    <aside class="account-rail">
-      <a class="rail-brand" href="/">
-        <img v-if="logoDataUrl" :src="logoDataUrl" alt="">
-        <span>{{ appName }}</span>
-      </a>
-      <div class="address-card">
-        <small>Your current address</small>
+  <section class="inbox-view" aria-labelledby="inbox-title">
+    <div class="panel inbox-hero">
+      <div class="inbox-hero-address">
+        <small>Your temporary address</small>
         <strong id="inbox-title">{{ session.address }}</strong>
-        <button class="secondary-button" type="button" @click="copyAddress">Copy</button>
       </div>
-      <div class="rail-actions">
-        <button class="secondary-button" type="button" :disabled="refreshing" @click="refresh">Refresh</button>
-        <button class="primary-button" type="button" @click="emit('newAddress')">New address</button>
+
+      <div class="inbox-hero-actions">
+        <button class="primary-button" type="button" @click="copyAddress">
+          <AppIcon name="copy" />
+          Copy
+        </button>
+        <button
+          class="secondary-button"
+          type="button"
+          data-action="refresh"
+          :disabled="refreshing"
+          @click="refresh"
+        >
+          <AppIcon name="refresh-cw" />
+          {{ refreshing ? 'Refreshing' : 'Refresh' }}
+        </button>
+        <button class="secondary-button" type="button" data-action="new-address" @click="emit('newAddress')">
+          <AppIcon name="plus" />
+          New address
+        </button>
+        <button
+          class="secondary-button"
+          type="button"
+          data-action="notifications"
+          :disabled="notificationPermission === 'granted'"
+          @click="enableNotifications"
+        >
+          <AppIcon name="bell" />
+          {{ notificationPermission === 'granted' ? 'Notifications on' : 'Enable notifications' }}
+        </button>
       </div>
-      <button
-        class="secondary-button notification-button"
-        type="button"
-        data-action="notifications"
-        :disabled="notificationPermission === 'granted'"
-        @click="enableNotifications"
-      >
-        {{ notificationPermission === 'granted' ? 'Notifications on' : 'Enable notifications' }}
-      </button>
-      <nav class="rail-nav" aria-label="Mailbox navigation">
-        <span aria-current="page">Inbox <b>{{ collection?.['hydra:totalItems'] ?? 0 }}</b></span>
-        <a href="/docs">API docs</a>
-        <a href="/admin">Admin</a>
-      </nav>
-      <div class="api-status"><i aria-hidden="true" /> API status <strong>Healthy</strong></div>
-      <button class="rail-signout" type="button" @click="emit('newAddress')">Leave inbox</button>
+
       <p v-if="notice" class="toolbar-notice" aria-live="polite">{{ notice }}</p>
-    </aside>
-
-    <aside class="message-list" aria-label="Messages">
-        <div class="list-heading">
-          <div>
-            <h2>Messages</h2>
-            <span>{{ collection?.['hydra:totalItems'] ?? 0 }} total</span>
-          </div>
-          <button
-            class="text-button"
-            type="button"
-            data-action="refresh"
-            :disabled="refreshing"
-            @click="refresh"
-          >
-            {{ refreshing ? 'Refreshing' : 'Refresh' }}
-          </button>
-        </div>
-
-        <div v-if="loading" class="message-list-state" aria-live="polite">
-          <span class="skeleton skeleton-field" />
-          <span class="skeleton skeleton-field" />
-          <span class="skeleton skeleton-field" />
-          <span class="sr-only">Loading inbox</span>
-        </div>
-
-        <div v-else-if="error && !collection" class="message-list-state">
-          <h3>Inbox unavailable</h3>
-          <p>{{ error }}</p>
-          <button class="secondary-button compact-button" type="button" @click="refresh">Retry</button>
-        </div>
-
-        <div v-else-if="!messages.length" class="message-list-state">
-          <h3>Waiting for mail</h3>
-          <p>New messages will appear here automatically.</p>
-        </div>
-
-        <template v-else>
-          <p v-if="error" class="list-error" role="alert">{{ error }}</p>
-          <button
-            v-for="item in messages"
-            :key="item.id"
-            class="message-row"
-            :class="{ unread: !item.seen, selected: selectedId === item.id }"
-            type="button"
-            :aria-current="selectedId === item.id"
-            @click="selectedId = item.id"
-          >
-            <span class="message-row-top">
-              <strong>{{ item.from.name || item.from.address }}</strong>
-              <time :datetime="item.createdAt">{{ formatDate(item.createdAt) }}</time>
-            </span>
-            <span class="message-subject">{{ item.subject || '(No subject)' }}</span>
-            <span class="message-intro">{{ item.intro || 'No preview available' }}</span>
-            <span v-if="item.hasAttachments" class="attachment-flag">Attachment</span>
-          </button>
-        </template>
-
-        <nav v-if="canPrevious || canNext" class="pagination" aria-label="Message pages">
-          <button type="button" :disabled="!canPrevious" @click="changePage(page - 1)">Previous</button>
-          <span>Page {{ page }}</span>
-          <button type="button" :disabled="!canNext" @click="changePage(page + 1)">Next</button>
-        </nav>
-    </aside>
-
-    <div class="mail-detail">
-      <MessageReader
-        v-if="selectedId"
-        :id="selectedId"
-        :token="session.token"
-        @seen="markSeen"
-        @deleted="removeMessage"
-        @stale="removeStale"
-        @close="selectedId = null"
-      />
-      <div v-else class="reader-placeholder">
-        <h2>Select a message</h2>
-        <p>Message details and authenticated downloads open here.</p>
-      </div>
+      <p class="auto-refresh-hint">Auto-refreshes every {{ fetchSeconds }}s</p>
     </div>
+
+    <MessageReader
+      v-if="selectedId"
+      :id="selectedId"
+      :token="session.token"
+      @seen="markSeen"
+      @deleted="removeMessage"
+      @stale="removeStale"
+      @close="selectedId = null"
+    />
+
+    <aside v-else class="panel message-list" aria-label="Messages">
+      <div class="list-heading">
+        <div>
+          <h2>Messages</h2>
+          <span>{{ collection?.['hydra:totalItems'] ?? 0 }} total</span>
+        </div>
+      </div>
+
+      <div v-if="loading" class="message-list-state" aria-live="polite">
+        <span class="skeleton skeleton-field" />
+        <span class="skeleton skeleton-field" />
+        <span class="skeleton skeleton-field" />
+        <span class="sr-only">Loading inbox</span>
+      </div>
+
+      <div v-else-if="error && !collection" class="message-list-state">
+        <h3>Inbox unavailable</h3>
+        <p>{{ error }}</p>
+        <button class="secondary-button compact-button" type="button" @click="refresh">Retry</button>
+      </div>
+
+      <div v-else-if="!messages.length" class="message-list-state">
+        <h3>Waiting for mail</h3>
+        <p>New messages will appear here automatically.</p>
+      </div>
+
+      <template v-else>
+        <p v-if="error" class="list-error" role="alert">{{ error }}</p>
+        <button
+          v-for="item in messages"
+          :key="item.id"
+          class="message-row"
+          :class="{ unread: !item.seen, selected: selectedId === item.id }"
+          type="button"
+          :aria-current="selectedId === item.id"
+          @click="selectedId = item.id"
+        >
+          <span class="message-row-top">
+            <strong>{{ item.from.name || item.from.address }}</strong>
+            <time :datetime="item.createdAt">{{ formatDate(item.createdAt) }}</time>
+          </span>
+          <span class="message-subject">{{ item.subject || '(No subject)' }}</span>
+          <span class="message-intro">{{ item.intro || 'No preview available' }}</span>
+          <span v-if="item.hasAttachments" class="attachment-flag">
+            <AppIcon name="paperclip" />
+            <span class="sr-only">Has attachment</span>
+          </span>
+        </button>
+      </template>
+
+      <nav v-if="canPrevious || canNext" class="pagination" aria-label="Message pages">
+        <button type="button" :disabled="!canPrevious" @click="changePage(page - 1)">Previous</button>
+        <span>Page {{ page }}</span>
+        <button type="button" :disabled="!canNext" @click="changePage(page + 1)">Next</button>
+      </nav>
+    </aside>
   </section>
 </template>

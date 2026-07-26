@@ -2,6 +2,7 @@
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { ApiError, api } from '../api'
 import type { AttachmentResource, MessageResource } from '../types'
+import AppIcon from './AppIcon.vue'
 import SandboxFrame from './SandboxFrame.vue'
 
 const props = defineProps<{ token: string; id: string }>()
@@ -178,8 +179,9 @@ onBeforeUnmount(() => { requestVersion += 1 })
 </script>
 
 <template>
-  <article class="message-reader" aria-live="polite">
+  <article class="message-reader panel" aria-live="polite">
     <button class="reader-back secondary-button" type="button" data-action="close" @click="emit('close')">
+      <AppIcon name="arrow-left" />
       Back to inbox
     </button>
     <div v-if="loading" class="reader-loading">
@@ -210,6 +212,7 @@ onBeforeUnmount(() => { requestVersion += 1 })
             :disabled="Boolean(busy)"
             @click="downloadSource"
           >
+            <AppIcon name="file-text" />
             {{ busy === 'source' ? 'Saving' : 'Download .eml' }}
           </button>
           <button
@@ -219,6 +222,7 @@ onBeforeUnmount(() => { requestVersion += 1 })
             :disabled="Boolean(busy)"
             @click="deleteCurrent"
           >
+            <AppIcon name="trash-2" />
             {{ busy === 'delete' ? 'Deleting' : 'Delete' }}
           </button>
         </div>
@@ -248,6 +252,7 @@ onBeforeUnmount(() => { requestVersion += 1 })
               :aria-label="`Download ${safeFilename(attachment.filename)}`"
               @click="downloadAttachment(attachment)"
             >
+              <AppIcon name="download" />
               {{ busy === `attachment:${attachment.id}` ? 'Saving' : 'Download' }}
             </button>
           </li>

@@ -199,8 +199,6 @@ onBeforeUnmount(() => {
           v-if="view === 'inbox' && current"
           :session="current"
           :fetch-seconds="site?.fetchSeconds ?? 20"
-          :app-name="site?.appName"
-          :logo-data-url="site?.logoDataUrl"
           @new-address="newAddress"
         />
 

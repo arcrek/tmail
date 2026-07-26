@@ -130,12 +130,12 @@ describe('InboxView polling', () => {
     await flushPromises()
     await wrapper.get('.message-row').trigger('click')
     await flushPromises()
-    expect(wrapper.get('.message-row').attributes('aria-current')).toBe('true')
+    expect(wrapper.get('.message-reader').text()).toContain('Message one')
 
     mocks.messages.mockResolvedValueOnce(collection([]))
     await wrapper.get('[data-action="refresh"]').trigger('click')
     await flushPromises()
-    expect(wrapper.find('.message-row').exists()).toBe(false)
+    expect(wrapper.find('.message-list').exists()).toBe(false)
     expect(wrapper.find('.message-reader').exists()).toBe(true)
   })
 
@@ -145,17 +145,17 @@ describe('InboxView polling', () => {
     })
     await flushPromises()
 
+    expect(wrapper.find('.message-list').exists()).toBe(true)
     await wrapper.get('.message-row').trigger('click')
     await flushPromises()
     expect(wrapper.find('.message-reader').exists()).toBe(true)
-    expect(wrapper.find('.reader-placeholder').exists()).toBe(false)
+    expect(wrapper.find('.message-list').exists()).toBe(false)
 
     await wrapper.get('[data-action="close"]').trigger('click')
     await flushPromises()
 
     expect(wrapper.find('.message-reader').exists()).toBe(false)
     expect(wrapper.find('.message-list').exists()).toBe(true)
-    expect(wrapper.find('.reader-placeholder').exists()).toBe(true)
   })
 
   it('requests notification permission only from its explicit action', async () => {
@@ -189,12 +189,13 @@ describe('InboxView polling', () => {
     await wrapper.get('.message-row').trigger('click')
     await flushPromises()
     await wrapper.get('[data-action="refresh"]').trigger('click')
+    await wrapper.get('[data-action="close"]').trigger('click')
     await wrapper.get('.pagination button:last-child').trigger('click')
     await flushPromises()
 
     expect(mocks.messages).toHaveBeenLastCalledWith('signed', 2)
     expect(wrapper.find('.message-reader').exists()).toBe(false)
-    expect(wrapper.find('.reader-placeholder').exists()).toBe(true)
+    expect(wrapper.find('.message-list').exists()).toBe(true)
     finishRefresh?.(collection(['one'], { next: true }))
   })
 
@@ -274,17 +275,16 @@ describe('InboxView polling', () => {
     expect(JSON.stringify(notifications)).not.toContain('sender@example.com')
   })
 
-  it('uses the approved account, message-list, and reader columns without fake navigation', async () => {
+  it('uses the address hero and message list without fake navigation', async () => {
     const session = { address: 'box@example.com', token: 'signed' }
     const wrapper = mount(InboxView, {
-      props: { session, fetchSeconds: 20, appName: 'Temporary Inbox', logoDataUrl: '' },
+      props: { session, fetchSeconds: 20 },
     })
     await flushPromises()
 
-    expect(wrapper.classes()).toContain('three-pane')
-    expect(wrapper.get('.account-rail').text()).toContain(session.address)
+    expect(wrapper.classes()).toContain('inbox-view')
+    expect(wrapper.get('.inbox-hero').text()).toContain(session.address)
     expect(wrapper.get('.message-list').exists()).toBe(true)
-    expect(wrapper.get('.mail-detail').exists()).toBe(true)
     expect(wrapper.text()).not.toMatch(/Sent|Contacts|Addresses/)
   })
 })
