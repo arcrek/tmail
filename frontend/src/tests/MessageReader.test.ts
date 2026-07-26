@@ -240,4 +240,12 @@ describe('MessageReader', () => {
 
     expect(wrapper.emitted('close')).toHaveLength(1)
   })
+
+  it('focuses the back button on mount so opening the reader does not drop focus to <body>', async () => {
+    const wrapper = mount(MessageReader, { attachTo: document.body, props: { token: 'signed', id: 'one' } })
+    await flushPromises()
+
+    expect(document.activeElement).toBe(wrapper.get('[data-action="close"]').element)
+    wrapper.unmount()
+  })
 })

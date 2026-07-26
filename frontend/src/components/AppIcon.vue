@@ -17,16 +17,9 @@ export type IconName =
   | 'sun'
   | 'moon'
   | 'arrow-left'
-  | 'mail'
-  | 'inbox'
   | 'paperclip'
   | 'external-link'
   | 'file-text'
-  | 'log-out'
-  | 'chevron-left'
-  | 'chevron-right'
-  | 'x'
-  | 'alert-circle'
   | 'sparkles'
   | 'shield'
 
@@ -96,19 +89,6 @@ const ICONS: Record<IconName, Shape[]> = {
     { tag: 'path', attrs: { d: 'm12 19-7-7 7-7' } },
     { tag: 'path', attrs: { d: 'M19 12H5' } },
   ],
-  mail: [
-    { tag: 'path', attrs: { d: 'm22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7' } },
-    { tag: 'rect', attrs: { x: '2', y: '4', width: '20', height: '16', rx: '2' } },
-  ],
-  inbox: [
-    { tag: 'polyline', attrs: { points: '22 12 16 12 14 15 10 15 8 12 2 12' } },
-    {
-      tag: 'path',
-      attrs: {
-        d: 'M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z',
-      },
-    },
-  ],
   paperclip: [
     {
       tag: 'path',
@@ -133,26 +113,6 @@ const ICONS: Record<IconName, Shape[]> = {
     { tag: 'path', attrs: { d: 'M10 9H8' } },
     { tag: 'path', attrs: { d: 'M16 13H8' } },
     { tag: 'path', attrs: { d: 'M16 17H8' } },
-  ],
-  'log-out': [
-    { tag: 'path', attrs: { d: 'm16 17 5-5-5-5' } },
-    { tag: 'path', attrs: { d: 'M21 12H9' } },
-    { tag: 'path', attrs: { d: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4' } },
-  ],
-  'chevron-left': [
-    { tag: 'path', attrs: { d: 'm15 18-6-6 6-6' } },
-  ],
-  'chevron-right': [
-    { tag: 'path', attrs: { d: 'm9 18 6-6-6-6' } },
-  ],
-  x: [
-    { tag: 'path', attrs: { d: 'M18 6 6 18' } },
-    { tag: 'path', attrs: { d: 'm6 6 12 12' } },
-  ],
-  'alert-circle': [
-    { tag: 'circle', attrs: { cx: '12', cy: '12', r: '10' } },
-    { tag: 'line', attrs: { x1: '12', x2: '12', y1: '8', y2: '12' } },
-    { tag: 'line', attrs: { x1: '12', x2: '12.01', y1: '16', y2: '16' } },
   ],
   sparkles: [
     {

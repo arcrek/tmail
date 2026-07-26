@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError, api } from '../api'
 import type { AddressSession, HydraCollection, MessageSummary } from '../types'
 import AppIcon from './AppIcon.vue'
@@ -21,10 +21,18 @@ const notice = ref('')
 const notificationPermission = ref<NotificationPermission>(
   typeof Notification === 'undefined' ? 'denied' : Notification.permission,
 )
+const listHeading = ref<HTMLElement | null>(null)
 let interval: number | undefined
 let requestVersion = 0
 let initialized = false
 let knownIds = new Set<string>()
+
+// The reader replaces the message list in-place (v-if), so closing it unmounts the reader's
+// own focused element; move focus back to the list region instead of dropping to <body>.
+watch(selectedId, (value) => {
+  if (value !== null) return
+  void nextTick(() => listHeading.value?.focus())
+})
 
 const messages = computed(() => collection.value?.['hydra:member'] ?? [])
 const canPrevious = computed(() => Boolean(collection.value?.['hydra:view']['hydra:previous']))
@@ -179,7 +187,7 @@ onBeforeUnmount(() => {
     <div class="panel inbox-hero">
       <div class="inbox-hero-address">
         <small>Your temporary address</small>
-        <strong id="inbox-title">{{ session.address }}</strong>
+        <h1 id="inbox-title" class="inbox-address">{{ session.address }}</h1>
       </div>
 
       <div class="inbox-hero-actions">
@@ -230,7 +238,7 @@ onBeforeUnmount(() => {
     <aside v-else class="panel message-list" aria-label="Messages">
       <div class="list-heading">
         <div>
-          <h2>Messages</h2>
+          <h2 ref="listHeading" tabindex="-1">Messages</h2>
           <span>{{ collection?.['hydra:totalItems'] ?? 0 }} total</span>
         </div>
       </div>

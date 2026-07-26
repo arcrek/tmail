@@ -18,6 +18,30 @@ function darkMediaQuery(): MediaQueryList {
   return window.matchMedia('(prefers-color-scheme: dark)')
 }
 
+/** Legacy MediaQueryList shape (Safari <=13.1 and old WebViews): only the deprecated methods. */
+interface LegacyMediaQueryList {
+  addListener?(listener: (event: MediaQueryListEvent) => void): void
+  removeListener?(listener: (event: MediaQueryListEvent) => void): void
+}
+
+/**
+ * Attaches a change listener, feature-detecting the modern EventTarget API and falling back to
+ * the deprecated addListener/removeListener pair (Safari <=13.1, old WebViews). If neither is
+ * available, does nothing rather than throwing - initTheme() must never crash before the app mounts.
+ */
+function listen(mq: MediaQueryList, handler: (event: MediaQueryListEvent) => void): () => void {
+  if (typeof mq.addEventListener === 'function') {
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }
+  const legacy: LegacyMediaQueryList = mq
+  if (typeof legacy.addListener === 'function') {
+    legacy.addListener(handler)
+    return () => legacy.removeListener?.(handler)
+  }
+  return () => {}
+}
+
 function systemMode(): ThemeMode {
   return darkMediaQuery().matches ? 'dark' : 'light'
 }
@@ -72,7 +96,7 @@ function applyTheme(stored: ThemeMode | null): void {
  */
 export function initTheme(): void {
   applyTheme(readStored())
-  darkMediaQuery().addEventListener('change', () => {
+  listen(darkMediaQuery(), () => {
     if (readStored() === null) applyTheme(null)
   })
 }
@@ -85,8 +109,9 @@ export function useTheme(): { resolved: ComputedRef<ThemeMode>; toggle: () => vo
     if (readStored() === null) resolved.value = systemMode()
   }
 
-  onMounted(() => darkMediaQuery().addEventListener('change', handleSystemChange))
-  onBeforeUnmount(() => darkMediaQuery().removeEventListener('change', handleSystemChange))
+  let stopListening = () => {}
+  onMounted(() => { stopListening = listen(darkMediaQuery(), handleSystemChange) })
+  onBeforeUnmount(() => stopListening())
 
   function toggle(): void {
     const next: ThemeMode = resolved.value === 'dark' ? 'light' : 'dark'

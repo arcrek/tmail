@@ -38,6 +38,42 @@ function stubMatchMedia(initiallyDark: boolean): FakeMediaQueryList {
   return mediaQuery
 }
 
+/**
+ * Stand-in for Safari <=13.1 / old WebView MediaQueryList: only the deprecated addListener /
+ * removeListener pair, no addEventListener at all (calling it would throw a TypeError).
+ */
+class LegacyMediaQueryList {
+  matches: boolean
+  private listeners: Array<(event: { matches: boolean }) => void> = []
+
+  constructor(matches: boolean) {
+    this.matches = matches
+  }
+
+  addListener(listener: (event: { matches: boolean }) => void): void {
+    this.listeners.push(listener)
+  }
+
+  removeListener(listener: (event: { matches: boolean }) => void): void {
+    this.listeners = this.listeners.filter((value) => value !== listener)
+  }
+
+  get listenerCount(): number {
+    return this.listeners.length
+  }
+
+  set(matches: boolean): void {
+    this.matches = matches
+    for (const listener of this.listeners) listener({ matches })
+  }
+}
+
+function stubLegacyMatchMedia(initiallyDark: boolean): LegacyMediaQueryList {
+  const mediaQuery = new LegacyMediaQueryList(initiallyDark)
+  vi.stubGlobal('matchMedia', vi.fn().mockReturnValue(mediaQuery))
+  return mediaQuery
+}
+
 /** index.html declares these two metas; jsdom starts with an empty <head>, so recreate them. */
 function addThemeColorMetas(): void {
   for (const mode of ['light', 'dark'] as const) {
@@ -123,6 +159,12 @@ describe('theme', () => {
       expect(metaFor('light').media).toBe('(prefers-color-scheme: light)')
       expect(metaFor('dark').media).toBe('(prefers-color-scheme: dark)')
     })
+
+    it('does not throw on a legacy MediaQueryList lacking addEventListener and still listens', () => {
+      const mediaQuery = stubLegacyMatchMedia(true)
+      expect(() => initTheme()).not.toThrow()
+      expect(mediaQuery.listenerCount).toBe(1)
+    })
   })
 
   describe('useTheme', () => {
@@ -187,6 +229,15 @@ describe('theme', () => {
       // Simulate a fresh page load with the OS still set to dark.
       initTheme()
       expect(document.documentElement.dataset.theme).toBe('light')
+    })
+
+    it('falls back to legacy addListener/removeListener without throwing when mounted/unmounted', () => {
+      const mediaQuery = stubLegacyMatchMedia(false)
+      const { wrapper } = mountUseTheme()
+      expect(mediaQuery.listenerCount).toBe(1)
+
+      wrapper.unmount()
+      expect(mediaQuery.listenerCount).toBe(0)
     })
 
     it('stops listening for OS preference changes once unmounted', () => {

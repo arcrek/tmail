@@ -130,7 +130,7 @@ function newAddress(): void {
   current.value = null
   error.value = ''
   view.value = 'address'
-  history.pushState({}, '', '/')
+  if (location.pathname !== '/') history.pushState({}, '', '/')
 }
 
 async function loadSite(): Promise<void> {

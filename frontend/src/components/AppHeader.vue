@@ -21,7 +21,7 @@ function onBrandClick(event: MouseEvent): void {
   <header class="app-header">
     <a class="brand" href="/" @click="onBrandClick">
       <img v-if="logoDataUrl" :src="logoDataUrl" alt="">
-      <span>{{ appName }}</span>
+      <span class="brand-name">{{ appName }}</span>
     </a>
 
     <nav class="app-header-nav" aria-label="Site navigation">

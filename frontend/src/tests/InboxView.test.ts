@@ -158,6 +158,24 @@ describe('InboxView polling', () => {
     expect(wrapper.find('.message-list').exists()).toBe(true)
   })
 
+  it('moves focus to the back button when the reader opens and back to the list on close', async () => {
+    const wrapper = mount(InboxView, {
+      attachTo: document.body,
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 30 },
+    })
+    await flushPromises()
+
+    await wrapper.get('.message-row').trigger('click')
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get('[data-action="close"]').element)
+
+    await wrapper.get('[data-action="close"]').trigger('click')
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get('.list-heading h2').element)
+
+    wrapper.unmount()
+  })
+
   it('requests notification permission only from its explicit action', async () => {
     const requestPermission = vi.fn().mockResolvedValue('granted')
     vi.stubGlobal('Notification', class {

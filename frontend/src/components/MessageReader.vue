@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError, api } from '../api'
 import type { AttachmentResource, MessageResource } from '../types'
 import AppIcon from './AppIcon.vue'
@@ -19,6 +19,7 @@ const error = ref('')
 const actionError = ref('')
 const bodyMode = ref<'html' | 'text'>('html')
 const busy = ref('')
+const backButton = ref<HTMLButtonElement | null>(null)
 let requestVersion = 0
 
 function formatAddress(value: { name: string; address: string }): string {
@@ -175,12 +176,22 @@ async function deleteCurrent(): Promise<void> {
 }
 
 watch(() => [props.token, props.id], () => void loadMessage(), { immediate: true })
+// The reader replaces the message list in-place, so the click that opened it unmounts the
+// previously focused row; move focus onto the back button so keyboard/AT users land somewhere
+// meaningful instead of dropping to <body>.
+onMounted(() => backButton.value?.focus())
 onBeforeUnmount(() => { requestVersion += 1 })
 </script>
 
 <template>
   <article class="message-reader panel" aria-live="polite">
-    <button class="reader-back secondary-button" type="button" data-action="close" @click="emit('close')">
+    <button
+      ref="backButton"
+      class="reader-back secondary-button"
+      type="button"
+      data-action="close"
+      @click="emit('close')"
+    >
       <AppIcon name="arrow-left" />
       Back to inbox
     </button>
