@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AddressPanel from './components/AddressPanel.vue'
+import AppHeader from './components/AppHeader.vue'
 import InboxView from './components/InboxView.vue'
 import SandboxFrame from './components/SandboxFrame.vue'
 import AdminApp from './admin/AdminApp.vue'
@@ -170,6 +171,13 @@ onBeforeUnmount(() => {
       mode="content"
       title="Configured site header"
     />
+
+    <AppHeader
+      :app-name="site?.appName"
+      :logo-data-url="site?.logoDataUrl"
+      @home="newAddress"
+    />
+
     <main>
       <SandboxFrame
         v-for="([name, html]) in adSlots"
@@ -186,29 +194,29 @@ onBeforeUnmount(() => {
         :logo-data-url="site?.logoDataUrl"
       />
 
-      <InboxView
-        v-else-if="view === 'inbox' && current"
-        :session="current"
-        :fetch-seconds="site?.fetchSeconds ?? 20"
-        :app-name="site?.appName"
-        :logo-data-url="site?.logoDataUrl"
-        @new-address="newAddress"
-      />
+      <div v-else class="page">
+        <InboxView
+          v-if="view === 'inbox' && current"
+          :session="current"
+          :fetch-seconds="site?.fetchSeconds ?? 20"
+          :app-name="site?.appName"
+          :logo-data-url="site?.logoDataUrl"
+          @new-address="newAddress"
+        />
 
-      <section v-else-if="loading" class="handoff-loading" aria-live="polite">
-        <span class="skeleton skeleton-label" />
-        <span class="skeleton skeleton-title" />
-        <span class="skeleton skeleton-field" />
-        <span class="sr-only">Opening address</span>
-      </section>
+        <section v-else-if="loading" class="handoff-loading" aria-live="polite">
+          <span class="skeleton skeleton-label" />
+          <span class="skeleton skeleton-title" />
+          <span class="skeleton skeleton-field" />
+          <span class="sr-only">Opening address</span>
+        </section>
 
-      <AddressPanel
-        v-else
-        :initial-error="error"
-        :app-name="site?.appName"
-        :logo-data-url="site?.logoDataUrl"
-        @open="openCreatedInbox"
-      />
+        <AddressPanel
+          v-else
+          :initial-error="error"
+          @open="openCreatedInbox"
+        />
+      </div>
     </main>
 
     <section

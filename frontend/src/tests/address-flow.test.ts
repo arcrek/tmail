@@ -13,12 +13,27 @@ const mocks = vi.hoisted(() => ({
   messages: vi.fn(),
 }))
 
-enableAutoUnmount(afterEach)
-
 vi.mock('../api', async () => {
   const actual = await vi.importActual<typeof import('../api')>('../api')
   return { ...actual, api: { ...actual.api, ...mocks } }
 })
+
+// AppHeader renders ThemeToggle, whose useTheme() composable reads matchMedia on mount and
+// unmount; jsdom has no real implementation. Assigned directly (not vi.stubGlobal) so it
+// survives vi.unstubAllGlobals() in this file's afterEach and stays in place for every test's
+// mount/unmount cycle, regardless of hook ordering.
+if (typeof window.matchMedia !== 'function') {
+  window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia
+}
 
 const domains = (values: string[]) => ({
   '@context': '/contexts/Domain',
@@ -27,6 +42,8 @@ const domains = (values: string[]) => ({
   'hydra:totalItems': values.length,
   'hydra:member': values.map((domain, index) => ({ id: String(index), domain })),
 })
+
+enableAutoUnmount(afterEach)
 
 describe('address flow', () => {
   beforeEach(() => {
@@ -97,14 +114,14 @@ describe('address flow', () => {
     expect(wrapper.text()).not.toContain('Configured header')
   })
 
-  it('uses the approved public address columns', async () => {
+  it('uses the approved public shell and home layout', async () => {
     const wrapper = mount(App)
     await flushPromises()
 
-    expect(wrapper.get('.address-layout').classes()).toContain('three-pane')
-    expect(wrapper.get('.account-rail').text()).toContain('Temporary Inbox')
+    expect(wrapper.get('.app-header .brand').text()).toContain('Temporary Inbox')
     expect(wrapper.get('.saved-inboxes').exists()).toBe(true)
-    expect(wrapper.get('.address-detail').text()).toContain('Create an address')
+    expect(wrapper.get('.home-hero').text()).toContain('Receive mail. Keep your address.')
+    expect(wrapper.get('.address-form').text()).toContain('Create an address')
   })
 
   it('applies and cleans up configured branding, language, favicon, and cookie notice', async () => {
@@ -137,8 +154,8 @@ describe('address flow', () => {
     const wrapper = mount(App)
     await flushPromises()
 
-    expect(wrapper.get('.rail-brand img').attributes('src')).toBe('data:image/png;base64,bG9nbw==')
-    expect(wrapper.get('.rail-brand').text()).toBe('Configured Mail')
+    expect(wrapper.get('.app-header .brand img').attributes('src')).toBe('data:image/png;base64,bG9nbw==')
+    expect(wrapper.get('.app-header .brand').text()).toBe('Configured Mail')
     expect(wrapper.get('[role="status"][aria-label="Cookie notice"]').text()).toContain('necessary preference cookie')
     expect(root.style.getPropertyValue('--brand-primary')).toBe('#123456')
     expect(root.style.getPropertyValue('--brand-accent')).toBe('#654321')

@@ -204,6 +204,91 @@ main {
   min-height: 100dvh;
 }
 
+/* App shell: site-wide header + centered page wrapper for the public address/inbox views. */
+
+.app-icon {
+  width: 1.1em;
+  height: 1.1em;
+  flex-shrink: 0;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) clamp(1rem, 4vw, 2rem);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.app-header .brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 44px;
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.app-header .brand img {
+  width: 1.75rem;
+  height: 1.75rem;
+  object-fit: contain;
+}
+
+.app-header-nav {
+  display: flex;
+  align-items: center;
+  gap: clamp(1rem, 2vw, 1.5rem);
+}
+
+.app-header-nav a {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.app-header-nav a:hover {
+  color: var(--ink);
+}
+
+.theme-toggle {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.theme-toggle:hover {
+  border-color: var(--ink);
+}
+
+.page {
+  width: min(100% - 2rem, 46rem);
+  margin-inline: auto;
+  padding-block: 0 clamp(2rem, 6vw, 4rem);
+  display: grid;
+  gap: var(--space-6);
+}
+
+.home-hero {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding-block: clamp(2rem, 6vw, 3.5rem) 0;
+  text-align: center;
+}
+
 .three-pane {
   display: grid;
   grid-template-columns: minmax(13.5rem, 0.72fr) minmax(18rem, 0.9fr) minmax(28rem, 1.9fr);
@@ -212,8 +297,7 @@ main {
 }
 
 .account-rail,
-.message-list,
-.saved-inboxes {
+.message-list {
   min-width: 0;
   border-right: 1px solid var(--line);
 }
@@ -322,30 +406,6 @@ main {
   background: transparent;
   color: var(--muted);
   text-align: left;
-}
-
-.saved-inboxes {
-  padding: 1.25rem 1rem;
-}
-
-.address-detail {
-  display: grid;
-  align-content: center;
-  gap: 2rem;
-  padding: clamp(2rem, 7vw, 6rem);
-}
-
-.address-intro h1 {
-  max-width: 15ch;
-  margin-bottom: 1rem;
-  font-size: 2rem;
-  letter-spacing: -0.035em;
-  line-height: 1.1;
-}
-
-.address-workspace {
-  display: grid;
-  gap: 2rem;
 }
 
 .eyebrow {
@@ -476,8 +536,10 @@ textarea {
 }
 
 .text-button,
-.saved-address,
-.forget-button {
+.saved-address {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   border: 0;
   background: transparent;
   color: var(--indigo-dark);
@@ -488,17 +550,17 @@ textarea {
   text-underline-offset: 0.22em;
 }
 
-.remembered {
-  border-top: 0;
+.saved-inboxes {
+  padding: clamp(1.4rem, 3vw, 2rem);
 }
 
-.remembered ul {
+.saved-inboxes ul {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.remembered li {
+.saved-inboxes li {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -507,15 +569,34 @@ textarea {
   border-bottom: 1px solid var(--line);
 }
 
+.saved-inboxes li:last-child {
+  border-bottom: 0;
+}
+
 .saved-address {
   overflow: hidden;
-  color: var(--ink);
+  text-decoration: none;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--font-mono);
+  color: var(--ink);
 }
 
 .forget-button {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+}
+
+.forget-button:hover {
+  border-color: var(--line);
+  background: var(--surface-2);
   color: var(--red);
 }
 
@@ -1273,8 +1354,7 @@ button:active:not(:disabled) {
     grid-template-columns: 12rem minmax(17rem, 1fr);
   }
 
-  .mail-detail,
-  .address-detail {
+  .mail-detail {
     grid-column: 2;
   }
 
@@ -1309,12 +1389,10 @@ button:active:not(:disabled) {
     border-bottom: 1px solid var(--line);
   }
 
-  .message-list,
-  .saved-inboxes {
+  .message-list {
     border-right: 0;
   }
 
-  .address-detail,
   .message-reader {
     padding: 1rem;
   }
