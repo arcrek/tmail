@@ -188,11 +188,7 @@ onBeforeUnmount(() => {
         mode="content"
         :title="`Configured ${name} content`"
       />
-      <AdminApp
-        v-if="view === 'admin'"
-        :app-name="site?.appName"
-        :logo-data-url="site?.logoDataUrl"
-      />
+      <AdminApp v-if="view === 'admin'" />
 
       <div v-else class="page">
         <InboxView

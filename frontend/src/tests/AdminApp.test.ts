@@ -131,12 +131,17 @@ describe('administration frontend', () => {
     vi.unstubAllGlobals()
   })
 
-  it('keeps the admin shell compact at the shared tablet breakpoint', () => {
+  it('keeps the admin shell compact at the shared tablet breakpoint and themed on real tokens', () => {
     expect(styles).not.toContain('@media (max-width: 900px)')
     expect(styles).toMatch(/@media \(max-width: 952px\) \{[\s\S]*?\.admin-shell\.three-pane \{[\s\S]*?\.admin-content \{\s*grid-column: 2;/)
     expect(styles).toMatch(/\.admin-section \{[^}]*padding: 0;/)
     expect(styles).toMatch(/\.admin-section > h1,[^}]*font-size: clamp\(1\.6rem, 3vw, 2rem\);/)
     expect(styles).toMatch(/\.admin-login-panel h1 \{[^}]*font-size: clamp\(1\.6rem, 3vw, 2rem\);/)
+    expect(styles).toMatch(/\[data-theme=['"]dark['"]\]\s*\{/)
+    expect(styles).toMatch(/@media \(prefers-color-scheme: dark\)[\s\S]*?:root:not\(\[data-theme=['"]light['"]\]\)/)
+    expect(styles).not.toContain('#fffdf7')
+    expect(styles).not.toContain('#55534d')
+    expect(styles).not.toContain('backdrop-filter')
   })
 
   it('logs in without persisting the password and exposes tabs in the required order', async () => {
@@ -162,7 +167,7 @@ describe('administration frontend', () => {
       'HTML & Ads',
     ])
     expect(wrapper.get('.admin-shell').classes()).toContain('three-pane')
-    expect(wrapper.get('.admin-account-rail').text()).toContain('tmail')
+    expect(wrapper.get('.admin-account-rail').text()).toContain('Healthy')
     expect(wrapper.get('.admin-sidebar').text()).toContain('Dashboard')
     expect(wrapper.get('.admin-content [role="tabpanel"]').exists()).toBe(true)
     expect(wrapper.text()).not.toMatch(/Sent|Contacts|Addresses/)

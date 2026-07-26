@@ -91,8 +91,8 @@ async function save(): Promise<void> {
         <div class="settings-grid">
           <div class="field"><label for="app-name">App name</label><input id="app-name" v-model.trim="draft.appName" name="appName" required></div>
           <div class="field"><label for="language">Language</label><input id="language" v-model.trim="draft.language" name="language" required></div>
-          <div class="field"><label for="primary-color">Primary color</label><input id="primary-color" v-model="draft.primaryColor" name="primaryColor" type="color"></div>
-          <div class="field"><label for="accent-color">Accent color</label><input id="accent-color" v-model="draft.accentColor" name="accentColor" type="color"></div>
+          <div class="field"><label for="primary-color">Primary color</label><input id="primary-color" v-model="draft.primaryColor" name="primaryColor" type="color"><small>Used in both light and dark themes</small></div>
+          <div class="field"><label for="accent-color">Accent color</label><input id="accent-color" v-model="draft.accentColor" name="accentColor" type="color"><small>Used in both light and dark themes</small></div>
           <div class="field"><label for="logo">Logo image</label><input id="logo" name="logo" type="file" accept="image/*" @change="chooseImage($event, 'logoDataUrl')"><small>Image, 1 MiB maximum.</small></div>
           <div class="field"><label for="favicon">Favicon image</label><input id="favicon" name="favicon" type="file" accept="image/*" @change="chooseImage($event, 'faviconDataUrl')"><small>Image, 1 MiB maximum.</small></div>
         </div>

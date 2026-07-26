@@ -8,11 +8,6 @@ import DomainsTab from './DomainsTab.vue'
 import GeneralTab from './GeneralTab.vue'
 import MailServerTab from './MailServerTab.vue'
 
-withDefaults(defineProps<{ appName?: string; logoDataUrl?: string }>(), {
-  appName: 'Temporary Inbox',
-  logoDataUrl: '',
-})
-
 const tabs = ['Dashboard', 'General', 'Mail Server', 'Domains & Inbox', 'HTML & Ads'] as const
 type Tab = typeof tabs[number]
 
@@ -150,15 +145,6 @@ async function logout(): Promise<void> {
 
   <div v-else class="admin-shell three-pane">
     <aside class="admin-account-rail account-rail">
-      <a class="rail-brand" href="/">
-        <img v-if="settings.site.logoDataUrl || logoDataUrl" :src="settings.site.logoDataUrl || logoDataUrl" alt="">
-        <span>{{ settings.site.appName || appName }}</span>
-      </a>
-      <nav class="rail-nav" aria-label="Application navigation">
-        <a href="/">Public inbox</a>
-        <span aria-current="page">Administration</span>
-        <a href="/docs">API docs</a>
-      </nav>
       <div class="api-status"><i aria-hidden="true" /> API status <strong>Healthy</strong></div>
       <button class="rail-signout" type="button" :disabled="pending || childBusy" @click="logout">
         {{ pending ? 'Logging out' : 'Log out' }}
