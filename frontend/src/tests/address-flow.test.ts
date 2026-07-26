@@ -285,6 +285,37 @@ describe('address flow', () => {
     expect(pushState).toHaveBeenCalledTimes(3)
   })
 
+  it('returns to the address form when the header brand is clicked', async () => {
+    history.replaceState({}, '', '/box@example.com')
+    const wrapper = mount(App)
+    await flushPromises()
+    expect(wrapper.find('.inbox-view').exists()).toBe(true)
+
+    await wrapper.get('.app-header .brand').trigger('click')
+    await flushPromises()
+
+    expect(location.pathname).toBe('/')
+    expect(wrapper.find('.inbox-view').exists()).toBe(false)
+    expect(wrapper.get('.home-hero').text()).toContain('Receive mail. Keep your address.')
+  })
+
+  it('leaves a modifier-clicked header brand alone (no reset, no address change)', async () => {
+    history.replaceState({}, '', '/box@example.com')
+    const wrapper = mount(App)
+    await flushPromises()
+    expect(wrapper.find('.inbox-view').exists()).toBe(true)
+    const pathBefore = location.pathname
+
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true })
+    const prevented = !wrapper.get('.app-header .brand').element.dispatchEvent(event)
+    await flushPromises()
+
+    expect(prevented).toBe(false)
+    expect(location.pathname).toBe(pathBefore)
+    expect(wrapper.find('.inbox-view').exists()).toBe(true)
+    expect(wrapper.text()).toContain('box@example.com')
+  })
+
   it('removes its history listener when the app unmounts', async () => {
     const add = vi.spyOn(window, 'addEventListener')
     const remove = vi.spyOn(window, 'removeEventListener')
