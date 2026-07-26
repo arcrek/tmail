@@ -1,17 +1,60 @@
 :root {
   color-scheme: light;
-  font-family: Arial, Helvetica, sans-serif;
-  --canvas: #f8f9fb;
-  --surface: #ffffff;
-  --surface-selected: #eef3ff;
-  --ink: #111827;
-  --muted: #6b7280;
-  --line: #e5e7eb;
-  --primary: #2448c8;
-  --accent: #17379e;
-  --green: #169b55;
-  --red: #d9363e;
-  --radius: 5px;
+  font-family: var(--font-sans);
+
+  /* Brand indirection: site admin overrides only touch these two; every other color
+     token below derives from them so a re-skin never has to know the derivation math. */
+  --brand-primary: #4f46e5;
+  --brand-accent: #4338ca;
+
+  /* Light surfaces */
+  --canvas: #f6f7fb;
+  --surface: #fff;
+  --surface-2: #eef0f6;
+  --ink: #111322;
+  --muted: #5d6370;
+  --line: #e4e7ef;
+  --green: #15803d;
+  --red: #dc2626;
+
+  /* Derived brand tones (light) */
+  --primary: var(--brand-primary);
+  --primary-hover: color-mix(in srgb, var(--brand-primary) 85%, black);
+  --primary-soft: color-mix(in srgb, var(--brand-primary) 10%, white);
+  --accent: var(--brand-accent);
+  --accent-soft: color-mix(in srgb, var(--brand-accent) 10%, white);
+  --on-primary: #fff;
+  --surface-selected: var(--primary-soft);
+
+  --shadow-1: 0 1px 2px rgba(17, 19, 34, 0.06), 0 1px 1px rgba(17, 19, 34, 0.04);
+  --shadow-2: 0 8px 24px rgba(17, 19, 34, 0.1), 0 2px 6px rgba(17, 19, 34, 0.06);
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
+
+  /* Spacing scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  /* Type scale */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+
+  --transition: 180ms ease;
+
+  --font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Consolas, monospace;
+
   /* Keep the admin surface stable until its separate redesign task. */
   --paper: var(--canvas);
   --paper-raised: var(--surface);
@@ -19,6 +62,55 @@
   --indigo-dark: var(--accent);
   background: var(--canvas);
   color: var(--ink);
+}
+
+/* Explicit dark theme, chosen via the theme toggle (persisted in localStorage). */
+[data-theme='dark'] {
+  color-scheme: dark;
+  --canvas: #0e1015;
+  --surface: #161923;
+  --surface-2: #1e2230;
+  --ink: #e7e9f1;
+  --muted: #98a0b3;
+  --line: #272c3a;
+
+  --primary: color-mix(in srgb, var(--brand-primary) 72%, white);
+  --primary-hover: color-mix(in srgb, var(--brand-primary) 60%, white);
+  --primary-soft: color-mix(in srgb, var(--primary) 22%, var(--surface));
+  --accent: color-mix(in srgb, var(--brand-accent) 72%, white);
+  --accent-soft: color-mix(in srgb, var(--accent) 22%, var(--surface));
+  --on-primary: #0e1015;
+
+  --shadow-1: none;
+  --shadow-2: none;
+}
+
+/*
+ * No-flash dark default: while the user hasn't made an explicit choice (no data-theme, or
+ * initTheme() hasn't run yet), follow the OS preference purely in CSS. This block duplicates
+ * the values above on purpose - it has to apply before any JS runs, and `:not([data-theme='light'])`
+ * lets an explicit light choice always win over the OS setting.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --canvas: #0e1015;
+    --surface: #161923;
+    --surface-2: #1e2230;
+    --ink: #e7e9f1;
+    --muted: #98a0b3;
+    --line: #272c3a;
+
+    --primary: color-mix(in srgb, var(--brand-primary) 72%, white);
+    --primary-hover: color-mix(in srgb, var(--brand-primary) 60%, white);
+    --primary-soft: color-mix(in srgb, var(--primary) 22%, var(--surface));
+    --accent: color-mix(in srgb, var(--brand-accent) 72%, white);
+    --accent-soft: color-mix(in srgb, var(--accent) 22%, var(--surface));
+    --on-primary: #0e1015;
+
+    --shadow-1: none;
+    --shadow-2: none;
+  }
 }
 
 * {
@@ -348,7 +440,7 @@ textarea {
   padding: 0.65rem 0;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.82rem;
   overflow-wrap: anywhere;
 }
@@ -374,7 +466,7 @@ textarea {
 .primary-button {
   border: 1px solid var(--primary);
   background: var(--primary);
-  color: #fff;
+  color: var(--on-primary);
 }
 
 .secondary-button {
@@ -559,7 +651,7 @@ textarea {
 
 .metric-grid dd {
   margin: 1.5rem 0 0;
-  font: 650 clamp(2rem, 5vw, 3.8rem)/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  font: 650 clamp(2rem, 5vw, 3.8rem)/1 var(--font-mono);
 }
 
 .metric-skeleton {
@@ -656,7 +748,7 @@ th {
   align-items: center;
   gap: 0.7rem;
   width: fit-content;
-  color: #55534d;
+  color: var(--muted);
   font-size: 0.82rem;
   font-weight: 700;
 }
@@ -702,7 +794,7 @@ th {
 .domain-list li {
   padding: 0.7rem 0;
   border-bottom: 1px solid var(--line);
-  font: 0.78rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+  font: 0.78rem/1.4 var(--font-mono);
   overflow-wrap: anywhere;
 }
 
@@ -722,7 +814,7 @@ th {
 
 .content-editor-grid .sandbox-frame {
   min-height: 15rem;
-  background: #fffdf7;
+  background: var(--surface);
 }
 
 .ad-settings {
@@ -758,8 +850,8 @@ th {
 
 .skeleton {
   display: block;
-  border: 1px solid #d1ccc0;
-  background: #e2ded3;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--ink) 8%, var(--surface));
 }
 
 .skeleton-label {
@@ -1109,7 +1201,7 @@ th {
 .body-switcher button[aria-pressed="true"] {
   border-color: var(--indigo-dark);
   background: var(--indigo);
-  color: #fffdf7;
+  color: var(--on-primary);
 }
 
 .sandbox-frame {
@@ -1145,7 +1237,7 @@ th {
   border: 1px solid var(--line);
   background: #fff;
   color: var(--ink);
-  font: 0.88rem/1.6 ui-monospace, SFMono-Regular, Consolas, monospace;
+  font: 0.88rem/1.6 var(--font-mono);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }

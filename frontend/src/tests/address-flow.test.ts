@@ -111,8 +111,8 @@ describe('address flow', () => {
     const root = document.documentElement
     const originalLanguage = root.lang
     const originalTitle = document.title
-    root.style.setProperty('--primary', '#111111')
-    root.style.setProperty('--accent', '#222222')
+    root.style.setProperty('--brand-primary', '#111111')
+    root.style.setProperty('--brand-accent', '#222222')
     const favicon = document.createElement('link')
     favicon.rel = 'icon'
     favicon.href = '/original.ico'
@@ -140,21 +140,21 @@ describe('address flow', () => {
     expect(wrapper.get('.rail-brand img').attributes('src')).toBe('data:image/png;base64,bG9nbw==')
     expect(wrapper.get('.rail-brand').text()).toBe('Configured Mail')
     expect(wrapper.get('[role="status"][aria-label="Cookie notice"]').text()).toContain('necessary preference cookie')
-    expect(root.style.getPropertyValue('--primary')).toBe('#123456')
-    expect(root.style.getPropertyValue('--accent')).toBe('#654321')
+    expect(root.style.getPropertyValue('--brand-primary')).toBe('#123456')
+    expect(root.style.getPropertyValue('--brand-accent')).toBe('#654321')
     expect(root.lang).toBe('de')
     expect(document.title).toBe('Configured Mail')
     expect(favicon.getAttribute('href')).toBe('data:image/png;base64,aWNvbg==')
 
     wrapper.unmount()
-    expect(root.style.getPropertyValue('--primary')).toBe('#111111')
-    expect(root.style.getPropertyValue('--accent')).toBe('#222222')
+    expect(root.style.getPropertyValue('--brand-primary')).toBe('#111111')
+    expect(root.style.getPropertyValue('--brand-accent')).toBe('#222222')
     expect(root.lang).toBe(originalLanguage)
     expect(document.title).toBe(originalTitle)
     expect(favicon.getAttribute('href')).toBe('/original.ico')
     favicon.remove()
-    root.style.removeProperty('--primary')
-    root.style.removeProperty('--accent')
+    root.style.removeProperty('--brand-primary')
+    root.style.removeProperty('--brand-accent')
   })
 
   it('hands malformed address-shaped links to token validation for a clear error', async () => {

@@ -21,8 +21,8 @@ let navigationVersion = 0
 let siteVersion = 0
 const root = document.documentElement
 const originalLanguage = root.getAttribute('lang')
-const originalPrimary = root.style.getPropertyValue('--primary')
-const originalAccent = root.style.getPropertyValue('--accent')
+const originalPrimary = root.style.getPropertyValue('--brand-primary')
+const originalAccent = root.style.getPropertyValue('--brand-accent')
 const originalTitle = document.title
 const originalFavicon = document.head.querySelector<HTMLLinkElement>('link[rel~="icon"]')
 const originalFaviconHref = originalFavicon?.getAttribute('href') ?? null
@@ -34,8 +34,8 @@ const adSlots = computed(() => Object.entries(site.value?.adSlots ?? {})
 
 function applySite(value: SiteResource | null): void {
   if (!value) return
-  root.style.setProperty('--primary', value.primaryColor)
-  root.style.setProperty('--accent', value.accentColor)
+  root.style.setProperty('--brand-primary', value.primaryColor)
+  root.style.setProperty('--brand-accent', value.accentColor)
   root.lang = value.language
   document.title = value.appName
   if (value.faviconDataUrl) {
@@ -58,10 +58,10 @@ function applySite(value: SiteResource | null): void {
 }
 
 function cleanupSite(): void {
-  if (originalPrimary) root.style.setProperty('--primary', originalPrimary)
-  else root.style.removeProperty('--primary')
-  if (originalAccent) root.style.setProperty('--accent', originalAccent)
-  else root.style.removeProperty('--accent')
+  if (originalPrimary) root.style.setProperty('--brand-primary', originalPrimary)
+  else root.style.removeProperty('--brand-primary')
+  if (originalAccent) root.style.setProperty('--brand-accent', originalAccent)
+  else root.style.removeProperty('--brand-accent')
   if (originalLanguage === null) root.removeAttribute('lang')
   else root.setAttribute('lang', originalLanguage)
   document.title = originalTitle

@@ -17,6 +17,8 @@ export default defineConfig({
       '/sources': proxy,
       '/site': proxy,
       '/admin/api': proxy,
+      '/sandbox': proxy,
+      '/message-sandbox': proxy,
     },
   },
   build: {
