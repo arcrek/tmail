@@ -23,5 +23,10 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    // Never inline assets as data: URIs: the production CSP is `default-src 'self'` with no
+    // font-src override, so a data:font/... woff2 falls back to default-src and is blocked.
+    // Keeping every asset a same-origin file (the default Vite behavior above 0 bytes would
+    // otherwise inline small @fontsource woff2 subsets) is required, not just a size tradeoff.
+    assetsInlineLimit: 0,
   },
 })
