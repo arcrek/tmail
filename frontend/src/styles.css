@@ -1065,8 +1065,7 @@ th {
   text-align: left;
 }
 
-.message-row:hover,
-.message-row.selected {
+.message-row:hover {
   background: var(--surface-selected);
 }
 

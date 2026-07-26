@@ -259,9 +259,8 @@ onBeforeUnmount(() => {
           v-for="item in messages"
           :key="item.id"
           class="message-row"
-          :class="{ unread: !item.seen, selected: selectedId === item.id }"
+          :class="{ unread: !item.seen }"
           type="button"
-          :aria-current="selectedId === item.id"
           @click="selectedId = item.id"
         >
           <span class="message-row-top">
