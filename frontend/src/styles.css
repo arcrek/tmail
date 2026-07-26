@@ -73,7 +73,7 @@
 
   --primary: color-mix(in srgb, var(--brand-primary) 72%, white);
   --primary-hover: color-mix(in srgb, var(--brand-primary) 60%, white);
-  --primary-soft: color-mix(in srgb, var(--primary) 28%, var(--surface));
+  --primary-soft: color-mix(in srgb, var(--primary) 5%, var(--surface));
   --accent: color-mix(in srgb, var(--brand-accent) 72%, white);
   --accent-soft: color-mix(in srgb, var(--accent) 22%, var(--surface));
   --on-primary: #0e1015;
@@ -99,7 +99,7 @@
 
     --primary: color-mix(in srgb, var(--brand-primary) 72%, white);
     --primary-hover: color-mix(in srgb, var(--brand-primary) 60%, white);
-    --primary-soft: color-mix(in srgb, var(--primary) 28%, var(--surface));
+    --primary-soft: color-mix(in srgb, var(--primary) 5%, var(--surface));
     --accent: color-mix(in srgb, var(--brand-accent) 72%, white);
     --accent-soft: color-mix(in srgb, var(--accent) 22%, var(--surface));
     --on-primary: #0e1015;
