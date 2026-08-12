@@ -1,4 +1,4 @@
-# TMail Add Domain
+# TMail
 
 Temporary-mail service for domains handled by Postfix and Stalwart. It provisions domains whose MX points to this server, then provides a passwordless public inbox and an administrator console.
 
