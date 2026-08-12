@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
-from src.api_auth import AddressValidationError, _LOCAL_PART, _domain, active_domains
+from src.api_auth import AddressValidationError, _LOCAL_PART, _domain, _domain_rule, active_domains
 from src.jmap_client import JmapClient
 
 
@@ -133,7 +133,7 @@ def _validate_site(values: dict[str, object]) -> dict[str, object]:
         result[key] = _image(result[key], key)
     result["forbidden_ids"] = _list(result["forbidden_ids"], "forbidden_ids", str.lower)
     result["blocked_sender_domains"] = _list(result["blocked_sender_domains"], "blocked_sender_domains", _domain)
-    result["blacklisted_domains"] = _list(result["blacklisted_domains"], "blacklisted_domains", _domain)
+    result["blacklisted_domains"] = _list(result["blacklisted_domains"], "blacklisted_domains", _domain_rule)
     result["manual_domains"] = _list(result["manual_domains"], "manual_domains", _domain)
     for key in ("header_html", "footer_html", "content_css"):
         value = _string(result[key], key)

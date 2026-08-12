@@ -382,6 +382,21 @@ def test_blacklisted_domain_is_denied_only_on_the_public_api(client, bearer):
     assert client.get("/messages", headers=bearer).status_code == 401
 
 
+def test_wildcard_blacklist_blocks_public_access_except_manual_domains(client):
+    client.app.state.domain_cache.replace(["thesunk.edu.vn", "mail.thesunk.edu.vn", "other.example"])
+    token = client.post("/token", json={"address": "box@thesunk.edu.vn"}).json()["token"]
+    client.app.state.state_store.update_settings({
+        "blacklisted_domains": ["*.thesunk.edu.vn"],
+        "manual_domains": ["mail.thesunk.edu.vn"],
+    })
+
+    assert [item["domain"] for item in client.get("/domains").json()["hydra:member"]] == ["mail.thesunk.edu.vn", "other.example"]
+    assert client.post("/accounts", json={"address": "box@thesunk.edu.vn"}).status_code == 422
+    assert client.post("/token", json={"address": "box@thesunk.edu.vn"}).status_code == 422
+    assert client.get("/me", headers={"Authorization": f"Bearer {token}"}).status_code == 401
+    assert client.post("/token", json={"address": "box@mail.thesunk.edu.vn"}).status_code == 200
+
+
 def test_request_validation_and_jmap_failure_use_hydra(client, bearer, fake_jmap):
     invalid = client.post("/token", json={})
     fake_jmap.list_messages.side_effect = RuntimeError("private upstream detail")

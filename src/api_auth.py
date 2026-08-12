@@ -28,6 +28,20 @@ def _domain(value: str) -> str:
     return domain
 
 
+def _domain_rule(value: str) -> str:
+    if isinstance(value, str) and value.startswith("*."):
+        return f"*.{_domain(value[2:])}"
+    return _domain(value)
+
+
+def _domain_matches_rule(domain: str, rule: str) -> bool:
+    domain = _domain(domain)
+    rule = _domain_rule(rule)
+    return domain == rule or rule.startswith("*.") and (
+        domain == rule[2:] or domain.endswith(f".{rule[2:]}")
+    )
+
+
 def _token_address(address: str) -> str:
     try:
         local, domain = address.split("@")

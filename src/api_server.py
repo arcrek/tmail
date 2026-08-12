@@ -19,7 +19,7 @@ from starlette.background import BackgroundTask
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
-from src.api_auth import AddressToken, AddressValidationError, _domain, active_domains, normalize_address
+from src.api_auth import AddressToken, AddressValidationError, _domain, _domain_matches_rule, active_domains, normalize_address
 from src.admin_api import refresh_domains, router as admin_router
 from src.api_models import (
     AccountResource,
@@ -230,8 +230,11 @@ def _stable_id(kind: str, value: str) -> str:
 
 def current_domains(request: Request, config: Config | None = None) -> list[str]:
     domains = active_domains(request.app.state.domain_cache, request.app.state.state_store)
-    blacklisted = set(request.app.state.state_store.get_settings()["blacklisted_domains"])
-    return [domain for domain in domains if domain not in blacklisted]
+    settings = request.app.state.state_store.get_settings()
+    manual = {_domain(value) for value in settings["manual_domains"]}
+    return [domain for domain in domains if domain in manual or not any(
+        _domain_matches_rule(domain, rule) for rule in settings["blacklisted_domains"]
+    )]
 
 
 def _address(request: Request, value: str, config: Config | None = None) -> str:
@@ -240,7 +243,9 @@ def _address(request: Request, value: str, config: Config | None = None) -> str:
     try:
         raw_domain = value.rsplit("@", 1)[1] if value.count("@") == 1 else ""
         raw_domain = _domain(raw_domain)
-        missing = raw_domain not in domains and raw_domain not in settings["blacklisted_domains"]
+        missing = raw_domain not in domains and not any(
+            _domain_matches_rule(raw_domain, rule) for rule in settings["blacklisted_domains"]
+        )
     except AddressValidationError:
         missing = False
     if missing and settings["auto_sync_domains"]:

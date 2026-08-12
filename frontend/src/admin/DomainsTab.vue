@@ -154,6 +154,26 @@ async function addManualDomain(): Promise<void> {
   }
 }
 
+async function removeDomain(domain: string): Promise<void> {
+  const manual = props.site.manualDomains.includes(domain)
+  error.value = ''
+  status.value = ''
+  pending.value = true
+  try {
+    const settings = await api.admin.updateSettings({ site: manual
+      ? { manualDomains: props.site.manualDomains.filter((value) => value !== domain) }
+      : { blacklistedDomains: [...new Set([...props.site.blacklistedDomains, domain])] }
+    }, props.csrf)
+    emit('updated', settings)
+    applySettings(settings, true)
+    status.value = manual ? 'Receiving domain removed.' : 'Domain removed from public web access.'
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'Could not remove domain.'
+  } finally {
+    pending.value = false
+  }
+}
+
 async function syncNow(): Promise<void> {
   syncing.value = true
   error.value = ''
@@ -203,7 +223,7 @@ async function syncNow(): Promise<void> {
       <section aria-labelledby="whitelist-title">
         <h2 id="whitelist-title">Active whitelist</h2>
         <ul class="domain-list">
-          <li v-for="domain in displayedDomains" :key="domain">{{ domain }}</li>
+          <li v-for="domain in displayedDomains" :key="domain"><span>{{ domain }}</span><button class="secondary-button compact-button" type="button" :disabled="pending || syncing" :aria-label="`Remove ${domain}`" @click="removeDomain(domain)">Remove</button></li>
           <li v-if="!displayedDomains.length">No active domains.</li>
         </ul>
       </section>
@@ -237,7 +257,7 @@ async function syncNow(): Promise<void> {
         <div class="settings-grid">
           <div class="field"><label for="forbidden-ids">Forbidden IDs</label><textarea id="forbidden-ids" v-model="draft.forbiddenIds" name="forbiddenIds" rows="7" /><small>One ID per line or comma-separated.</small></div>
           <div class="field"><label for="blocked-senders">Blocked sender domains</label><textarea id="blocked-senders" v-model="draft.blockedSenderDomains" name="blockedSenderDomains" rows="7" /><small>One domain per line or comma-separated.</small></div>
-          <div class="field"><label for="blacklisted-domains">Blacklisted web domains</label><textarea id="blacklisted-domains" v-model="draft.blacklistedDomains" name="blacklistedDomains" rows="7" /><small>Mail is still received, but the public website cannot create or open inboxes for these domains.</small></div>
+          <div class="field"><label for="blacklisted-domains">Blacklisted web domains</label><textarea id="blacklisted-domains" v-model="draft.blacklistedDomains" name="blacklistedDomains" rows="7" /><small>Use exact domains or <code>*.example.com</code> (includes the base). Manual whitelist entries win. Mail is still received, but the public website cannot create or open inboxes for these domains.</small></div>
         </div>
         <div class="form-actions"><button class="primary-button" type="submit" :disabled="pending || syncing">{{ pending ? 'Saving' : 'Save domains and inbox' }}</button></div>
       </fieldset>

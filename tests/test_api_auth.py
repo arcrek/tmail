@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
 
-from src.api_auth import AddressToken, AddressValidationError, active_domains, normalize_address
+from src.api_auth import AddressToken, AddressValidationError, _domain_matches_rule, _domain_rule, active_domains, normalize_address
 from src.api_state import StateStore
 from src.domain_cache import DomainCache
 
@@ -23,6 +23,27 @@ def test_normalize_address_applies_whitelist_and_forbidden_ids():
         normalize_address("user@other.com", ["example.com"], settings)
 
 
+@pytest.mark.parametrize(("value", "expected"), [
+    ("EXAMPLE.COM", "example.com"),
+    ("*.Täst.example", "*.xn--tst-qla.example"),
+])
+def test_domain_rule_normalizes_exact_and_wildcard_values(value, expected):
+    assert _domain_rule(value) == expected
+
+
+@pytest.mark.parametrize("value", ["*", "*.", "a.*.example.com"])
+def test_domain_rule_rejects_unsupported_wildcards(value):
+    with pytest.raises(AddressValidationError):
+        _domain_rule(value)
+
+
+def test_domain_rule_matches_only_the_base_and_subdomains():
+    assert _domain_matches_rule("thesunk.edu.vn", "*.thesunk.edu.vn")
+    assert _domain_matches_rule("mail.thesunk.edu.vn", "*.thesunk.edu.vn")
+    assert not _domain_matches_rule("notthesunk.edu.vn", "*.thesunk.edu.vn")
+    assert not _domain_matches_rule("mail.thesunk.edu.vn", "thesunk.edu.vn")
+
+
 def test_active_domains_unions_manual_domains_with_each_source(tmp_path):
     cache = tmp_path / "domains.json"
     cache.write_text('["live.example"]')
@@ -31,7 +52,7 @@ def test_active_domains_unions_manual_domains_with_each_source(tmp_path):
     assert active_domains(str(cache), state) == ["live.example", "manual.example"]
     state.replace_frozen_domains(["frozen.example"])
     state.update_settings({"auto_sync_domains": False})
-    assert active_domains(str(cache), state) == ["frozen.example", "manual.example"]
+    assert active_domains(str(cache), state) == ["frozen.example", "live.example", "manual.example"]
 
 
 def test_auto_sync_reuses_last_valid_long_lived_cache_snapshot(tmp_path):

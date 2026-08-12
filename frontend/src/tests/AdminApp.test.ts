@@ -426,7 +426,33 @@ describe('administration frontend', () => {
     expect(mocks.updateSettings).toHaveBeenCalledWith({ site: expect.objectContaining({
       blacklistedDomains: ['private.example', 'hidden.example', 'blocked.example'],
     }) }, 'csrf-value')
-    expect(wrapper.text()).toContain('Mail is still received')
+    expect(wrapper.text()).toContain('*.example.com')
+    expect(wrapper.text()).toContain('Manual whitelist entries win')
+  })
+
+  it('removes manual domains and excludes synced domains from public web access', async () => {
+    const manual = { ...settings, site: { ...site, manualDomains: ['example.com'] } }
+    const response = deferred<typeof manual>()
+    mocks.updateSettings.mockReturnValueOnce(response.promise).mockResolvedValueOnce(manual)
+    const manualWrapper = mount(DomainsTab, { props: {
+      site: manual.site, domains: settings.domains, lastSync: settings.lastSync,
+      lastSuccessfulSync: settings.lastSuccessfulSync, lastSyncError: settings.lastSyncError, csrf: 'csrf-value',
+    } })
+    const remove = manualWrapper.get('button[aria-label="Remove example.com"]')
+    await remove.trigger('click')
+    expect(remove.attributes('disabled')).toBeDefined()
+    response.resolve(manual)
+    await flushPromises()
+    expect(mocks.updateSettings).toHaveBeenCalledWith({ site: { manualDomains: [] } }, 'csrf-value')
+
+    const synced = { ...settings, site: { ...site, manualDomains: [] } }
+    const syncedWrapper = mount(DomainsTab, { props: {
+      site: synced.site, domains: settings.domains, lastSync: settings.lastSync,
+      lastSuccessfulSync: settings.lastSuccessfulSync, lastSyncError: settings.lastSyncError, csrf: 'csrf-value',
+    } })
+    await syncedWrapper.get('button[aria-label="Remove example.com"]').trigger('click')
+    await flushPromises()
+    expect(mocks.updateSettings).toHaveBeenLastCalledWith({ site: { blacklistedDomains: ['private.example', 'example.com'] } }, 'csrf-value')
   })
 
   it('blocks tab navigation until a deferred child save updates parent settings', async () => {

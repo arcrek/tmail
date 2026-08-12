@@ -203,15 +203,23 @@ def test_list_settings_are_normalized_and_unique(admin_client):
     response = admin_client.put("/admin/api/settings", json={"site": {
         "forbiddenIds": [" Admin ", "admin", "Root"],
         "blockedSenderDomains": [" EXAMPLE.COM ", "example.com", "Täst.example"],
-        "blacklistedDomains": [" BLOCKED.EXAMPLE ", "blocked.example", "Täst.example"],
+        "blacklistedDomains": [" BLOCKED.EXAMPLE ", "blocked.example", "*.Täst.example"],
         "manualDomains": [" MANUAL.EXAMPLE ", "manual.example", "Täst.example"],
     }}, headers=admin_client.csrf)
     assert response.status_code == 200
     site = admin_client.get("/admin/api/settings").json()["site"]
     assert site["forbiddenIds"] == ["admin", "root"]
     assert site["blockedSenderDomains"] == ["example.com", "xn--tst-qla.example"]
-    assert site["blacklistedDomains"] == ["blocked.example", "xn--tst-qla.example"]
+    assert site["blacklistedDomains"] == ["*.xn--tst-qla.example", "blocked.example"]
     assert site["manualDomains"] == ["manual.example", "xn--tst-qla.example"]
+
+
+@pytest.mark.parametrize("rule", ["*", "*.", "a.*.example.com"])
+def test_invalid_blacklisted_wildcards_are_rejected(admin_client, rule):
+    response = admin_client.put("/admin/api/settings", json={"site": {
+        "blacklistedDomains": [rule],
+    }}, headers=admin_client.csrf)
+    assert response.status_code == 422
 
 
 def test_masked_or_empty_secret_preserves_current_token(admin_client, config_path, monkeypatch):
