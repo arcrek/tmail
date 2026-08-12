@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
 
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import InboxView from '../components/InboxView.vue'
+
+const styles = readFileSync(resolve(process.cwd(), 'src/styles.css'), 'utf8')
 
 const mocks = vi.hoisted(() => ({
   messages: vi.fn(),
@@ -303,6 +307,8 @@ describe('InboxView polling', () => {
     expect(wrapper.classes()).toContain('inbox-view')
     expect(wrapper.get('.inbox-hero').text()).toContain(session.address)
     expect(wrapper.get('.message-list').exists()).toBe(true)
+    expect(styles).toMatch(/\.inbox-view \{[\s\S]*?grid-template-columns: minmax\(0, 20rem\) minmax\(0, 1fr\);/)
+    expect(styles).toMatch(/@media \(max-width: 640px\) \{[\s\S]*?\.inbox-view \{ grid-template-columns: 1fr; \}/)
     expect(wrapper.text()).not.toMatch(/Sent|Contacts|Addresses/)
   })
 

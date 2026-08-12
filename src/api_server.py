@@ -229,23 +229,27 @@ def _stable_id(kind: str, value: str) -> str:
 
 
 def current_domains(request: Request, config: Config | None = None) -> list[str]:
-    return active_domains(request.app.state.domain_cache, request.app.state.state_store)
+    domains = active_domains(request.app.state.domain_cache, request.app.state.state_store)
+    blacklisted = set(request.app.state.state_store.get_settings()["blacklisted_domains"])
+    return [domain for domain in domains if domain not in blacklisted]
 
 
 def _address(request: Request, value: str, config: Config | None = None) -> str:
     domains = current_domains(request, config)
+    settings = request.app.state.state_store.get_settings()
     try:
         raw_domain = value.rsplit("@", 1)[1] if value.count("@") == 1 else ""
-        missing = _domain(raw_domain) not in domains
+        raw_domain = _domain(raw_domain)
+        missing = raw_domain not in domains and raw_domain not in settings["blacklisted_domains"]
     except AddressValidationError:
         missing = False
-    if missing and request.app.state.state_store.get_settings()["auto_sync_domains"]:
+    if missing and settings["auto_sync_domains"]:
         try:
             refresh_domains(request, require_auto=True)
         except Exception:
             pass
         domains = current_domains(request, config)
-    return normalize_address(value, domains, request.app.state.state_store.get_settings())
+    return normalize_address(value, domains, settings)
 
 
 def bearer_address(

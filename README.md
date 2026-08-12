@@ -204,6 +204,8 @@ Turning automatic sync off freezes the current whitelist so later cache changes 
 
 Administrators can enter a domain and select **Add** in the domain settings. These validated manual domains remain active alongside either the synchronized cache or the frozen whitelist, so domains managed outside the policy daemon can receive public inboxes.
 
+Administrators can also list **Blacklisted web domains** in Domains & Inbox. Those domains continue receiving mail and remain configured for MX/mail-server use, but the public website hides them and refuses new or existing browser inbox access.
+
 ## Mail flow
 
 ```text

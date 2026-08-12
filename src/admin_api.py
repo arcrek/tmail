@@ -20,7 +20,7 @@ SITE_KEYS = {
     "app_name", "logo_data_url", "favicon_data_url", "primary_color", "accent_color", "language",
     "cookie_enabled", "cookie_text", "auto_sync_domains", "fetch_seconds",
     "message_limit", "local_part_min", "local_part_max", "forbidden_ids",
-    "blocked_sender_domains", "manual_domains", "header_html", "footer_html", "content_css", "ad_slots",
+    "blocked_sender_domains", "blacklisted_domains", "manual_domains", "header_html", "footer_html", "content_css", "ad_slots",
 }
 MAIL_KEYS = {"jmap_url", "jmap_token", "catchall_address", "mail_account_id", "retention_days"}
 MASKED_SECRET = "********"
@@ -133,6 +133,7 @@ def _validate_site(values: dict[str, object]) -> dict[str, object]:
         result[key] = _image(result[key], key)
     result["forbidden_ids"] = _list(result["forbidden_ids"], "forbidden_ids", str.lower)
     result["blocked_sender_domains"] = _list(result["blocked_sender_domains"], "blocked_sender_domains", _domain)
+    result["blacklisted_domains"] = _list(result["blacklisted_domains"], "blacklisted_domains", _domain)
     result["manual_domains"] = _list(result["manual_domains"], "manual_domains", _domain)
     for key in ("header_html", "footer_html", "content_css"):
         value = _string(result[key], key)

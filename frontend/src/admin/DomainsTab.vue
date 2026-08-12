@@ -25,6 +25,7 @@ const draft = reactive({
   localPartMax: props.site.localPartMax,
   forbiddenIds: props.site.forbiddenIds.join('\n'),
   blockedSenderDomains: props.site.blockedSenderDomains.join('\n'),
+  blacklistedDomains: props.site.blacklistedDomains.join('\n'),
 })
 const manualDomain = ref('')
 const displayedDomains = ref([...props.domains])
@@ -47,6 +48,7 @@ watch(() => props.site, (value) => {
     localPartMax: value.localPartMax,
     forbiddenIds: value.forbiddenIds.join('\n'),
     blockedSenderDomains: value.blockedSenderDomains.join('\n'),
+    blacklistedDomains: value.blacklistedDomains.join('\n'),
   })
 })
 watch(() => props.domains, (value) => { if (!pending.value && !syncing.value) displayedDomains.value = [...value] })
@@ -119,6 +121,7 @@ async function save(): Promise<void> {
       localPartMax: draft.localPartMax,
       forbiddenIds: list(draft.forbiddenIds),
       blockedSenderDomains: list(draft.blockedSenderDomains),
+      blacklistedDomains: list(draft.blacklistedDomains),
     } }, props.csrf)
     emit('updated', settings)
     applySettings(settings, true)
@@ -234,6 +237,7 @@ async function syncNow(): Promise<void> {
         <div class="settings-grid">
           <div class="field"><label for="forbidden-ids">Forbidden IDs</label><textarea id="forbidden-ids" v-model="draft.forbiddenIds" name="forbiddenIds" rows="7" /><small>One ID per line or comma-separated.</small></div>
           <div class="field"><label for="blocked-senders">Blocked sender domains</label><textarea id="blocked-senders" v-model="draft.blockedSenderDomains" name="blockedSenderDomains" rows="7" /><small>One domain per line or comma-separated.</small></div>
+          <div class="field"><label for="blacklisted-domains">Blacklisted web domains</label><textarea id="blacklisted-domains" v-model="draft.blacklistedDomains" name="blacklistedDomains" rows="7" /><small>Mail is still received, but the public website cannot create or open inboxes for these domains.</small></div>
         </div>
         <div class="form-actions"><button class="primary-button" type="submit" :disabled="pending || syncing">{{ pending ? 'Saving' : 'Save domains and inbox' }}</button></div>
       </fieldset>

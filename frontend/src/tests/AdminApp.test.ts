@@ -64,6 +64,7 @@ const site = {
   localPartMax: 32,
   forbiddenIds: ['admin'],
   blockedSenderDomains: ['blocked.example'],
+  blacklistedDomains: ['private.example'],
   manualDomains: ['manual.example'],
 }
 
@@ -405,6 +406,27 @@ describe('administration frontend', () => {
     response.resolve(settings)
     await flushPromises()
     for (const wrapper of [general, mail, domains, content]) wrapper.unmount()
+  })
+
+  it('saves blacklisted web domains through the domain settings form', async () => {
+    const wrapper = mount(DomainsTab, { props: {
+      site,
+      domains: settings.domains,
+      lastSync: settings.lastSync,
+      lastSuccessfulSync: settings.lastSuccessfulSync,
+      lastSyncError: settings.lastSyncError,
+      csrf: 'csrf-value',
+    } })
+
+    expect((wrapper.get('textarea[name="blacklistedDomains"]').element as HTMLTextAreaElement).value).toBe('private.example')
+    await wrapper.get('textarea[name="blacklistedDomains"]').setValue('private.example, hidden.example\nblocked.example')
+    await wrapper.findAll('form')[1]!.trigger('submit')
+    await flushPromises()
+
+    expect(mocks.updateSettings).toHaveBeenCalledWith({ site: expect.objectContaining({
+      blacklistedDomains: ['private.example', 'hidden.example', 'blocked.example'],
+    }) }, 'csrf-value')
+    expect(wrapper.text()).toContain('Mail is still received')
   })
 
   it('blocks tab navigation until a deferred child save updates parent settings', async () => {

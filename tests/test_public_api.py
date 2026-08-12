@@ -372,6 +372,16 @@ def test_whitelist_rejection_and_errors_use_hydra(client, fake_jmap):
     assert missing.json()["@type"] == "hydra:Error"
 
 
+def test_blacklisted_domain_is_denied_only_on_the_public_api(client, bearer):
+    client.app.state.state_store.update_settings({"blacklisted_domains": ["example.com"]})
+
+    assert client.get("/domains").json()["hydra:member"] == []
+    assert client.post("/accounts", json={"address": "box@example.com"}).status_code == 422
+    assert client.post("/token", json={"address": "box@example.com"}).status_code == 422
+    assert client.get("/me", headers=bearer).status_code == 401
+    assert client.get("/messages", headers=bearer).status_code == 401
+
+
 def test_request_validation_and_jmap_failure_use_hydra(client, bearer, fake_jmap):
     invalid = client.post("/token", json={})
     fake_jmap.list_messages.side_effect = RuntimeError("private upstream detail")

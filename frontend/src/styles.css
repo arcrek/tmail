@@ -627,8 +627,14 @@ main {
 
 .inbox-view {
   display: grid;
+  grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
+  align-items: start;
   gap: var(--space-6);
 }
+
+.inbox-hero,
+.message-list,
+.message-reader { min-width: 0; }
 
 .inbox-hero {
   display: grid;
@@ -1380,6 +1386,8 @@ main {
 }
 
 @media (max-width: 640px) {
+  .inbox-view { grid-template-columns: 1fr; }
+
   .app-header {
     flex-wrap: wrap;
     row-gap: 0.5rem;
