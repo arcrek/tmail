@@ -305,4 +305,35 @@ describe('InboxView polling', () => {
     expect(wrapper.get('.message-list').exists()).toBe(true)
     expect(wrapper.text()).not.toMatch(/Sent|Contacts|Addresses/)
   })
+
+  it('copies the inbox address', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
+    })
+    await flushPromises()
+    await wrapper.get('.inbox-hero-actions button:first-child').trigger('click')
+    await flushPromises()
+
+    expect(writeText).toHaveBeenCalledWith('box@example.com')
+    expect(wrapper.text()).toContain('Address copied.')
+  })
+
+  it('uses fallback copy feedback when Clipboard API is unavailable', async () => {
+    vi.stubGlobal('navigator', { ...navigator, clipboard: undefined })
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: vi.fn().mockReturnValue(false) })
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
+    })
+    await flushPromises()
+    await wrapper.get('.inbox-hero-actions button:first-child').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Copy failed')
+
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: vi.fn().mockReturnValue(true) })
+    await wrapper.get('.inbox-hero-actions button:first-child').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Address copied.')
+  })
 })

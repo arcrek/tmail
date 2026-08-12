@@ -227,6 +227,23 @@ describe('address flow', () => {
     expect(wrapper.get('.address-preview button').text()).toBe('Copy')
   })
 
+  it('clears a failed copy message after a successful retry', async () => {
+    const writeText = vi.fn().mockRejectedValueOnce(new Error('denied')).mockResolvedValueOnce(undefined)
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: vi.fn().mockReturnValue(false) })
+    const wrapper = mount(AddressPanel)
+    await flushPromises()
+    await wrapper.get('#local-part').setValue('paper')
+    await wrapper.get('.address-preview button').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Copy failed')
+
+    await wrapper.get('.address-preview button').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.address-preview button').text()).toBe('Copied')
+    expect(wrapper.text()).not.toContain('Copy failed')
+  })
+
   it('shows a useful empty-domain state', async () => {
     mocks.domains.mockResolvedValue(domains([]))
     const wrapper = mount(AddressPanel)

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError, api } from '../api'
+import { copyText } from '../clipboard'
 import type { AddressSession, HydraCollection, MessageSummary } from '../types'
 import AppIcon from './AppIcon.vue'
 import MessageReader from './MessageReader.vue'
@@ -111,7 +112,7 @@ function handleVisibility(): void {
 
 async function copyAddress(): Promise<void> {
   try {
-    await navigator.clipboard.writeText(props.session.address)
+    await copyText(props.session.address)
     notice.value = 'Address copied.'
   } catch {
     notice.value = 'Copy failed. Select the address and copy it manually.'

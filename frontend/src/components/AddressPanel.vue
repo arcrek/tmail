@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ApiError, api } from '../api'
+import { copyText } from '../clipboard'
 import { loadSessions, removeSession } from '../session'
 import type { AddressSession, DomainResource } from '../types'
 import AppIcon from './AppIcon.vue'
@@ -71,8 +72,9 @@ function randomize(): void {
 
 async function copyAddress(): Promise<void> {
   if (!address.value) return
+  error.value = ''
   try {
-    await navigator.clipboard.writeText(address.value)
+    await copyText(address.value)
     copied.value = true
   } catch {
     error.value = 'Copy failed. Select the address and copy it manually.'
@@ -152,6 +154,8 @@ function forget(address: string): void {
         {{ copied ? 'Copied' : 'Copy' }}
       </button>
     </div>
+
+    <p class="sr-only" aria-live="polite">{{ copied ? 'Address copied.' : '' }}</p>
 
     <p class="form-error" aria-live="polite">{{ error || initialError }}</p>
     <button class="primary-button" type="submit" :disabled="submitting || !address">
