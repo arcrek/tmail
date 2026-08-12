@@ -29,6 +29,8 @@ trap cleanup EXIT
 [ -f "$API_SERVICE_FILE" ] || { echo "ERROR: deploy/tmail-api.service not found"; exit 1; }
 
 echo "==> Building frontend"
+export NVM_DIR="${NVM_DIR:-$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")}"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 npm --prefix frontend ci
 npm --prefix frontend run build
 
