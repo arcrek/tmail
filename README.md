@@ -1,215 +1,96 @@
-# tmail-add-domain
+# TMail Add Domain
 
-Temporary-mail web app and API backed by Stalwart JMAP. Postfix asks the policy daemon to provision any recipient domain whose MX points at this server; the web app then exposes passwordless, address-scoped inboxes and an administrator console.
+Temporary-mail service for domains handled by Postfix and Stalwart. It provisions domains whose MX points to this server, then provides a passwordless public inbox and an administrator console.
+
+## Scope
+
+- Postfix calls the policy daemon for each recipient domain.
+- The daemon verifies the domain's MX record and provisions accepted domains in Stalwart.
+- Visitors choose an active domain and open an address-scoped inbox without creating an account or password.
+- Administrators manage website settings, the public domain list, and web-only domain blocks.
+
+This project does not manage DNS, configure TLS, or replace Postfix/Stalwart. A domain blocked in the admin console remains configured for mail delivery; it is only unavailable through the public website and API.
 
 ## Requirements
 
 - Python 3.10+
-- Node.js `^20.19.0 || >=22.12.0`, and npm
+- Node.js `^20.19.0 || >=22.12.0` and npm
 - Postfix
-- Stalwart with JMAP enabled
-- A Stalwart bearer token allowed to manage domains and read the catch-all mailbox
+- Stalwart with JMAP enabled and a bearer token that can manage domains and read the catch-all mailbox
 
-## Configuration
+## Configure
 
-Copy `config.example.json` to `config.json`. Generate the API signing secret with exactly this command and store its output as `api_token_secret`:
+Copy `config.example.json` to `config.json`, then set the Stalwart connection values, `mx_hostname`, and `catchall_address`.
 
 ```bash
+cp config.example.json config.json
 python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
 ```
 
-Set `admin_password` to a strong, non-empty password. The API refuses to start unless the stripped signing secret contains at least 32 characters, the admin password is nonblank, and neither value is a shipped `replace-with...` placeholder. For local operation, also set `frontend_dist` to `frontend/dist` and use writable local paths for `cache_file` and `state_db`.
+Use the generated value as `api_token_secret`; it must contain at least 32 characters. Set a strong, non-empty `admin_password`, and keep `config.json` at mode `0600`.
 
-The main web settings are:
+For local development, set `cache_file`, `state_db`, and `frontend_dist` to writable paths in the checkout; for example:
 
 ```json
 {
-  "api_listen_addr": "127.0.0.1",
-  "api_listen_port": 8000,
-  "api_token_secret": "generated-secret",
-  "admin_password": "strong-password",
-  "state_db": "/var/lib/tmail-policy/state.db",
-  "frontend_dist": "/opt/tmail-policy/frontend/dist"
+  "cache_file": "domains.json",
+  "state_db": "state.db",
+  "frontend_dist": "frontend/dist"
 }
 ```
 
-Keep `config.json` mode `0600`. Production services use the mutable runtime copy at `/var/lib/tmail-policy/config.json`; the release tree under `/opt/tmail-policy` stays root-owned and read-only to the service. The install and deploy scripts preserve an existing runtime config untouched. If the runtime copy is absent, they migrate the legacy `/opt/tmail-policy/config.json` or use the supplied config for a fresh installation. Legacy migration captures rollback state, stops the old API writer, takes and validates a final snapshot, then promotes the release.
-
-## Local development
-
-Install Python and frontend dependencies:
+## Run locally
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements-dev.txt
-cd frontend
-npm install
-```
-
-Run the API from the repository root:
-
-```bash
+cd frontend && npm install && npm run build
+cd ..
 TMAIL_CONFIG="$PWD/config.json" .venv/bin/python -m src.api_server
 ```
 
-In another terminal, run the Vite development server:
+For frontend development, run `npm run dev` in `frontend/`; Vite proxies API and admin requests to `127.0.0.1:8000`.
+
+## Run with Docker Compose
+
+Create and secure `config.json`, then:
 
 ```bash
-cd frontend
-npm run dev
-```
-
-Vite proxies API and admin requests to `127.0.0.1:8000`. Build the production SPA with:
-
-```bash
-cd frontend
-npm ci
-npm run build
-```
-
-The API serves the resulting `frontend/dist`; a missing build returns plain HTTP 503 for SPA routes while API and documentation routes remain available.
-
-## Docker Compose
-
-Create and secure `config.json` as described above. For container deployment,
-keep `cache_file` and `state_db` under `/var/lib/tmail-policy`.
-
-Build and start the frontend and API:
-
-```bash
+cp .env.example .env
 docker compose up -d --build
 ```
 
-The frontend is available at `http://127.0.0.1:8080`. Change the published
-port if `8080` is already in use:
+The application is available at `http://127.0.0.1:8080`. Use `TMAIL_HTTP_PORT` to change the port. The `tmail-data` volume keeps runtime configuration, cached domains, and application state across rebuilds.
 
-```bash
-TMAIL_HTTP_PORT=8088 docker compose up -d
-```
-
-Inspect or stop the deployment:
-
-```bash
-docker compose ps
-docker compose logs -f
-docker compose down
-```
-
-The first start copies `config.json` into the `tmail-data` volume. Later
-starts preserve that runtime copy so administrator changes survive rebuilds.
-Changing the repository `config.json` does not overwrite an existing runtime
-copy.
-
-To intentionally erase runtime settings, cached domains, and mail-activity
-metrics, stop the deployment and remove its volume:
-
-```bash
-docker compose down -v
-```
-
-Keep the default loopback bind and put an HTTPS reverse proxy in front of it.
-For a sanitizing loopback proxy, store trusted forwarding in the repository
-`.env` so later Compose commands retain it:
-
-```dotenv
-TMAIL_TRUST_FORWARD_HEADERS=on
-```
-
-Then run `docker compose up -d`. Alternatively, export the variable
-consistently before every Compose lifecycle command.
-
-The outer proxy must overwrite client-supplied `Host`, `X-Forwarded-For`, and
-`X-Forwarded-Proto` headers. Never enable trusted forwarding for direct public
-exposure or behind a proxy that does not sanitize those headers. The Compose
-frontend accepts only `http` or `https` as the forwarded scheme. With trusted
-forwarding off, it replaces the client address with its direct peer.
-
-Setting `TMAIL_HTTP_BIND=0.0.0.0` exposes the frontend directly and should be
-done only when another network boundary protects it. The API is not published
-separately; API docs remain available at `/docs` through the frontend endpoint.
-
-`jmap_url` is resolved from inside the API container. In particular,
-`127.0.0.1` points to that container, not the Docker host; use a Stalwart
-hostname or address reachable from the container.
+Use an HTTPS reverse proxy in production. The default Compose bind exposes the service on all interfaces, so protect it with a network boundary. If the proxy sanitizes forwarded headers, enable trusted forwarding with `TMAIL_TRUST_FORWARD_HEADERS=on`.
 
 ## Production installation
 
-From a checkout containing `config.json`:
+On the mail server, from a checkout containing `config.json`:
 
 ```bash
 sudo bash deploy/install.sh
 ```
 
-For a later remote deployment:
+For later deployments:
 
 ```bash
 ./deploy/deploy.sh root@example-host
 ```
 
-Both scripts build and validate a root-owned staged snapshot, preserve an existing `/var/lib/tmail-policy/config.json` without overwriting it, promote only after dependency preparation succeeds, and restart `tmail-api` after `tmail-policy`. The service owns only its runtime directory and config, allowing atomic administrator updates without write access to release code, helpers, or units.
+The deployed services use `/var/lib/tmail-policy/config.json` as mutable runtime configuration. The release under `/opt/tmail-policy` remains read-only to the service.
 
-They do not configure TLS or modify an existing reverse proxy. Put nginx, Caddy, Apache, or another proxy in front of `127.0.0.1:8000`, serve the public site only over HTTPS, and forward the original host and client address. HTTPS is required because the administrator session cookie is `Secure`.
+Postfix must own port 25 and consult `inet:127.0.0.1:10030`, as shown in `deploy/postfix_main_snippet.cf`. Stalwart receives accepted relay mail on port 2525.
 
-### Mail delivery troubleshooting
+## Use
 
-Use a real FQDN for `mx_hostname`; a numeric system hostname makes Postfix package setup fail. The policy daemon reads `/var/lib/tmail-policy/config.json`, not the checkout copy. Its `jmap_url` must point directly to Stalwart's JMAP endpoint (for example `http://127.0.0.1:8080/jmap/`), not the public site root: a `302` or `404` prevents domain provisioning and causes recipients to be rejected or deferred. The recipient domain's MX record must match `mx_hostname` exactly; with `mx_hostname` set to `mail.example.com`, send to `user@example.com` only when `example.com MX mail.example.com` exists.
+- `/` — choose or open a temporary inbox.
+- `/admin` — administrator console.
+- `/{address}` — open an active address directly.
+- `/docs` — API documentation.
 
-```bash
-sudo jq -r .jmap_url /var/lib/tmail-policy/config.json
-curl -i http://127.0.0.1:8080/jmap/
-sudo systemctl restart tmail-policy
-sudo journalctl -u tmail-policy -n 50 --no-pager
-```
+`POST /token` validates an active address and issues its stateless bearer token. The token can access only that address's messages; no mailbox password or account record is created.
 
-Service checks:
+## License
 
-```bash
-systemctl status tmail-policy
-systemctl status tmail-api
-journalctl -u tmail-api -f
-```
-
-## Web and API routes
-
-Unlike Mail.tm, this service intentionally has no account/password registration or login. `POST /accounts` is stateless address-validation compatibility and stores no account; `POST /token` accepts only an active address and returns its scoped bearer token.
-
-- `/` opens the address picker and inbox app.
-- `/admin` opens the administrator console.
-- `https://host/user@example.com` opens that address directly; the app requests a scoped bearer token after validating the address against the active domain whitelist.
-- `/docs`, `/redoc`, and `/openapi.json` are public API documentation endpoints.
-- `/assets/*` serves immutable production assets.
-
-Issue a passwordless token for an active address:
-
-```bash
-curl -sS https://host/token \
-  -H 'Content-Type: application/json' \
-  -d '{"address":"user@example.com"}'
-```
-
-Copy the returned `token` value, then list only that address's messages:
-
-```bash
-TOKEN='returned-token'
-curl -sS https://host/messages -H "Authorization: Bearer $TOKEN"
-```
-
-Tokens are stateless and scoped to one normalized address; no mailbox password or account row is created.
-
-## Domain synchronization
-
-With **Automatically sync domains** on (the default), the public whitelist follows the policy daemon's live domain cache. Domains whose MX points to this server appear after first-mail provisioning, and a manual **Sync domains** refresh replaces the cache from Stalwart.
-
-Turning automatic sync off freezes the current whitelist so later cache changes do not alter public address availability. Manual **Sync domains** still replaces that frozen whitelist while automatic sync remains off. Re-enabling automatic sync resumes reading the live cache.
-
-Administrators can enter a domain and select **Add** in the domain settings. These validated manual domains remain active alongside either the synchronized cache or the frozen whitelist, so domains managed outside the policy daemon can receive public inboxes.
-
-Administrators can also list **Blacklisted web domains** in Domains & Inbox. Those domains continue receiving mail and remain configured for MX/mail-server use, but the public website hides them and refuses new or existing browser inbox access.
-
-## Mail flow
-
-```text
-Postfix (:25) -> Policy daemon (:10030) -> DNS MX check -> Stalwart JMAP -> Stalwart SMTP (:2525)
-```
-
-Postfix must own port 25. Configure it to consult `inet:127.0.0.1:10030` as shown in `deploy/postfix_main_snippet.cf`; Stalwart receives the accepted relay on port 2525.
+[MIT](LICENSE)
