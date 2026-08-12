@@ -20,10 +20,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "==> Building frontend"
-npm --prefix frontend ci
-npm --prefix frontend run build
-
 echo "==> Creating secure remote stage"
 STAGE_DIR=$(ssh "$SERVER" "mktemp -d /opt/.tmail-policy.stage.XXXXXX")
 [[ "$STAGE_DIR" =~ ^/opt/\.tmail-policy\.stage\.[A-Za-z0-9]+$ ]] || { echo "ERROR: invalid remote stage path"; exit 1; }
