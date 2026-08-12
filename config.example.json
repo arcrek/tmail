@@ -1,5 +1,5 @@
 {
-  "jmap_url": "",
+  "jmap_url": "http://127.0.0.1:8080/jmap/",
   "jmap_token": "YOUR_API_TOKEN",
   "mx_hostname": "",
   "catchall_address": "",

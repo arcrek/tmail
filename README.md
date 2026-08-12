@@ -150,6 +150,17 @@ Both scripts build and validate a root-owned staged snapshot, preserve an existi
 
 They do not configure TLS or modify an existing reverse proxy. Put nginx, Caddy, Apache, or another proxy in front of `127.0.0.1:8000`, serve the public site only over HTTPS, and forward the original host and client address. HTTPS is required because the administrator session cookie is `Secure`.
 
+### Mail delivery troubleshooting
+
+Use a real FQDN for `mx_hostname`; a numeric system hostname makes Postfix package setup fail. The policy daemon reads `/var/lib/tmail-policy/config.json`, not the checkout copy. Its `jmap_url` must point directly to Stalwart's JMAP endpoint (for example `http://127.0.0.1:8080/jmap/`), not the public site root: a `302` or `404` prevents domain provisioning and causes recipients to be rejected or deferred. The recipient domain's MX record must match `mx_hostname` exactly; with `mx_hostname` set to `mail.example.com`, send to `user@example.com` only when `example.com MX mail.example.com` exists.
+
+```bash
+sudo jq -r .jmap_url /var/lib/tmail-policy/config.json
+curl -i http://127.0.0.1:8080/jmap/
+sudo systemctl restart tmail-policy
+sudo journalctl -u tmail-policy -n 50 --no-pager
+```
+
 Service checks:
 
 ```bash
