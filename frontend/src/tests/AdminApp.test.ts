@@ -386,7 +386,8 @@ describe('administration frontend', () => {
     await mail.get('input[name="jmapUrl"]').setValue('https://draft.example/jmap')
     await domains.get('input[name="fetchSeconds"]').setValue('45')
     await content.get('textarea[name="headerHtml"]').setValue('Draft header')
-    for (const wrapper of [general, mail, domains, content]) await wrapper.get('form').trigger('submit')
+    for (const wrapper of [general, mail, content]) await wrapper.get('form').trigger('submit')
+    await domains.findAll('form')[1]!.trigger('submit')
 
     await general.setProps({ site: { ...site, appName: 'Remote app' } })
     await mail.setProps({ mailServer: { ...mailServer, jmapUrl: 'https://remote.example/jmap' } })
@@ -478,7 +479,7 @@ describe('administration frontend', () => {
     expect(wrapper.emitted('updated')?.[0]).toEqual([updated])
     expect(wrapper.text()).toContain('updated.example')
 
-    await wrapper.get('form').trigger('submit')
+    await wrapper.findAll('form')[1]!.trigger('submit')
     await flushPromises()
     expect(mocks.updateSettings).toHaveBeenNthCalledWith(2, { site: expect.objectContaining({
       autoSyncDomains: false,
@@ -503,6 +504,41 @@ describe('administration frontend', () => {
     await flushPromises()
 
     expect((wrapper.get('input[name="autoSyncDomains"]').element as HTMLInputElement).checked).toBe(true)
+    expect(wrapper.get('[role="alert"]').text()).toContain('save offline')
+  })
+
+  it('adds a receiving domain only after the settings response succeeds', async () => {
+    const added = {
+      ...settings,
+      site: { ...site, manualDomains: ['manual.example', 'added.example'] },
+      domains: [...settings.domains, 'added.example'],
+    }
+    mocks.updateSettings.mockResolvedValueOnce(added).mockRejectedValueOnce(new Error('save offline'))
+    const wrapper = mount(DomainsTab, { props: {
+      site,
+      domains: settings.domains,
+      lastSync: settings.lastSync,
+      lastSuccessfulSync: settings.lastSuccessfulSync,
+      lastSyncError: settings.lastSyncError,
+      csrf: 'csrf-value',
+    } })
+
+    await wrapper.get('input[name="manualDomain"]').setValue(' Added.Example ')
+    await wrapper.findAll('form')[0]!.trigger('submit')
+    await flushPromises()
+
+    expect(mocks.updateSettings).toHaveBeenNthCalledWith(1, { site: {
+      manualDomains: ['manual.example', 'Added.Example'],
+    } }, 'csrf-value')
+    expect((wrapper.get('input[name="manualDomain"]').element as HTMLInputElement).value).toBe('')
+    expect(wrapper.get('.domain-list').text()).toContain('added.example')
+
+    await wrapper.get('input[name="manualDomain"]').setValue('retry.example')
+    await wrapper.findAll('form')[0]!.trigger('submit')
+    await flushPromises()
+
+    expect((wrapper.get('input[name="manualDomain"]').element as HTMLInputElement).value).toBe('retry.example')
+    expect(wrapper.get('.domain-list').text()).toContain('added.example')
     expect(wrapper.get('[role="alert"]').text()).toContain('save offline')
   })
 

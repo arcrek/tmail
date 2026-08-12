@@ -25,8 +25,8 @@ const draft = reactive({
   localPartMax: props.site.localPartMax,
   forbiddenIds: props.site.forbiddenIds.join('\n'),
   blockedSenderDomains: props.site.blockedSenderDomains.join('\n'),
-  manualDomains: props.site.manualDomains?.join('\n') ?? '',
 })
+const manualDomain = ref('')
 const displayedDomains = ref([...props.domains])
 const displayedSync = ref({ ...props.lastSync })
 const displayedSuccessfulSync = ref({ ...props.lastSuccessfulSync })
@@ -47,7 +47,6 @@ watch(() => props.site, (value) => {
     localPartMax: value.localPartMax,
     forbiddenIds: value.forbiddenIds.join('\n'),
     blockedSenderDomains: value.blockedSenderDomains.join('\n'),
-    manualDomains: value.manualDomains?.join('\n') ?? '',
   })
 })
 watch(() => props.domains, (value) => { if (!pending.value && !syncing.value) displayedDomains.value = [...value] })
@@ -120,13 +119,33 @@ async function save(): Promise<void> {
       localPartMax: draft.localPartMax,
       forbiddenIds: list(draft.forbiddenIds),
       blockedSenderDomains: list(draft.blockedSenderDomains),
-      manualDomains: list(draft.manualDomains),
     } }, props.csrf)
     emit('updated', settings)
     applySettings(settings, true)
     status.value = 'Domain and inbox settings saved.'
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'Could not save domain settings.'
+  } finally {
+    pending.value = false
+  }
+}
+
+async function addManualDomain(): Promise<void> {
+  const domain = manualDomain.value.trim()
+  if (!domain) return
+  error.value = ''
+  status.value = ''
+  pending.value = true
+  try {
+    const settings = await api.admin.updateSettings({ site: {
+      manualDomains: [...props.site.manualDomains, domain],
+    } }, props.csrf)
+    manualDomain.value = ''
+    emit('updated', settings)
+    applySettings(settings, true)
+    status.value = 'Receiving domain added.'
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'Could not add receiving domain.'
   } finally {
     pending.value = false
   }
@@ -197,6 +216,12 @@ async function syncNow(): Promise<void> {
       </section>
     </div>
 
+    <form class="settings-form" @submit.prevent="addManualDomain">
+      <fieldset class="settings-fields" :disabled="pending || syncing">
+        <div class="field"><label for="manual-domain">Receiving domain</label><div class="form-actions"><input id="manual-domain" v-model="manualDomain" name="manualDomain" type="text" inputmode="url" autocomplete="off" autocapitalize="none" required><button class="secondary-button compact-button" type="submit">Add</button></div><small>Added domains appear in the active whitelist after validation.</small></div>
+      </fieldset>
+    </form>
+
     <form class="settings-form" @submit.prevent="save">
       <fieldset class="settings-fields" :disabled="pending || syncing">
         <label class="check-field"><input :checked="draft.autoSyncDomains" name="autoSyncDomains" type="checkbox" @change="changeAutoSync"> Automatically sync domains from the mail server</label>
@@ -209,7 +234,6 @@ async function syncNow(): Promise<void> {
         <div class="settings-grid">
           <div class="field"><label for="forbidden-ids">Forbidden IDs</label><textarea id="forbidden-ids" v-model="draft.forbiddenIds" name="forbiddenIds" rows="7" /><small>One ID per line or comma-separated.</small></div>
           <div class="field"><label for="blocked-senders">Blocked sender domains</label><textarea id="blocked-senders" v-model="draft.blockedSenderDomains" name="blockedSenderDomains" rows="7" /><small>One domain per line or comma-separated.</small></div>
-          <div class="field"><label for="manual-domains">Manual receiving domains</label><textarea id="manual-domains" v-model="draft.manualDomains" name="manualDomains" rows="7" /><small>One domain per line or comma-separated.</small></div>
         </div>
         <div class="form-actions"><button class="primary-button" type="submit" :disabled="pending || syncing">{{ pending ? 'Saving' : 'Save domains and inbox' }}</button></div>
       </fieldset>

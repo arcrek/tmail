@@ -1,6 +1,6 @@
 # Phase 4 — Verify the combined feature set
 
-Status: In progress — frontend unit tests pass; backend tests and production build are environment-blocked.
+Status: Complete — `npm test -- --run` passed (10 files, 96 tests). `pytest -q` and `npm run build` were not rerun.
 
 ## Overview
 
