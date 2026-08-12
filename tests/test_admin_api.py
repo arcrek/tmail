@@ -203,11 +203,13 @@ def test_list_settings_are_normalized_and_unique(admin_client):
     response = admin_client.put("/admin/api/settings", json={"site": {
         "forbiddenIds": [" Admin ", "admin", "Root"],
         "blockedSenderDomains": [" EXAMPLE.COM ", "example.com", "Täst.example"],
+        "manualDomains": [" MANUAL.EXAMPLE ", "manual.example", "Täst.example"],
     }}, headers=admin_client.csrf)
     assert response.status_code == 200
     site = admin_client.get("/admin/api/settings").json()["site"]
     assert site["forbiddenIds"] == ["admin", "root"]
     assert site["blockedSenderDomains"] == ["example.com", "xn--tst-qla.example"]
+    assert site["manualDomains"] == ["manual.example", "xn--tst-qla.example"]
 
 
 def test_masked_or_empty_secret_preserves_current_token(admin_client, config_path, monkeypatch):

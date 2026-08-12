@@ -60,7 +60,8 @@ async function submit(): Promise<void> {
   }
 }
 
-function randomize(): void {
+async function randomize(): Promise<void> {
+  if (!domains.value.length || submitting.value) return
   const consonants = 'bcdfghjkmnprstvwxz'
   const vowels = 'aeiou'
   const values = crypto.getRandomValues(new Uint32Array(6))
@@ -68,6 +69,8 @@ function randomize(): void {
     const alphabet = index % 2 ? vowels : consonants
     return alphabet[value % alphabet.length]!
   }).join('')
+  selectedDomain.value = domains.value[values[0]! % domains.value.length]!.domain
+  await submit()
 }
 
 async function copyAddress(): Promise<void> {
@@ -115,9 +118,9 @@ function forget(address: string): void {
   <form v-else class="panel address-form" @submit.prevent="submit">
     <div class="panel-heading">
       <h2>Create an address</h2>
-      <button class="text-button" type="button" @click="randomize">
+      <button class="text-button" type="button" :disabled="loadingDomains || !domains.length || submitting" @click="randomize">
         <AppIcon name="sparkles" />
-        Random name
+        Open random email
       </button>
     </div>
 

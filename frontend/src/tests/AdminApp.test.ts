@@ -64,6 +64,7 @@ const site = {
   localPartMax: 32,
   forbiddenIds: ['admin'],
   blockedSenderDomains: ['blocked.example'],
+  manualDomains: ['manual.example'],
 }
 
 const mailServer = {

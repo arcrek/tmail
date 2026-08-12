@@ -20,7 +20,7 @@ SITE_KEYS = {
     "app_name", "logo_data_url", "favicon_data_url", "primary_color", "accent_color", "language",
     "cookie_enabled", "cookie_text", "auto_sync_domains", "fetch_seconds",
     "message_limit", "local_part_min", "local_part_max", "forbidden_ids",
-    "blocked_sender_domains", "header_html", "footer_html", "content_css", "ad_slots",
+    "blocked_sender_domains", "manual_domains", "header_html", "footer_html", "content_css", "ad_slots",
 }
 MAIL_KEYS = {"jmap_url", "jmap_token", "catchall_address", "mail_account_id", "retention_days"}
 MASKED_SECRET = "********"
@@ -133,6 +133,7 @@ def _validate_site(values: dict[str, object]) -> dict[str, object]:
         result[key] = _image(result[key], key)
     result["forbidden_ids"] = _list(result["forbidden_ids"], "forbidden_ids", str.lower)
     result["blocked_sender_domains"] = _list(result["blocked_sender_domains"], "blocked_sender_domains", _domain)
+    result["manual_domains"] = _list(result["manual_domains"], "manual_domains", _domain)
     for key in ("header_html", "footer_html", "content_css"):
         value = _string(result[key], key)
         if len(value) > MAX_CONTENT_LENGTH:
@@ -183,9 +184,6 @@ def _validate_mail(values: dict[str, object]) -> dict[str, object]:
 
 
 def _active_domains(request: Request, settings: dict[str, object] | None = None) -> list[str]:
-    settings = settings or request.app.state.state_store.get_settings()
-    if not settings["auto_sync_domains"]:
-        return request.app.state.state_store.get_frozen_domains()
     return active_domains(request.app.state.domain_cache, request.app.state.state_store)
 
 
@@ -267,7 +265,7 @@ def update_settings(
             request.app.state.jmap = JmapClient(saved.jmap_url, saved.jmap_token, saved.catchall_address)
         if site_updates:
             if current_site["auto_sync_domains"] and not validated_site["auto_sync_domains"]:
-                state.replace_frozen_domains(_active_domains(request, current_site))
+                state.replace_frozen_domains(request.app.state.domain_cache.domains())
             state.update_settings({key: validated_site[key] for key in site_updates})
     return settings(request, _session_value)
 

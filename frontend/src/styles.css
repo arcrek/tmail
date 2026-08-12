@@ -818,6 +818,29 @@ main {
   padding: 1.5rem 1.75rem;
 }
 
+.reader-content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 14rem;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.reader-body { min-width: 0; }
+
+.verification-code {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin: 1rem 0;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+}
+
+.verification-code code { font-size: 1.1rem; font-weight: 700; }
+
 .reader-state {
   display: flex;
   flex-direction: column;
@@ -1388,6 +1411,10 @@ main {
     display: grid;
     gap: 1rem;
   }
+
+  .reader-content-grid { display: block; }
+
+  .verification-code { margin-bottom: 1rem; }
 
   .address-fields {
     grid-template-columns: 1fr;

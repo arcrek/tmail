@@ -22,6 +22,7 @@ DEFAULT_SETTINGS = {
     "local_part_max": 32,
     "forbidden_ids": [],
     "blocked_sender_domains": [],
+    "manual_domains": [],
     "header_html": "",
     "footer_html": "",
     "content_css": "",

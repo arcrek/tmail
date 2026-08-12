@@ -138,6 +138,7 @@ export interface AdminSiteSettings extends SiteResource {
   localPartMax: number
   forbiddenIds: string[]
   blockedSenderDomains: string[]
+  manualDomains: string[]
 }
 
 export interface MailServerSettings {

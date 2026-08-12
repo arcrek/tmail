@@ -113,6 +113,18 @@ describe('MessageReader', () => {
     expect(wrapper.get('iframe').attributes('srcdoc')).toBeUndefined()
   })
 
+  it('shows the first standalone verification code, preferring the subject', async () => {
+    mocks.message.mockResolvedValueOnce({ ...message('one'), subject: 'Code 123456', text: 'Use 654321', html: ['<p>987654</p>'] })
+    const wrapper = mount(MessageReader, { props: { token: 'signed', id: 'one' } })
+    await flushPromises()
+    expect(wrapper.get('.verification-code').text()).toContain('123456')
+
+    mocks.message.mockResolvedValueOnce({ ...message('two'), subject: 'No code', text: 'Long 123456789 only', html: [] })
+    await wrapper.setProps({ id: 'two' })
+    await flushPromises()
+    expect(wrapper.find('.verification-code').exists()).toBe(false)
+  })
+
   it('downloads attachments and source through the authenticated API', async () => {
     const wrapper = mount(MessageReader, { props: { token: 'signed', id: 'one' } })
     await flushPromises()

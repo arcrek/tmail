@@ -95,12 +95,16 @@ class AddressToken:
 
 
 def active_domains(cache_file: str | DomainCache, state) -> list[str]:
-    if not state.get_settings()["auto_sync_domains"]:
-        return state.get_frozen_domains()
-    cache = cache_file if isinstance(cache_file, DomainCache) else DomainCache(cache_file)
-    cache.load()
+    settings = state.get_settings()
+    manual = settings.get("manual_domains", [])
+    source = state.get_frozen_domains()
+    if settings["auto_sync_domains"]:
+        source = []
+        cache = cache_file if isinstance(cache_file, DomainCache) else DomainCache(cache_file)
+        cache.load()
+        source = cache.domains()
     domains = []
-    for value in cache.domains():
+    for value in [*source, *manual]:
         try:
             domains.append(_domain(value))
         except AddressValidationError:

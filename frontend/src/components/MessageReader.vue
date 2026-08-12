@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError, api } from '../api'
+import { copyText } from '../clipboard'
 import type { AttachmentResource, MessageResource } from '../types'
 import AppIcon from './AppIcon.vue'
 import SandboxFrame from './SandboxFrame.vue'
@@ -21,6 +22,23 @@ const bodyMode = ref<'html' | 'text'>('html')
 const busy = ref('')
 const backButton = ref<HTMLButtonElement | null>(null)
 let requestVersion = 0
+
+const verificationCode = computed(() => {
+  const current = message.value
+  if (!current) return ''
+  const find = (value: string) => value.match(/(?<![0-9])[0-9]{4,8}(?![0-9])/)?.[0] ?? ''
+  return find(current.subject) || find(current.text) || find(new DOMParser().parseFromString(current.html.join('\n'), 'text/html').body.textContent ?? '')
+})
+
+async function copyVerificationCode(): Promise<void> {
+  if (!verificationCode.value) return
+  actionError.value = ''
+  try {
+    await copyText(verificationCode.value)
+  } catch {
+    actionError.value = 'Copy failed. Select the code and copy it manually.'
+  }
+}
 
 function formatAddress(value: { name: string; address: string }): string {
   return value.name ? `${value.name} <${value.address}>` : value.address
@@ -270,18 +288,28 @@ onBeforeUnmount(() => { requestVersion += 1 })
         </ul>
       </section>
 
-      <div v-if="message.html.length && message.text" class="body-switcher" aria-label="Message format">
-        <button type="button" :aria-pressed="bodyMode === 'html'" @click="bodyMode = 'html'">HTML</button>
-        <button type="button" :aria-pressed="bodyMode === 'text'" @click="bodyMode = 'text'">Plain text</button>
-      </div>
+      <div class="reader-content-grid">
+        <aside v-if="verificationCode" class="verification-code" aria-label="Verification code">
+          <strong>Verification code</strong>
+          <code>{{ verificationCode }}</code>
+          <button class="secondary-button compact-button" type="button" @click="copyVerificationCode">Copy</button>
+        </aside>
 
-      <SandboxFrame
-        v-if="message.html.length && bodyMode === 'html'"
-        :html="message.html.join('\n')"
-        mode="message"
-        :title="`Message: ${message.subject || 'No subject'}`"
-      />
-      <pre v-else class="plain-message">{{ message.text || 'This message has no readable body.' }}</pre>
+        <div class="reader-body">
+          <div v-if="message.html.length && message.text" class="body-switcher" aria-label="Message format">
+            <button type="button" :aria-pressed="bodyMode === 'html'" @click="bodyMode = 'html'">HTML</button>
+            <button type="button" :aria-pressed="bodyMode === 'text'" @click="bodyMode = 'text'">Plain text</button>
+          </div>
+
+          <SandboxFrame
+            v-if="message.html.length && bodyMode === 'html'"
+            :html="message.html.join('\n')"
+            mode="message"
+            :title="`Message: ${message.subject || 'No subject'}`"
+          />
+          <pre v-else class="plain-message">{{ message.text || 'This message has no readable body.' }}</pre>
+        </div>
+      </div>
     </template>
   </article>
 </template>

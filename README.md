@@ -202,6 +202,8 @@ With **Automatically sync domains** on (the default), the public whitelist follo
 
 Turning automatic sync off freezes the current whitelist so later cache changes do not alter public address availability. Manual **Sync domains** still replaces that frozen whitelist while automatic sync remains off. Re-enabling automatic sync resumes reading the live cache.
 
+Administrators can also add **Manual receiving domains** in the domain settings. These validated domains remain active alongside either the synchronized cache or the frozen whitelist, so domains managed outside the policy daemon can receive public inboxes.
+
 ## Mail flow
 
 ```text

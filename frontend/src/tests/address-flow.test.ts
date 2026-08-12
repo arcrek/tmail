@@ -212,6 +212,21 @@ describe('address flow', () => {
     ])
   })
 
+  it('opens a random address through the existing token flow', async () => {
+    mocks.domains.mockResolvedValue(domains(['one.example', 'two.example']))
+    vi.stubGlobal('crypto', { getRandomValues: (values: Uint32Array) => {
+      values.set([1, 2, 3, 4, 5, 6])
+      return values
+    } })
+    const wrapper = mount(AddressPanel)
+    await flushPromises()
+    await wrapper.get('.panel-heading button').trigger('click')
+    await flushPromises()
+
+    expect(mocks.token).toHaveBeenCalledTimes(1)
+    expect(wrapper.emitted('open')?.[0]?.[0]).toEqual({ address: 'cifuhe@two.example', token: 'signed-token' })
+  })
+
   it('resets copied state when the composed address changes', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })

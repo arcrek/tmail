@@ -23,14 +23,15 @@ def test_normalize_address_applies_whitelist_and_forbidden_ids():
         normalize_address("user@other.com", ["example.com"], settings)
 
 
-def test_auto_sync_uses_cache_and_off_uses_frozen_domains(tmp_path):
+def test_active_domains_unions_manual_domains_with_each_source(tmp_path):
     cache = tmp_path / "domains.json"
     cache.write_text('["live.example"]')
     state = StateStore(str(tmp_path / "state.db"))
-    assert active_domains(str(cache), state) == ["live.example"]
+    state.update_settings({"manual_domains": ["Manual.example", "live.example"]})
+    assert active_domains(str(cache), state) == ["live.example", "manual.example"]
     state.replace_frozen_domains(["frozen.example"])
     state.update_settings({"auto_sync_domains": False})
-    assert active_domains(str(cache), state) == ["frozen.example"]
+    assert active_domains(str(cache), state) == ["frozen.example", "manual.example"]
 
 
 def test_auto_sync_reuses_last_valid_long_lived_cache_snapshot(tmp_path):
