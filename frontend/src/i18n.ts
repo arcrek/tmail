@@ -2,9 +2,10 @@ import { readonly, ref } from 'vue'
 
 export type Locale = 'en' | 'vi'
 type Params = Record<string, string | number>
+const STORAGE_KEY = 'tmail.locale'
 
 export const en = {
-  'nav.site': 'Site navigation', 'nav.docs': 'API docs', 'nav.admin': 'Admin',
+  'nav.site': 'Site navigation', 'nav.docs': 'API docs', 'nav.admin': 'Admin', 'locale.label': 'Language', 'locale.english': 'English', 'locale.vietnamese': 'Vietnamese',
   'theme.light': 'Switch to light theme', 'theme.dark': 'Switch to dark theme',
   'app.opening': 'Opening address', 'app.cookie': 'Cookie notice', 'app.header': 'Configured site header', 'app.footer': 'Configured site footer', 'app.content': 'Configured {name} content', 'app.defaultName': 'Temporary Inbox', 'app.messageContent': 'Message content', 'app.siteContent': 'Site content',
   'address.eyebrow': 'Temporary inbox', 'address.title': 'Receive mail. Keep your address.', 'address.lede': 'Choose a name, open the inbox, and leave no account behind.', 'address.loading': 'Loading receiving domains', 'address.failed': 'Domains could not be loaded', 'address.none': 'No receiving domains are available', 'address.noneHelp': 'Try again later or ask the site administrator to enable a domain.', 'address.retry': 'Retry', 'address.open': 'Open inbox', 'address.opening': 'Opening inbox', 'address.create': 'Create an address', 'address.random': 'Open random email', 'address.name': 'Address name', 'address.domain': 'Receiving domain', 'address.preview': 'Your address appears here', 'address.copy': 'Copy', 'address.copied': 'Copied', 'address.copiedNotice': 'Address copied.', 'address.saved': 'Saved inboxes', 'address.savedHelp': 'Addresses you open on this device will appear here.', 'address.forget': 'Forget {address}', 'error.unavailable': 'The mail service is unavailable. Try again.', 'error.copy': 'Copy failed. Select the address and copy it manually.',
@@ -19,7 +20,7 @@ export const en = {
 } as const
 
 export const vi: Record<keyof typeof en, string> = {
-  'nav.site': 'Điều hướng trang', 'nav.docs': 'Tài liệu API', 'nav.admin': 'Quản trị', 'theme.light': 'Chuyển sang giao diện sáng', 'theme.dark': 'Chuyển sang giao diện tối',
+  'nav.site': 'Điều hướng trang', 'nav.docs': 'Tài liệu API', 'nav.admin': 'Quản trị', 'locale.label': 'Ngôn ngữ', 'locale.english': 'Tiếng Anh', 'locale.vietnamese': 'Tiếng Việt', 'theme.light': 'Chuyển sang giao diện sáng', 'theme.dark': 'Chuyển sang giao diện tối',
   'app.opening': 'Đang mở địa chỉ', 'app.cookie': 'Thông báo cookie', 'app.header': 'Phần đầu trang đã cấu hình', 'app.footer': 'Phần cuối trang đã cấu hình', 'app.content': 'Nội dung {name} đã cấu hình', 'app.defaultName': 'Hộp thư tạm thời', 'app.messageContent': 'Nội dung thư', 'app.siteContent': 'Nội dung trang',
   'address.eyebrow': 'Hộp thư tạm thời', 'address.title': 'Nhận thư. Giữ địa chỉ của bạn.', 'address.lede': 'Chọn tên, mở hộp thư và không cần tạo tài khoản.', 'address.loading': 'Đang tải tên miền nhận thư', 'address.failed': 'Không thể tải tên miền', 'address.none': 'Không có tên miền nhận thư', 'address.noneHelp': 'Hãy thử lại sau hoặc yêu cầu quản trị viên bật tên miền.', 'address.retry': 'Thử lại', 'address.open': 'Mở hộp thư', 'address.opening': 'Đang mở hộp thư', 'address.create': 'Tạo địa chỉ', 'address.random': 'Mở email ngẫu nhiên', 'address.name': 'Tên địa chỉ', 'address.domain': 'Tên miền nhận thư', 'address.preview': 'Địa chỉ của bạn xuất hiện ở đây', 'address.copy': 'Sao chép', 'address.copied': 'Đã sao chép', 'address.copiedNotice': 'Đã sao chép địa chỉ.', 'address.saved': 'Hộp thư đã lưu', 'address.savedHelp': 'Các địa chỉ bạn mở trên thiết bị này sẽ xuất hiện ở đây.', 'address.forget': 'Quên {address}', 'error.unavailable': 'Dịch vụ thư không khả dụng. Hãy thử lại.', 'error.copy': 'Sao chép thất bại. Hãy chọn địa chỉ và sao chép thủ công.',
   'inbox.address': 'Địa chỉ tạm thời của bạn', 'inbox.refresh': 'Làm mới', 'inbox.refreshing': 'Đang làm mới', 'inbox.new': 'Địa chỉ mới', 'inbox.enableNotifications': 'Bật thông báo', 'inbox.notificationsOn': 'Đã bật thông báo', 'inbox.autoRefresh': 'Tự làm mới mỗi {seconds} giây', 'inbox.messages': 'Thư', 'inbox.total': '{count} thư', 'inbox.loading': 'Đang tải hộp thư', 'inbox.unavailable': 'Hộp thư không khả dụng', 'inbox.waiting': 'Đang chờ thư', 'inbox.waitingHelp': 'Thư mới sẽ tự động xuất hiện ở đây.', 'inbox.noSubject': '(Không có tiêu đề)', 'inbox.noPreview': 'Không có bản xem trước', 'inbox.attachment': 'Có tệp đính kèm', 'inbox.pages': 'Các trang thư', 'inbox.previous': 'Trước', 'inbox.next': 'Tiếp', 'inbox.page': 'Trang {page}', 'inbox.newMessage': 'Thư mới', 'inbox.newMessageBody': 'Có thư mới trong hộp thư tạm thời của bạn.', 'inbox.notificationsUnavailable': 'Thông báo trình duyệt không khả dụng.', 'inbox.notificationsEnabled': 'Đã bật thông báo.', 'inbox.notificationsOff': 'Thông báo vẫn tắt.', 'error.inbox': 'Không thể làm mới hộp thư.',
@@ -34,16 +35,51 @@ export const vi: Record<keyof typeof en, string> = {
 
 export type MessageKey = keyof typeof en
 const locale = ref<Locale>('en')
+let siteLocale: Locale | null = null
+let visitorLocale: Locale | null = null
 
 export function normalizeLocale(value?: string): Locale {
   return value?.trim().toLowerCase().split('-')[0] === 'vi' ? 'vi' : 'en'
 }
 
+function readStoredLocale(): Locale | null {
+  try {
+    if (typeof localStorage === 'undefined') return null
+    const value = localStorage.getItem(STORAGE_KEY)
+    return value === 'en' || value === 'vi' ? value : null
+  } catch {
+    return null
+  }
+}
+
+function browserLocale(): Locale {
+  const languages = typeof navigator === 'undefined' ? [] : navigator.languages?.length ? navigator.languages : [navigator.language]
+  return normalizeLocale(languages[0])
+}
+
+function resolveLocale(): void { locale.value = visitorLocale ?? siteLocale ?? browserLocale() }
+
+/** Compatibility helper for tests and one-off in-memory locale changes. */
 export function setLocale(value?: string): void { locale.value = normalizeLocale(value) }
 
+export function setSiteLocale(value?: string): void {
+  siteLocale = value === undefined ? null : normalizeLocale(value)
+  resolveLocale()
+}
+
+export function selectLocale(value?: string): void {
+  visitorLocale = normalizeLocale(value)
+  resolveLocale()
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, visitorLocale)
+  } catch {
+    // Visitor choice is a convenience; keep the in-memory selection for this page.
+  }
+}
+
 export function initLocale(): void {
-  const languages = typeof navigator === 'undefined' ? [] : navigator.languages?.length ? navigator.languages : [navigator.language]
-  setLocale(languages[0])
+  visitorLocale = readStoredLocale()
+  resolveLocale()
 }
 
 export function useI18n() {
@@ -53,5 +89,5 @@ export function useI18n() {
     return Number.isNaN(date.valueOf()) ? value : new Intl.DateTimeFormat(locale.value, options).format(date)
   }
   const formatNumber = (value: number, options?: Intl.NumberFormatOptions) => new Intl.NumberFormat(locale.value, options).format(value)
-  return { locale: readonly(locale), t, formatDate, formatNumber }
+  return { locale: readonly(locale), selectLocale, t, formatDate, formatNumber }
 }

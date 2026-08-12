@@ -9,7 +9,7 @@ import { ApiError, api } from './api'
 import { parseRoute } from './route'
 import { loadSessions, saveSession } from './session'
 import type { AddressSession, SiteResource } from './types'
-import { setLocale, useI18n } from './i18n'
+import { setSiteLocale, useI18n } from './i18n'
 
 type View = 'address' | 'inbox' | 'admin'
 
@@ -28,7 +28,7 @@ const originalAccent = root.style.getPropertyValue('--brand-accent')
 const originalTitle = document.title
 const originalFavicon = document.head.querySelector<HTMLLinkElement>('link[rel~="icon"]')
 const originalFaviconHref = originalFavicon?.getAttribute('href') ?? null
-const { t } = useI18n()
+const { locale, t } = useI18n()
 let favicon = originalFavicon
 let createdFavicon = false
 
@@ -39,8 +39,7 @@ function applySite(value: SiteResource | null): void {
   if (!value) return
   root.style.setProperty('--brand-primary', value.primaryColor)
   root.style.setProperty('--brand-accent', value.accentColor)
-  root.lang = value.language
-  setLocale(value.language)
+  setSiteLocale(value.language)
   document.title = value.appName
   if (value.faviconDataUrl) {
     if (!favicon) {
@@ -77,6 +76,7 @@ function cleanupSite(): void {
 }
 
 watch(site, applySite)
+watch(locale, (value) => { root.lang = value }, { immediate: true })
 
 function openInbox(session: AddressSession, updatePath = true): void {
   current.value = session
@@ -178,6 +178,7 @@ onBeforeUnmount(() => {
     <AppHeader
       :app-name="site?.appName"
       :logo-data-url="site?.logoDataUrl"
+      :show-locale-picker="view !== 'admin'"
       @home="newAddress"
     />
 

@@ -424,6 +424,14 @@ main {
   color: var(--ink);
 }
 
+.locale-picker select {
+  width: auto;
+  min-height: 44px;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
 .theme-toggle {
   display: grid;
   width: 44px;

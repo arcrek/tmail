@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api'
 import App from '../App.vue'
 import AddressPanel from '../components/AddressPanel.vue'
+import { initLocale, setSiteLocale } from '../i18n'
 
 const mocks = vi.hoisted(() => ({
   domains: vi.fn(),
@@ -48,6 +49,8 @@ enableAutoUnmount(afterEach)
 describe('address flow', () => {
   beforeEach(() => {
     localStorage.clear()
+    initLocale()
+    setSiteLocale(undefined)
     history.replaceState({}, '', '/')
     mocks.domains.mockReset().mockResolvedValue(domains(['example.com']))
     mocks.token.mockReset().mockResolvedValue({ id: 'account-id', token: 'signed-token' })
@@ -98,6 +101,17 @@ describe('address flow', () => {
     expect(JSON.parse(localStorage.getItem('tmail.addresses') ?? '[]')).toEqual([
       { address: 'box@example.com', token: 'signed-token' },
     ])
+  })
+
+  it('lets visitors choose and persist Vietnamese from the header', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+    expect(wrapper.get('select').attributes('aria-label')).toBe('Language')
+    expect(wrapper.get('select').findAll('option').map((option) => option.attributes('value'))).toEqual(['en', 'vi'])
+    await wrapper.get('select').setValue('vi')
+    expect(wrapper.text()).toContain('Tài liệu API')
+    expect(document.documentElement.lang).toBe('vi')
+    expect(localStorage.getItem('tmail.locale')).toBe('vi')
   })
 
   it('keeps configured site and ad HTML inside opaque sandbox frames', async () => {
@@ -159,7 +173,7 @@ describe('address flow', () => {
     expect(wrapper.get('[role="status"][aria-label="Cookie notice"]').text()).toContain('necessary preference cookie')
     expect(root.style.getPropertyValue('--brand-primary')).toBe('#123456')
     expect(root.style.getPropertyValue('--brand-accent')).toBe('#654321')
-    expect(root.lang).toBe('de')
+    expect(root.lang).toBe('en')
     expect(document.title).toBe('Configured Mail')
     expect(favicon.getAttribute('href')).toBe('data:image/png;base64,aWNvbg==')
 
