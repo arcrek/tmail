@@ -5,12 +5,14 @@ import { copyText } from '../clipboard'
 import type { AddressSession, HydraCollection, MessageSummary } from '../types'
 import AppIcon from './AppIcon.vue'
 import MessageReader from './MessageReader.vue'
+import { useI18n } from '../i18n'
 
 const props = defineProps<{
   session: AddressSession
   fetchSeconds: number
 }>()
 const emit = defineEmits<{ newAddress: [] }>()
+const { t, formatDate: localDate } = useI18n()
 
 const collection = ref<HydraCollection<MessageSummary> | null>(null)
 const selectedId = ref<string | null>(null)
@@ -40,23 +42,22 @@ const canPrevious = computed(() => Boolean(collection.value?.['hydra:view']['hyd
 const canNext = computed(() => Boolean(collection.value?.['hydra:view']['hydra:next']))
 
 function failure(cause: unknown): string {
-  return cause instanceof ApiError ? cause.message : 'The inbox could not be refreshed.'
+  return cause instanceof ApiError ? cause.message : t('error.inbox')
 }
 
 function formatDate(value: string): string {
-  const date = new Date(value)
-  return Number.isNaN(date.valueOf()) ? value : new Intl.DateTimeFormat(undefined, {
+  return localDate(value, {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-  }).format(date)
+  })
 }
 
 function notifyNew(values: MessageSummary[]): void {
   if (initialized && notificationPermission.value === 'granted' && typeof Notification !== 'undefined') {
     for (const item of values.filter(({ id }) => !knownIds.has(id))) {
-      new Notification('New message', { body: 'A new message arrived in your temporary inbox.' })
+      new Notification(t('inbox.newMessage'), { body: t('inbox.newMessageBody') })
     }
   }
   for (const { id } of values) knownIds.add(id)
@@ -113,21 +114,21 @@ function handleVisibility(): void {
 async function copyAddress(): Promise<void> {
   try {
     await copyText(props.session.address)
-    notice.value = 'Address copied.'
+    notice.value = t('address.copiedNotice')
   } catch {
-    notice.value = 'Copy failed. Select the address and copy it manually.'
+    notice.value = t('error.copy')
   }
 }
 
 async function enableNotifications(): Promise<void> {
   if (typeof Notification === 'undefined') {
-    notice.value = 'Browser notifications are not available.'
+    notice.value = t('inbox.notificationsUnavailable')
     return
   }
   notificationPermission.value = await Notification.requestPermission()
   notice.value = notificationPermission.value === 'granted'
-    ? 'Notifications enabled.'
-    : 'Notifications remain off.'
+    ? t('inbox.notificationsEnabled')
+    : t('inbox.notificationsOff')
 }
 
 function changePage(next: number): void {
@@ -187,14 +188,14 @@ onBeforeUnmount(() => {
   <section class="inbox-view" aria-labelledby="inbox-title">
     <div class="panel inbox-hero">
       <div class="inbox-hero-address">
-        <small>Your temporary address</small>
+        <small>{{ t('inbox.address') }}</small>
         <h1 id="inbox-title" class="inbox-address">{{ session.address }}</h1>
       </div>
 
       <div class="inbox-hero-actions">
         <button class="primary-button" type="button" @click="copyAddress">
           <AppIcon name="copy" />
-          Copy
+          {{ t('address.copy') }}
         </button>
         <button
           class="secondary-button"
@@ -204,11 +205,11 @@ onBeforeUnmount(() => {
           @click="refresh"
         >
           <AppIcon name="refresh-cw" />
-          {{ refreshing ? 'Refreshing' : 'Refresh' }}
+          {{ refreshing ? t('inbox.refreshing') : t('inbox.refresh') }}
         </button>
         <button class="secondary-button" type="button" data-action="new-address" @click="emit('newAddress')">
           <AppIcon name="plus" />
-          New address
+          {{ t('inbox.new') }}
         </button>
         <button
           class="secondary-button"
@@ -218,12 +219,12 @@ onBeforeUnmount(() => {
           @click="enableNotifications"
         >
           <AppIcon name="bell" />
-          {{ notificationPermission === 'granted' ? 'Notifications on' : 'Enable notifications' }}
+          {{ notificationPermission === 'granted' ? t('inbox.notificationsOn') : t('inbox.enableNotifications') }}
         </button>
       </div>
 
       <p v-if="notice" class="toolbar-notice" aria-live="polite">{{ notice }}</p>
-      <p class="auto-refresh-hint">Auto-refreshes every {{ fetchSeconds }}s</p>
+      <p class="auto-refresh-hint">{{ t('inbox.autoRefresh', { seconds: fetchSeconds }) }}</p>
     </div>
 
     <MessageReader
@@ -236,11 +237,11 @@ onBeforeUnmount(() => {
       @close="selectedId = null"
     />
 
-    <aside v-else class="panel message-list" aria-label="Messages">
+    <aside v-else class="panel message-list" :aria-label="t('inbox.messages')">
       <div class="list-heading">
         <div>
-          <h2 ref="listHeading" tabindex="-1">Messages</h2>
-          <span>{{ collection?.['hydra:totalItems'] ?? 0 }} total</span>
+          <h2 ref="listHeading" tabindex="-1">{{ t('inbox.messages') }}</h2>
+          <span>{{ t('inbox.total', { count: collection?.['hydra:totalItems'] ?? 0 }) }}</span>
         </div>
       </div>
 
@@ -248,18 +249,18 @@ onBeforeUnmount(() => {
         <span class="skeleton skeleton-field" />
         <span class="skeleton skeleton-field" />
         <span class="skeleton skeleton-field" />
-        <span class="sr-only">Loading inbox</span>
+        <span class="sr-only">{{ t('inbox.loading') }}</span>
       </div>
 
       <div v-else-if="error && !collection" class="message-list-state">
-        <h3>Inbox unavailable</h3>
+        <h3>{{ t('inbox.unavailable') }}</h3>
         <p>{{ error }}</p>
-        <button class="secondary-button compact-button" type="button" @click="refresh">Retry</button>
+        <button class="secondary-button compact-button" type="button" @click="refresh">{{ t('address.retry') }}</button>
       </div>
 
       <div v-else-if="!messages.length" class="message-list-state">
-        <h3>Waiting for mail</h3>
-        <p>New messages will appear here automatically.</p>
+        <h3>{{ t('inbox.waiting') }}</h3>
+        <p>{{ t('inbox.waitingHelp') }}</p>
       </div>
 
       <template v-else>
@@ -276,19 +277,19 @@ onBeforeUnmount(() => {
             <strong>{{ item.from.name || item.from.address }}</strong>
             <time :datetime="item.createdAt">{{ formatDate(item.createdAt) }}</time>
           </span>
-          <span class="message-subject">{{ item.subject || '(No subject)' }}</span>
-          <span class="message-intro">{{ item.intro || 'No preview available' }}</span>
+          <span class="message-subject">{{ item.subject || t('inbox.noSubject') }}</span>
+          <span class="message-intro">{{ item.intro || t('inbox.noPreview') }}</span>
           <span v-if="item.hasAttachments" class="attachment-flag">
             <AppIcon name="paperclip" />
-            <span class="sr-only">Has attachment</span>
+            <span class="sr-only">{{ t('inbox.attachment') }}</span>
           </span>
         </button>
       </template>
 
-      <nav v-if="canPrevious || canNext" class="pagination" aria-label="Message pages">
-        <button type="button" :disabled="!canPrevious" @click="changePage(page - 1)">Previous</button>
-        <span>Page {{ page }}</span>
-        <button type="button" :disabled="!canNext" @click="changePage(page + 1)">Next</button>
+      <nav v-if="canPrevious || canNext" class="pagination" :aria-label="t('inbox.pages')">
+        <button type="button" :disabled="!canPrevious" @click="changePage(page - 1)">{{ t('inbox.previous') }}</button>
+        <span>{{ t('inbox.page', { page }) }}</span>
+        <button type="button" :disabled="!canNext" @click="changePage(page + 1)">{{ t('inbox.next') }}</button>
       </nav>
     </aside>
   </section>

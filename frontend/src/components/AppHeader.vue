@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import AppIcon from './AppIcon.vue'
 import ThemeToggle from './ThemeToggle.vue'
+import { useI18n } from '../i18n'
 
 withDefaults(defineProps<{
   appName?: string
   logoDataUrl?: string
-}>(), { appName: 'Temporary Inbox', logoDataUrl: '' })
+}>(), { appName: '', logoDataUrl: '' })
 
 const emit = defineEmits<{ home: [] }>()
+const { t } = useI18n()
 
 function onBrandClick(event: MouseEvent): void {
   if (event.defaultPrevented || event.button !== 0) return
@@ -21,17 +23,17 @@ function onBrandClick(event: MouseEvent): void {
   <header class="app-header">
     <a class="brand" href="/" @click="onBrandClick">
       <img v-if="logoDataUrl" :src="logoDataUrl" alt="">
-      <span class="brand-name">{{ appName }}</span>
+      <span class="brand-name">{{ appName || t('app.defaultName') }}</span>
     </a>
 
-    <nav class="app-header-nav" aria-label="Site navigation">
+    <nav class="app-header-nav" :aria-label="t('nav.site')">
       <a href="/docs">
         <AppIcon name="external-link" />
-        API docs
+        {{ t('nav.docs') }}
       </a>
       <a class="admin-link" href="/admin">
         <AppIcon name="shield" />
-        Admin
+        {{ t('nav.admin') }}
       </a>
       <ThemeToggle />
     </nav>

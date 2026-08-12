@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import InboxView from '../components/InboxView.vue'
+import { setLocale } from '../i18n'
 
 const styles = readFileSync(resolve(process.cwd(), 'src/styles.css'), 'utf8')
 
@@ -76,6 +77,17 @@ describe('InboxView polling', () => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
+    setLocale('en')
+  })
+
+  it('renders Vietnamese product labels', async () => {
+    setLocale('vi')
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('Làm mới')
+    expect(wrapper.get('.message-list').attributes('aria-label')).toBe('Thư')
   })
 
   it('pauses while hidden, refreshes on return, and cleans up', async () => {

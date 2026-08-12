@@ -5,9 +5,11 @@ import { copyText } from '../clipboard'
 import { loadSessions, removeSession } from '../session'
 import type { AddressSession, DomainResource } from '../types'
 import AppIcon from './AppIcon.vue'
+import { useI18n } from '../i18n'
 
 withDefaults(defineProps<{ initialError?: string }>(), { initialError: '' })
 const emit = defineEmits<{ open: [session: AddressSession] }>()
+const { t } = useI18n()
 
 const domains = ref<DomainResource[]>([])
 const selectedDomain = ref('')
@@ -28,7 +30,7 @@ const address = computed(() =>
 watch(address, () => { copied.value = false })
 
 const message = (value: unknown) =>
-  value instanceof ApiError ? value.message : 'The mail service is unavailable. Try again.'
+  value instanceof ApiError ? value.message : t('error.unavailable')
 
 async function loadDomains(): Promise<void> {
   loadingDomains.value = true
@@ -80,7 +82,7 @@ async function copyAddress(): Promise<void> {
     await copyText(address.value)
     copied.value = true
   } catch {
-    error.value = 'Copy failed. Select the address and copy it manually.'
+    error.value = t('error.copy')
   }
 }
 
@@ -91,42 +93,42 @@ function forget(address: string): void {
 
 <template>
   <section class="home-hero" aria-labelledby="address-title">
-    <p class="eyebrow">Temporary inbox</p>
-    <h1 id="address-title">Receive mail. Keep your address.</h1>
-    <p class="lede">Choose a name, open the inbox, and leave no account behind.</p>
+    <p class="eyebrow">{{ t('address.eyebrow') }}</p>
+    <h1 id="address-title">{{ t('address.title') }}</h1>
+    <p class="lede">{{ t('address.lede') }}</p>
   </section>
 
   <div v-if="loadingDomains" class="panel loading-panel" aria-live="polite">
     <span class="skeleton skeleton-label" />
     <span class="skeleton skeleton-field" />
     <span class="skeleton skeleton-button" />
-    <span class="sr-only">Loading receiving domains</span>
+    <span class="sr-only">{{ t('address.loading') }}</span>
   </div>
 
   <div v-else-if="domainError" class="panel empty-state" role="alert">
-    <h2>Domains could not be loaded</h2>
+    <h2>{{ t('address.failed') }}</h2>
     <p>{{ domainError }}</p>
-    <button type="button" @click="loadDomains">Retry</button>
+    <button type="button" @click="loadDomains">{{ t('address.retry') }}</button>
   </div>
 
   <div v-else-if="domains.length === 0" class="panel empty-state">
-    <h2>No receiving domains are available</h2>
-    <p>Try again later or ask the site administrator to enable a domain.</p>
-    <button type="submit" disabled>Open inbox</button>
+    <h2>{{ t('address.none') }}</h2>
+    <p>{{ t('address.noneHelp') }}</p>
+    <button type="submit" disabled>{{ t('address.open') }}</button>
   </div>
 
   <form v-else class="panel address-form" @submit.prevent="submit">
     <div class="panel-heading">
-      <h2>Create an address</h2>
+      <h2>{{ t('address.create') }}</h2>
       <button class="text-button" type="button" :disabled="loadingDomains || !domains.length || submitting" @click="randomize">
         <AppIcon name="sparkles" />
-        Open random email
+        {{ t('address.random') }}
       </button>
     </div>
 
     <div class="address-fields">
       <div class="field local-field">
-        <label for="local-part">Address name</label>
+        <label for="local-part">{{ t('address.name') }}</label>
         <input
           id="local-part"
           v-model="localPart"
@@ -141,7 +143,7 @@ function forget(address: string): void {
       </div>
       <span class="at-sign" aria-hidden="true">@</span>
       <div class="field domain-field">
-        <label for="domain">Receiving domain</label>
+        <label for="domain">{{ t('address.domain') }}</label>
         <select id="domain" v-model="selectedDomain" name="domain" required>
           <option v-for="domain in domains" :key="domain.id" :value="domain.domain">
             {{ domain.domain }}
@@ -151,33 +153,33 @@ function forget(address: string): void {
     </div>
 
     <div class="address-preview">
-      <span>{{ address || 'Your address appears here' }}</span>
+      <span>{{ address || t('address.preview') }}</span>
       <button class="text-button" type="button" :disabled="!address" @click="copyAddress">
         <AppIcon :name="copied ? 'check' : 'copy'" />
-        {{ copied ? 'Copied' : 'Copy' }}
+        {{ copied ? t('address.copied') : t('address.copy') }}
       </button>
     </div>
 
-    <p class="sr-only" aria-live="polite">{{ copied ? 'Address copied.' : '' }}</p>
+    <p class="sr-only" aria-live="polite">{{ copied ? t('address.copiedNotice') : '' }}</p>
 
     <p class="form-error" aria-live="polite">{{ error || initialError }}</p>
     <button class="primary-button" type="submit" :disabled="submitting || !address">
-      {{ submitting ? 'Opening inbox' : 'Open inbox' }}
+      {{ submitting ? t('address.opening') : t('address.open') }}
     </button>
   </form>
 
   <section class="panel saved-inboxes" aria-labelledby="remembered-title">
-    <h2 id="remembered-title">Saved inboxes</h2>
+    <h2 id="remembered-title">{{ t('address.saved') }}</h2>
     <ul v-if="sessions.length">
       <li v-for="session in sessions" :key="session.address">
         <button class="saved-address" type="button" @click="emit('open', session)">
           {{ session.address }}
         </button>
-        <button class="forget-button" type="button" :aria-label="`Forget ${session.address}`" @click="forget(session.address)">
+        <button class="forget-button" type="button" :aria-label="t('address.forget', { address: session.address })" @click="forget(session.address)">
           <AppIcon name="trash-2" />
         </button>
       </li>
     </ul>
-    <p v-else class="empty-copy">Addresses you open on this device will appear here.</p>
+    <p v-else class="empty-copy">{{ t('address.savedHelp') }}</p>
   </section>
 </template>

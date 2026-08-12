@@ -5,6 +5,7 @@ import { copyText } from '../clipboard'
 import type { AttachmentResource, MessageResource } from '../types'
 import AppIcon from './AppIcon.vue'
 import SandboxFrame from './SandboxFrame.vue'
+import { useI18n } from '../i18n'
 
 const props = defineProps<{ token: string; id: string }>()
 const emit = defineEmits<{
@@ -13,6 +14,7 @@ const emit = defineEmits<{
   seen: [id: string]
   stale: [id: string]
 }>()
+const { t, formatDate: localDate, formatNumber } = useI18n()
 
 const message = ref<MessageResource | null>(null)
 const loading = ref(true)
@@ -36,7 +38,7 @@ async function copyVerificationCode(): Promise<void> {
   try {
     await copyText(verificationCode.value)
   } catch {
-    actionError.value = 'Copy failed. Select the code and copy it manually.'
+    actionError.value = t('error.copy')
   }
 }
 
@@ -45,17 +47,16 @@ function formatAddress(value: { name: string; address: string }): string {
 }
 
 function formatDate(value: string): string {
-  const date = new Date(value)
-  return Number.isNaN(date.valueOf()) ? value : new Intl.DateTimeFormat(undefined, {
+  return localDate(value, {
     dateStyle: 'medium',
     timeStyle: 'short',
-  }).format(date)
+  })
 }
 
 function formatBytes(value: number): string {
-  if (value < 1024) return `${value} B`
-  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`
-  return `${(value / (1024 * 1024)).toFixed(1)} MB`
+  if (value < 1024) return `${formatNumber(value)} B`
+  if (value < 1024 * 1024) return `${formatNumber(Math.round(value / 1024))} KB`
+  return `${formatNumber(Number((value / (1024 * 1024)).toFixed(1)), { maximumFractionDigits: 1 })} MB`
 }
 
 async function loadMessage(): Promise<void> {
@@ -78,17 +79,17 @@ async function loadMessage(): Promise<void> {
         if (version === requestVersion) emit('seen', id)
       } catch (cause) {
         if (version === requestVersion) {
-          actionError.value = cause instanceof ApiError ? cause.message : 'The read status could not be saved.'
+          actionError.value = cause instanceof ApiError ? cause.message : t('error.seen')
         }
       }
     }
   } catch (cause) {
     if (version !== requestVersion) return
     if (cause instanceof ApiError && cause.status === 404) {
-      error.value = 'This message is no longer available.'
+      error.value = t('error.stale')
       emit('stale', id)
     } else {
-      error.value = cause instanceof ApiError ? cause.message : 'The message could not be loaded.'
+      error.value = cause instanceof ApiError ? cause.message : t('error.message')
     }
   } finally {
     if (version === requestVersion) loading.value = false
@@ -142,7 +143,7 @@ async function downloadAttachment(attachment: AttachmentResource): Promise<void>
     if (version === requestVersion) saveBlob(blob, filename)
   } catch (cause) {
     if (version === requestVersion) {
-      actionError.value = cause instanceof ApiError ? cause.message : 'The attachment could not be downloaded.'
+      actionError.value = cause instanceof ApiError ? cause.message : t('error.download')
     }
   } finally {
     if (version === requestVersion && busy.value === action) busy.value = ''
@@ -164,7 +165,7 @@ async function downloadSource(): Promise<void> {
     if (version === requestVersion) saveBlob(blob, filename)
   } catch (cause) {
     if (version === requestVersion) {
-      actionError.value = cause instanceof ApiError ? cause.message : 'The message source could not be downloaded.'
+      actionError.value = cause instanceof ApiError ? cause.message : t('error.source')
     }
   } finally {
     if (version === requestVersion && busy.value === action) busy.value = ''
@@ -173,7 +174,7 @@ async function downloadSource(): Promise<void> {
 
 async function deleteCurrent(): Promise<void> {
   const current = message.value
-  if (!current || !window.confirm('Delete this message permanently?')) return
+  if (!current || !window.confirm(t('reader.deleteConfirm'))) return
   const version = requestVersion
   const token = props.token
   const messageId = current.id
@@ -186,7 +187,7 @@ async function deleteCurrent(): Promise<void> {
   } catch (cause) {
     if (version === requestVersion) {
       if (cause instanceof ApiError && cause.status === 404) emit('deleted', messageId)
-      else actionError.value = cause instanceof ApiError ? cause.message : 'The message could not be deleted.'
+      else actionError.value = cause instanceof ApiError ? cause.message : t('error.delete')
     }
   } finally {
     if (version === requestVersion && busy.value === action) busy.value = ''
@@ -211,26 +212,26 @@ onBeforeUnmount(() => { requestVersion += 1 })
       @click="emit('close')"
     >
       <AppIcon name="arrow-left" />
-      Back to inbox
+      {{ t('reader.back') }}
     </button>
     <div v-if="loading" class="reader-loading">
       <span class="skeleton skeleton-label" />
       <span class="skeleton skeleton-title" />
       <span class="skeleton skeleton-field" />
-      <span class="sr-only">Loading message</span>
+      <span class="sr-only">{{ t('reader.loading') }}</span>
     </div>
 
     <div v-else-if="error" class="reader-state">
-      <h2>Message unavailable</h2>
+      <h2>{{ t('reader.unavailable') }}</h2>
       <p>{{ error }}</p>
-      <button class="secondary-button" type="button" @click="loadMessage">Retry</button>
+      <button class="secondary-button" type="button" @click="loadMessage">{{ t('address.retry') }}</button>
     </div>
 
     <template v-else-if="message">
       <header class="reader-header">
         <div>
           <p class="reader-sender">{{ formatAddress(message.from) }}</p>
-          <h2>{{ message.subject || '(No subject)' }}</h2>
+          <h2>{{ message.subject || t('inbox.noSubject') }}</h2>
           <time :datetime="message.createdAt">{{ formatDate(message.createdAt) }}</time>
         </div>
         <div class="reader-actions">
@@ -242,7 +243,7 @@ onBeforeUnmount(() => { requestVersion += 1 })
             @click="downloadSource"
           >
             <AppIcon name="file-text" />
-            {{ busy === 'source' ? 'Saving' : 'Download .eml' }}
+            {{ busy === 'source' ? t('reader.saving') : t('reader.downloadSource') }}
           </button>
           <button
             class="danger-button compact-button"
@@ -252,21 +253,21 @@ onBeforeUnmount(() => { requestVersion += 1 })
             @click="deleteCurrent"
           >
             <AppIcon name="trash-2" />
-            {{ busy === 'delete' ? 'Deleting' : 'Delete' }}
+            {{ busy === 'delete' ? t('reader.deleting') : t('reader.delete') }}
           </button>
         </div>
       </header>
 
       <dl class="message-meta">
-        <div><dt>To</dt><dd>{{ message.to.map(formatAddress).join(', ') || 'Undisclosed' }}</dd></div>
-        <div v-if="message.cc.length"><dt>Cc</dt><dd>{{ message.cc.map(formatAddress).join(', ') }}</dd></div>
-        <div v-if="message.bcc.length"><dt>Bcc</dt><dd>{{ message.bcc.map(formatAddress).join(', ') }}</dd></div>
+        <div><dt>{{ t('reader.to') }}</dt><dd>{{ message.to.map(formatAddress).join(', ') || t('reader.undisclosed') }}</dd></div>
+        <div v-if="message.cc.length"><dt>{{ t('reader.cc') }}</dt><dd>{{ message.cc.map(formatAddress).join(', ') }}</dd></div>
+        <div v-if="message.bcc.length"><dt>{{ t('reader.bcc') }}</dt><dd>{{ message.bcc.map(formatAddress).join(', ') }}</dd></div>
       </dl>
 
       <p v-if="actionError" class="form-error reader-error" role="alert">{{ actionError }}</p>
 
       <section v-if="message.attachments.length" class="attachments" aria-labelledby="attachments-title">
-        <h3 id="attachments-title">Attachments</h3>
+        <h3 id="attachments-title">{{ t('reader.attachments') }}</h3>
         <ul>
           <li v-for="attachment in message.attachments" :key="attachment.id">
             <span>
@@ -278,36 +279,36 @@ onBeforeUnmount(() => { requestVersion += 1 })
               type="button"
               data-download-attachment
               :disabled="Boolean(busy)"
-              :aria-label="`Download ${safeFilename(attachment.filename)}`"
+              :aria-label="t('reader.downloadFile', { filename: safeFilename(attachment.filename) })"
               @click="downloadAttachment(attachment)"
             >
               <AppIcon name="download" />
-              {{ busy === `attachment:${attachment.id}` ? 'Saving' : 'Download' }}
+              {{ busy === `attachment:${attachment.id}` ? t('reader.saving') : t('reader.download') }}
             </button>
           </li>
         </ul>
       </section>
 
       <div class="reader-content-grid">
-        <aside v-if="verificationCode" class="verification-code" aria-label="Verification code">
-          <strong>Verification code</strong>
+        <aside v-if="verificationCode" class="verification-code" :aria-label="t('reader.code')">
+          <strong>{{ t('reader.code') }}</strong>
           <code>{{ verificationCode }}</code>
-          <button class="secondary-button compact-button" type="button" @click="copyVerificationCode">Copy</button>
+          <button class="secondary-button compact-button" type="button" @click="copyVerificationCode">{{ t('address.copy') }}</button>
         </aside>
 
         <div class="reader-body">
-          <div v-if="message.html.length && message.text" class="body-switcher" aria-label="Message format">
-            <button type="button" :aria-pressed="bodyMode === 'html'" @click="bodyMode = 'html'">HTML</button>
-            <button type="button" :aria-pressed="bodyMode === 'text'" @click="bodyMode = 'text'">Plain text</button>
+          <div v-if="message.html.length && message.text" class="body-switcher" :aria-label="t('reader.format')">
+            <button type="button" :aria-pressed="bodyMode === 'html'" @click="bodyMode = 'html'">{{ t('reader.html') }}</button>
+            <button type="button" :aria-pressed="bodyMode === 'text'" @click="bodyMode = 'text'">{{ t('reader.text') }}</button>
           </div>
 
           <SandboxFrame
             v-if="message.html.length && bodyMode === 'html'"
             :html="message.html.join('\n')"
             mode="message"
-            :title="`Message: ${message.subject || 'No subject'}`"
+            :title="t('reader.title', { subject: message.subject || t('inbox.noSubject') })"
           />
-          <pre v-else class="plain-message">{{ message.text || 'This message has no readable body.' }}</pre>
+          <pre v-else class="plain-message">{{ message.text || t('reader.empty') }}</pre>
         </div>
       </div>
     </template>

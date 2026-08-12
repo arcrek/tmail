@@ -9,6 +9,7 @@ import { ApiError, api } from './api'
 import { parseRoute } from './route'
 import { loadSessions, saveSession } from './session'
 import type { AddressSession, SiteResource } from './types'
+import { setLocale, useI18n } from './i18n'
 
 type View = 'address' | 'inbox' | 'admin'
 
@@ -27,6 +28,7 @@ const originalAccent = root.style.getPropertyValue('--brand-accent')
 const originalTitle = document.title
 const originalFavicon = document.head.querySelector<HTMLLinkElement>('link[rel~="icon"]')
 const originalFaviconHref = originalFavicon?.getAttribute('href') ?? null
+const { t } = useI18n()
 let favicon = originalFavicon
 let createdFavicon = false
 
@@ -38,6 +40,7 @@ function applySite(value: SiteResource | null): void {
   root.style.setProperty('--brand-primary', value.primaryColor)
   root.style.setProperty('--brand-accent', value.accentColor)
   root.lang = value.language
+  setLocale(value.language)
   document.title = value.appName
   if (value.faviconDataUrl) {
     if (!favicon) {
@@ -169,7 +172,7 @@ onBeforeUnmount(() => {
       :html="site.headerHtml"
       :css="site.contentCss"
       mode="content"
-      title="Configured site header"
+      :title="t('app.header')"
     />
 
     <AppHeader
@@ -186,7 +189,7 @@ onBeforeUnmount(() => {
         :html="html"
         :css="site?.contentCss"
         mode="content"
-        :title="`Configured ${name} content`"
+        :title="t('app.content', { name })"
       />
       <AdminApp v-if="view === 'admin'" />
 
@@ -202,7 +205,7 @@ onBeforeUnmount(() => {
           <span class="skeleton skeleton-label" />
           <span class="skeleton skeleton-title" />
           <span class="skeleton skeleton-field" />
-          <span class="sr-only">Opening address</span>
+          <span class="sr-only">{{ t('app.opening') }}</span>
         </section>
 
         <AddressPanel
@@ -217,7 +220,7 @@ onBeforeUnmount(() => {
       v-if="site?.cookieEnabled && site.cookieText"
       class="cookie-notice"
       role="status"
-      aria-label="Cookie notice"
+      :aria-label="t('app.cookie')"
     >
       {{ site.cookieText }}
     </section>
@@ -228,7 +231,7 @@ onBeforeUnmount(() => {
       :html="site.footerHtml"
       :css="site.contentCss"
       mode="content"
-      title="Configured site footer"
+      :title="t('app.footer')"
     />
   </div>
 </template>

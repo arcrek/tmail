@@ -7,14 +7,16 @@ import DashboardTab from './DashboardTab.vue'
 import DomainsTab from './DomainsTab.vue'
 import GeneralTab from './GeneralTab.vue'
 import MailServerTab from './MailServerTab.vue'
+import { useI18n } from '../i18n'
 
-const tabs = ['Dashboard', 'General', 'Mail Server', 'Domains & Inbox', 'HTML & Ads'] as const
-type Tab = typeof tabs[number]
+const tabs = [{ id: 'dashboard', key: 'admin.dashboard' }, { id: 'general', key: 'admin.general' }, { id: 'mail', key: 'admin.mail' }, { id: 'domains', key: 'admin.domains' }, { id: 'content', key: 'admin.content' }] as const
+type Tab = typeof tabs[number]['id']
+const { t } = useI18n()
 
 const password = ref('')
 const csrf = ref('')
 const settings = ref<AdminSettings | null>(null)
-const activeTab = ref<Tab>('Dashboard')
+const activeTab = ref<Tab>('dashboard')
 const pending = ref(false)
 const childBusy = ref(false)
 const cleanupCsrf = ref('')
@@ -42,7 +44,7 @@ function moveTab(event: KeyboardEvent, index: number): void {
   event.preventDefault()
   const tab = tabs[next]
   if (!tab) return
-  activeTab.value = tab
+  activeTab.value = tab.id
   const buttons = (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLElement>('[role="tab"]')
   buttons?.[next]?.focus()
 }
@@ -119,7 +121,7 @@ async function logout(): Promise<void> {
     await api.admin.logout(token)
     csrf.value = ''
     settings.value = null
-    activeTab.value = 'Dashboard'
+    activeTab.value = 'dashboard'
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'Could not log out.'
   } finally {
@@ -131,13 +133,13 @@ async function logout(): Promise<void> {
 <template>
   <section v-if="!settings" class="admin-login" aria-labelledby="admin-login-title">
     <div class="admin-login-panel panel">
-      <p class="eyebrow">Administration</p>
-      <h1 id="admin-login-title">Admin access</h1>
-      <p class="admin-note">Your session is kept for 12 hours on this device. Credentials are never stored.</p>
+      <p class="eyebrow">{{ t('admin.loginEyebrow') }}</p>
+      <h1 id="admin-login-title">{{ t('admin.loginTitle') }}</h1>
+      <p class="admin-note">{{ t('admin.loginNote') }}</p>
       <form class="settings-form" @submit.prevent="login">
-        <div class="field"><label for="admin-password">Administrator password</label><input id="admin-password" v-model="password" type="password" autocomplete="current-password" required autofocus :disabled="pending || Boolean(cleanupCsrf)"></div>
-        <button class="primary-button" type="submit" :disabled="pending || Boolean(cleanupCsrf)">{{ pending ? 'Signing in' : 'Log in' }}</button>
-        <button v-if="cleanupCsrf" class="secondary-button" type="button" :disabled="pending" @click="retryCleanup">{{ pending ? 'Retrying cleanup' : 'Retry session cleanup' }}</button>
+        <div class="field"><label for="admin-password">{{ t('admin.password') }}</label><input id="admin-password" v-model="password" type="password" autocomplete="current-password" required autofocus :disabled="pending || Boolean(cleanupCsrf)"></div>
+        <button class="primary-button" type="submit" :disabled="pending || Boolean(cleanupCsrf)">{{ pending ? t('admin.signingIn') : t('admin.signIn') }}</button>
+        <button v-if="cleanupCsrf" class="secondary-button" type="button" :disabled="pending" @click="retryCleanup">{{ pending ? t('admin.retryingCleanup') : t('admin.cleanup') }}</button>
         <p v-if="error" class="form-error" role="alert">{{ error }}</p>
       </form>
     </div>
@@ -145,37 +147,37 @@ async function logout(): Promise<void> {
 
   <div v-else class="admin-shell three-pane">
     <aside class="admin-account-rail account-rail">
-      <div class="api-status"><i aria-hidden="true" /> API status <strong>Healthy</strong></div>
+      <div class="api-status"><i aria-hidden="true" /> {{ t('admin.apiStatus') }} <strong>{{ t('admin.healthy') }}</strong></div>
       <button class="rail-signout" type="button" :disabled="pending || childBusy" @click="logout">
-        {{ pending ? 'Logging out' : 'Log out' }}
+        {{ pending ? t('admin.loggingOut') : t('admin.logout') }}
       </button>
       <p v-if="error" class="form-error" role="alert">{{ error }}</p>
     </aside>
 
     <aside class="admin-sidebar">
-      <div class="list-heading"><div><h2>Settings</h2><span>System configuration</span></div></div>
-      <nav role="tablist" aria-label="Administration sections">
+      <div class="list-heading"><div><h2>{{ t('admin.settings') }}</h2><span>{{ t('admin.config') }}</span></div></div>
+      <nav role="tablist" :aria-label="t('admin.sections')">
         <button
           v-for="(tab, index) in tabs"
           :id="`admin-tab-${index}`"
-          :key="tab"
+          :key="tab.id"
           role="tab"
           type="button"
           :disabled="childBusy"
-          :aria-selected="activeTab === tab"
-          :tabindex="activeTab === tab ? 0 : -1"
-          @click="selectTab(tab)"
+          :aria-selected="activeTab === tab.id"
+          :tabindex="activeTab === tab.id ? 0 : -1"
+          @click="selectTab(tab.id)"
           @keydown="moveTab($event, index)"
-        >{{ tab }}</button>
+        >{{ t(tab.key) }}</button>
       </nav>
     </aside>
 
     <section class="admin-content">
-      <div role="tabpanel" tabindex="0" :aria-labelledby="`admin-tab-${tabs.indexOf(activeTab)}`">
-        <DashboardTab v-if="activeTab === 'Dashboard'" />
-        <GeneralTab v-else-if="activeTab === 'General'" :site="settings.site" :csrf="csrf" @busy="childBusy = $event" @updated="settings = $event" />
-        <MailServerTab v-else-if="activeTab === 'Mail Server'" :mail-server="settings.mailServer" :csrf="csrf" @busy="childBusy = $event" @updated="settings = $event" />
-        <DomainsTab v-else-if="activeTab === 'Domains & Inbox'" :site="settings.site" :domains="settings.domains" :last-sync="settings.lastSync" :last-successful-sync="settings.lastSuccessfulSync" :last-sync-error="settings.lastSyncError" :csrf="csrf" @busy="childBusy = $event" @synced="applyDomainSync" @updated="settings = $event" />
+      <div role="tabpanel" tabindex="0" :aria-labelledby="`admin-tab-${tabs.findIndex((tab) => tab.id === activeTab)}`">
+        <DashboardTab v-if="activeTab === 'dashboard'" />
+        <GeneralTab v-else-if="activeTab === 'general'" :site="settings.site" :csrf="csrf" @busy="childBusy = $event" @updated="settings = $event" />
+        <MailServerTab v-else-if="activeTab === 'mail'" :mail-server="settings.mailServer" :csrf="csrf" @busy="childBusy = $event" @updated="settings = $event" />
+        <DomainsTab v-else-if="activeTab === 'domains'" :site="settings.site" :domains="settings.domains" :last-sync="settings.lastSync" :last-successful-sync="settings.lastSuccessfulSync" :last-sync-error="settings.lastSyncError" :csrf="csrf" @busy="childBusy = $event" @synced="applyDomainSync" @updated="settings = $event" />
         <ContentTab v-else :site="settings.site" :csrf="csrf" @busy="childBusy = $event" @updated="settings = $event" />
       </div>
     </section>

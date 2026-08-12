@@ -2,11 +2,13 @@
 import { computed } from 'vue'
 import { useTheme } from '../theme'
 import AppIcon from './AppIcon.vue'
+import { useI18n } from '../i18n'
 
 const { resolved, toggle } = useTheme()
+const { t } = useI18n()
 
 const label = computed(() =>
-  resolved.value === 'dark' ? 'Switch to light theme' : 'Switch to dark theme',
+  resolved.value === 'dark' ? t('theme.light') : t('theme.dark'),
 )
 const icon = computed(() => (resolved.value === 'dark' ? 'sun' : 'moon'))
 </script>

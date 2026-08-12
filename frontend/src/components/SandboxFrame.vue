@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from '../i18n'
 
 const props = withDefaults(defineProps<{
   html: string
@@ -15,6 +16,7 @@ const sandbox = computed(() => 'allow-scripts allow-popups allow-popups-to-escap
 
 const frame = ref<HTMLIFrameElement | null>(null)
 const revision = ref(0)
+const { t } = useI18n()
 let sentMessageRevision = -1
 const sourceUrl = computed(() => `${props.mode === 'message' ? '/message-sandbox' : '/sandbox'}?revision=${revision.value}`)
 
@@ -43,7 +45,7 @@ function sendContent(): void {
     class="sandbox-frame"
     :sandbox="sandbox"
     :src="sourceUrl"
-    :title="title || (mode === 'message' ? 'Message content' : 'Site content')"
+    :title="title || (mode === 'message' ? t('app.messageContent') : t('app.siteContent'))"
     @load="sendContent"
   />
 </template>
