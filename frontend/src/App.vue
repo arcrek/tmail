@@ -190,7 +190,7 @@ onBeforeUnmount(() => {
       />
       <AdminApp v-if="view === 'admin'" />
 
-      <div v-else class="page">
+      <div v-else class="page" :class="{ 'inbox-page': view === 'inbox' }">
         <InboxView
           v-if="view === 'inbox' && current"
           :session="current"
