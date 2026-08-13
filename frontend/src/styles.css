@@ -426,6 +426,27 @@ main {
   color: var(--ink);
 }
 
+.header-unlock {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.header-unlock .field {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 20;
+  width: max-content;
+  min-width: 220px;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
 .locale-picker select {
   width: auto;
   min-height: 44px;

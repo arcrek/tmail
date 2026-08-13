@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ApiError, api } from '../api'
-import { clearAccessToken, loadAccessToken, saveAccessToken } from '../access'
 import { copyText } from '../clipboard'
 import { loadSessions, removeSession } from '../session'
 import type { AddressSession, DomainResource } from '../types'
 import AppIcon from './AppIcon.vue'
-import UnlockControl from './UnlockControl.vue'
 import { useI18n } from '../i18n'
 import { useToast } from '../toast'
 
+const props = withDefaults(defineProps<{ accessToken?: string }>(), { accessToken: '' })
 const emit = defineEmits<{ open: [session: AddressSession] }>()
 const { t } = useI18n()
 const toast = useToast()
@@ -22,10 +21,6 @@ const submitting = ref(false)
 const domainError = ref('')
 const copied = ref(false)
 const sessions = ref(loadSessions())
-const accessToken = ref(loadAccessToken())
-const unlocking = ref(false)
-const unlockValue = ref('')
-const unlockOpen = ref(false)
 
 const address = computed(() =>
   localPart.value && selectedDomain.value
@@ -38,62 +33,39 @@ watch(address, () => { copied.value = false })
 const message = (value: unknown) =>
   value instanceof ApiError ? value.message : t('error.unavailable')
 
+let domainsVersion = 0
+
 async function loadDomains(): Promise<void> {
+  const version = ++domainsVersion
   loadingDomains.value = true
   domainError.value = ''
   try {
-    const response = await api.domains(1, accessToken.value || undefined)
+    const response = await api.domains(1, props.accessToken || undefined)
+    if (version !== domainsVersion) return
     domains.value = response['hydra:member'].filter((domain) => domain.isActive !== false)
     selectedDomain.value = domains.value[0]?.domain ?? ''
   } catch (cause) {
+    if (version !== domainsVersion) return
     domainError.value = message(cause)
   } finally {
-    loadingDomains.value = false
+    if (version === domainsVersion) loadingDomains.value = false
   }
 }
 
 onMounted(loadDomains)
+watch(() => props.accessToken, loadDomains)
 
 async function submit(): Promise<void> {
   if (!address.value) return
   submitting.value = true
   try {
-    const response = await api.token(address.value, accessToken.value || undefined)
+    const response = await api.token(address.value, props.accessToken || undefined)
     emit('open', { address: address.value, token: response.token })
   } catch (cause) {
     toast.error(message(cause))
   } finally {
     submitting.value = false
   }
-}
-
-async function unlock(): Promise<void> {
-  unlocking.value = true
-  try {
-    const response = await api.unlock(unlockValue.value)
-    saveAccessToken(response.accessToken)
-    accessToken.value = response.accessToken
-    unlockValue.value = ''
-    unlockOpen.value = false
-    await loadDomains()
-  } catch (cause) {
-    toast.error(cause instanceof ApiError && cause.status === 401
-      ? t('unlock.invalid')
-      : t('unlock.failed'))
-  } finally {
-    unlocking.value = false
-  }
-}
-
-async function lock(): Promise<void> {
-  try {
-    await api.lock(accessToken.value)
-  } catch {
-    // Lock locally even when the server cannot be reached.
-  }
-  clearAccessToken()
-  accessToken.value = ''
-  await loadDomains()
 }
 
 async function randomize(): Promise<void> {
@@ -148,15 +120,6 @@ function forget(address: string): void {
   <div v-else-if="domains.length === 0" class="panel empty-state">
     <h2>{{ t('address.none') }}</h2>
     <p>{{ t('address.noneHelp') }}</p>
-    <UnlockControl
-      input-id="empty-access-credential"
-      :access-token="accessToken"
-      :unlocking="unlocking"
-      v-model:unlock-open="unlockOpen"
-      v-model:unlock-value="unlockValue"
-      @unlock="unlock"
-      @lock="lock"
-    />
     <button type="submit" disabled>{{ t('address.open') }}</button>
   </div>
 
@@ -167,18 +130,6 @@ function forget(address: string): void {
         <AppIcon name="sparkles" />
         {{ t('address.random') }}
       </button>
-    </div>
-
-    <div>
-      <UnlockControl
-        input-id="access-credential"
-        :access-token="accessToken"
-        :unlocking="unlocking"
-        v-model:unlock-open="unlockOpen"
-        v-model:unlock-value="unlockValue"
-        @unlock="unlock"
-        @lock="lock"
-      />
     </div>
 
     <form @submit.prevent="submit">

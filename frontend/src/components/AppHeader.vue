@@ -1,15 +1,23 @@
 <script setup lang="ts">
 import AppIcon from './AppIcon.vue'
 import ThemeToggle from './ThemeToggle.vue'
+import UnlockControl from './UnlockControl.vue'
 import { useI18n } from '../i18n'
 
 const props = withDefaults(defineProps<{
   appName?: string
   logoDataUrl?: string
   showLocalePicker?: boolean
-}>(), { appName: '', logoDataUrl: '', showLocalePicker: true })
+  showUnlock?: boolean
+  accessToken?: string
+  unlocking?: boolean
+}>(), {
+  appName: '', logoDataUrl: '', showLocalePicker: true, showUnlock: true, accessToken: '', unlocking: false,
+})
 
-const emit = defineEmits<{ home: [] }>()
+const emit = defineEmits<{ home: []; unlock: []; lock: [] }>()
+const unlockOpen = defineModel<boolean>('unlockOpen', { required: true })
+const unlockValue = defineModel<string>('unlockValue', { required: true })
 const { locale, selectLocale, t } = useI18n()
 
 function onBrandClick(event: MouseEvent): void {
@@ -40,6 +48,17 @@ function onLocaleChange(event: Event): void {
         <AppIcon name="shield" />
         {{ t('nav.admin') }}
       </a>
+      <div v-if="props.showUnlock" class="header-unlock">
+        <UnlockControl
+          input-id="header-access-credential"
+          :access-token="props.accessToken"
+          :unlocking="props.unlocking"
+          v-model:unlock-open="unlockOpen"
+          v-model:unlock-value="unlockValue"
+          @unlock="emit('unlock')"
+          @lock="emit('lock')"
+        />
+      </div>
       <label v-if="props.showLocalePicker" class="locale-picker">
         <span class="sr-only">{{ t('locale.label') }}</span>
         <select :value="locale" :aria-label="t('locale.label')" @change="onLocaleChange">

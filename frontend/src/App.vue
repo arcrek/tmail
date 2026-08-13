@@ -7,6 +7,7 @@ import SandboxFrame from './components/SandboxFrame.vue'
 import ToastStack from './components/ToastStack.vue'
 import AdminApp from './admin/AdminApp.vue'
 import { ApiError, api } from './api'
+import { clearAccessToken, loadAccessToken, saveAccessToken } from './access'
 import { parseRoute } from './route'
 import { loadSessions, saveSession } from './session'
 import type { AddressSession, SiteResource } from './types'
@@ -21,6 +22,10 @@ const current = ref<AddressSession | null>(null)
 const site = ref<SiteResource | null>(null)
 const loading = ref(initialRoute.name === 'address')
 const toast = useToast()
+const accessToken = ref(loadAccessToken())
+const unlocking = ref(false)
+const unlockOpen = ref(false)
+const unlockValue = ref('')
 let navigationVersion = 0
 let siteVersion = 0
 const root = document.documentElement
@@ -136,6 +141,33 @@ function newAddress(): void {
   if (location.pathname !== '/') history.pushState({}, '', '/')
 }
 
+async function unlock(): Promise<void> {
+  unlocking.value = true
+  try {
+    const response = await api.unlock(unlockValue.value)
+    saveAccessToken(response.accessToken)
+    accessToken.value = response.accessToken
+    unlockValue.value = ''
+    unlockOpen.value = false
+  } catch (cause) {
+    toast.error(cause instanceof ApiError && cause.status === 401
+      ? t('unlock.invalid')
+      : t('unlock.failed'))
+  } finally {
+    unlocking.value = false
+  }
+}
+
+async function lock(): Promise<void> {
+  try {
+    await api.lock(accessToken.value)
+  } catch {
+    // Lock locally even when the server cannot be reached.
+  }
+  clearAccessToken()
+  accessToken.value = ''
+}
+
 async function loadSite(): Promise<void> {
   const version = ++siteVersion
   try {
@@ -179,7 +211,14 @@ onBeforeUnmount(() => {
       :app-name="site?.appName"
       :logo-data-url="site?.logoDataUrl"
       :show-locale-picker="view !== 'admin'"
+      :show-unlock="view !== 'admin'"
+      :access-token="accessToken"
+      :unlocking="unlocking"
+      v-model:unlock-open="unlockOpen"
+      v-model:unlock-value="unlockValue"
       @home="newAddress"
+      @unlock="unlock"
+      @lock="lock"
     />
 
     <main>
@@ -211,6 +250,7 @@ onBeforeUnmount(() => {
 
         <AddressPanel
           v-else
+          :access-token="accessToken"
           @open="openCreatedInbox"
         />
       </div>

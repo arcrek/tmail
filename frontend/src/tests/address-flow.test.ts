@@ -249,56 +249,56 @@ describe('address flow', () => {
     expect(wrapper.emitted('open')?.[0]?.[0]).toEqual({ address: 'cifuhe@two.example', token: 'signed-token' })
   })
 
-  it('unlocks from an otherwise empty domain list and uses the access token', async () => {
-    mocks.domains.mockResolvedValueOnce(domains([])).mockResolvedValueOnce(domains(['hidden.example']))
-    const wrapper = mount(AddressPanel)
+  it('keeps the header unlock control collapsed until requested', async () => {
+    const wrapper = mount(App)
     await flushPromises()
 
-    await wrapper.get('.empty-state .text-button').trigger('click')
-    await wrapper.get('#empty-access-credential').setValue('credential')
-    await wrapper.get('.empty-state form').trigger('submit')
+    expect(wrapper.get('.header-unlock').text()).toContain('Unlock full access')
+    expect(wrapper.find('#header-access-credential').exists()).toBe(false)
+  })
+
+  it('unlocks from the header and uses the access token for domains and address creation', async () => {
+    mocks.domains.mockResolvedValueOnce(domains([])).mockResolvedValueOnce(domains(['hidden.example']))
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await wrapper.get('.header-unlock .text-button').trigger('click')
+    await wrapper.get('#header-access-credential').setValue('credential')
+    await wrapper.get('.header-unlock form').trigger('submit')
     await flushPromises()
 
     expect(mocks.unlock).toHaveBeenCalledWith('credential')
     expect(mocks.domains).toHaveBeenLastCalledWith(1, 'access-token')
+    expect(wrapper.get('.header-unlock').text()).toContain('Unlocked')
     await wrapper.get('#local-part').setValue('paper')
     await wrapper.get('.address-form form').trigger('submit')
     await flushPromises()
     expect(mocks.token).toHaveBeenCalledWith('paper@hidden.example', 'access-token')
   })
 
-  it('keeps the unlock form collapsed until requested', async () => {
-    const wrapper = mount(AddressPanel)
-    await flushPromises()
-
-    expect(wrapper.get('.address-form').text()).toContain('Unlock full access')
-    expect(wrapper.find('#access-credential').exists()).toBe(false)
-  })
-
-  it('shows an inline error for an invalid credential without changing domains', async () => {
+  it('shows a toast for an invalid credential without changing domains', async () => {
     mocks.unlock.mockRejectedValueOnce(new ApiError(401, 'Invalid credential'))
-    const wrapper = mount(AddressPanel)
-    const toastStack = mount(ToastStack)
+    const wrapper = mount(App)
     await flushPromises()
 
-    await wrapper.findAll('.address-form > div')[1]!.get('button').trigger('click')
-    await wrapper.get('#access-credential').setValue('wrong')
-    await wrapper.get('.address-form > div > form').trigger('submit')
+    await wrapper.get('.header-unlock .text-button').trigger('click')
+    await wrapper.get('#header-access-credential').setValue('wrong')
+    await wrapper.get('.header-unlock form').trigger('submit')
     await flushPromises()
 
-    expect(toastStack.get('[role="alert"]').text()).toContain('The access credential is invalid.')
+    expect(wrapper.get('[role="alert"]').text()).toContain('The access credential is invalid.')
     expect(mocks.domains).toHaveBeenCalledTimes(1)
     expect(wrapper.get('#domain').text()).toContain('example.com')
     expect(localStorage.getItem('tmail.accessToken')).toBeNull()
   })
 
-  it('locks locally, clears the token, and reloads filtered domains', async () => {
+  it('locks from the header, clears the token, and reloads the filtered domain list', async () => {
     localStorage.setItem('tmail.accessToken', 'access-token')
     mocks.domains.mockResolvedValueOnce(domains(['hidden.example'])).mockResolvedValueOnce(domains(['example.com']))
-    const wrapper = mount(AddressPanel)
+    const wrapper = mount(App)
     await flushPromises()
 
-    await wrapper.findAll('.address-form button').find((button) => button.text() === 'Lock')!.trigger('click')
+    await wrapper.get('.header-unlock .text-button').trigger('click')
     await flushPromises()
 
     expect(mocks.lock).toHaveBeenCalledWith('access-token')
@@ -309,14 +309,14 @@ describe('address flow', () => {
 
   it('restores unlocked access from local storage after a page reload', async () => {
     localStorage.setItem('tmail.accessToken', 'saved-token')
-    const firstMount = mount(AddressPanel)
+    const firstMount = mount(App)
     await flushPromises()
     firstMount.unmount()
 
-    const wrapper = mount(AddressPanel)
+    const wrapper = mount(App)
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Unlocked')
+    expect(wrapper.get('.header-unlock').text()).toContain('Unlocked')
     expect(mocks.domains).toHaveBeenLastCalledWith(1, 'saved-token')
   })
 
