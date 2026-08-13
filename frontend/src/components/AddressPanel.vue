@@ -6,6 +6,7 @@ import { copyText } from '../clipboard'
 import { loadSessions, removeSession } from '../session'
 import type { AddressSession, DomainResource } from '../types'
 import AppIcon from './AppIcon.vue'
+import UnlockControl from './UnlockControl.vue'
 import { useI18n } from '../i18n'
 
 withDefaults(defineProps<{ initialError?: string }>(), { initialError: '' })
@@ -150,33 +151,16 @@ function forget(address: string): void {
   <div v-else-if="domains.length === 0" class="panel empty-state">
     <h2>{{ t('address.none') }}</h2>
     <p>{{ t('address.noneHelp') }}</p>
-    <template v-if="accessToken">
-      <p aria-live="polite">{{ t('unlock.unlocked') }}</p>
-      <button class="text-button" type="button" @click="lock">{{ t('unlock.lock') }}</button>
-    </template>
-    <template v-else>
-      <button class="text-button" type="button" @click="unlockOpen = !unlockOpen; unlockError = ''">
-        {{ t('unlock.open') }}
-      </button>
-      <form v-if="unlockOpen" class="field" @submit.prevent="unlock">
-        <label for="empty-access-credential">{{ t('unlock.credential') }}</label>
-        <input
-          id="empty-access-credential"
-          v-model="unlockValue"
-          type="text"
-          name="access-credential"
-          :placeholder="t('unlock.placeholder')"
-          autocomplete="off"
-        >
-        <button class="text-button" type="submit" :disabled="unlocking || !unlockValue">
-          {{ unlocking ? t('unlock.unlocking') : t('unlock.submit') }}
-        </button>
-        <button class="text-button" type="button" :disabled="unlocking" @click="unlockOpen = false; unlockError = ''">
-          {{ t('unlock.cancel') }}
-        </button>
-        <p class="form-error" aria-live="polite">{{ unlockError }}</p>
-      </form>
-    </template>
+    <UnlockControl
+      input-id="empty-access-credential"
+      :access-token="accessToken"
+      :unlocking="unlocking"
+      v-model:unlock-open="unlockOpen"
+      v-model:unlock-value="unlockValue"
+      v-model:unlock-error="unlockError"
+      @unlock="unlock"
+      @lock="lock"
+    />
     <button type="submit" disabled>{{ t('address.open') }}</button>
   </div>
 
@@ -189,32 +173,17 @@ function forget(address: string): void {
       </button>
     </div>
 
-    <div v-if="accessToken" aria-live="polite">
-      <span>{{ t('unlock.unlocked') }}</span>
-      <button class="text-button" type="button" @click="lock">{{ t('unlock.lock') }}</button>
-    </div>
-    <div v-else>
-      <button class="text-button" type="button" @click="unlockOpen = !unlockOpen; unlockError = ''">
-        {{ t('unlock.open') }}
-      </button>
-      <form v-if="unlockOpen" class="field" @submit.prevent="unlock">
-        <label for="access-credential">{{ t('unlock.credential') }}</label>
-        <input
-          id="access-credential"
-          v-model="unlockValue"
-          type="text"
-          name="access-credential"
-          :placeholder="t('unlock.placeholder')"
-          autocomplete="off"
-        >
-        <button class="text-button" type="submit" :disabled="unlocking || !unlockValue">
-          {{ unlocking ? t('unlock.unlocking') : t('unlock.submit') }}
-        </button>
-        <button class="text-button" type="button" :disabled="unlocking" @click="unlockOpen = false; unlockError = ''">
-          {{ t('unlock.cancel') }}
-        </button>
-        <p class="form-error" aria-live="polite">{{ unlockError }}</p>
-      </form>
+    <div>
+      <UnlockControl
+        input-id="access-credential"
+        :access-token="accessToken"
+        :unlocking="unlocking"
+        v-model:unlock-open="unlockOpen"
+        v-model:unlock-value="unlockValue"
+        v-model:unlock-error="unlockError"
+        @unlock="unlock"
+        @lock="lock"
+      />
     </div>
 
     <form @submit.prevent="submit">
