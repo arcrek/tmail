@@ -141,7 +141,7 @@ async function logout(): Promise<void> {
         <div class="field"><label for="admin-password">{{ t('admin.password') }}</label><input id="admin-password" v-model="password" type="password" autocomplete="current-password" required autofocus :disabled="pending || Boolean(cleanupCsrf)"></div>
         <button class="primary-button" type="submit" :disabled="pending || Boolean(cleanupCsrf)">{{ pending ? t('admin.signingIn') : t('admin.signIn') }}</button>
         <button v-if="cleanupCsrf" class="secondary-button" type="button" :disabled="pending" @click="retryCleanup">{{ pending ? t('admin.retryingCleanup') : t('admin.cleanup') }}</button>
-        <p v-if="error" class="form-error" role="alert">{{ error }}</p>
+        <p v-if="error" class="admin-error" role="alert">{{ error }}</p>
       </form>
     </div>
   </section>
@@ -152,7 +152,7 @@ async function logout(): Promise<void> {
       <button class="rail-signout" type="button" :disabled="pending || childBusy" @click="logout">
         {{ pending ? t('admin.loggingOut') : t('admin.logout') }}
       </button>
-      <p v-if="error" class="form-error" role="alert">{{ error }}</p>
+      <p v-if="error" class="admin-error" role="alert">{{ error }}</p>
     </aside>
 
     <aside class="admin-sidebar">
