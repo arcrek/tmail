@@ -11,6 +11,7 @@ import type {
   SiteResource,
   SyncStatus,
   TokenResponse,
+  UnlockResponse,
 } from './types'
 
 interface RequestOptions extends RequestInit {
@@ -56,12 +57,17 @@ const json = (body: unknown): Pick<RequestInit, 'body'> => ({ body: JSON.stringi
 
 export const api = {
   site: () => request<SiteResource>('/site'),
-  domains: (page = 1) => request<HydraCollection<DomainResource>>(`/domains?page=${page}`),
+  domains: (page = 1, accessToken?: string) =>
+    request<HydraCollection<DomainResource>>(`/domains?page=${page}`, { token: accessToken }),
   domain: (id: string) => request<DomainResource>(`/domains/${encodeURIComponent(id)}`),
-  account: (address: string) =>
-    request<AccountResource>('/accounts', { method: 'POST', ...json({ address }) }),
-  token: (address: string) =>
-    request<TokenResponse>('/token', { method: 'POST', ...json({ address }) }),
+  account: (address: string, accessToken?: string) =>
+    request<AccountResource>('/accounts', { method: 'POST', token: accessToken, ...json({ address }) }),
+  token: (address: string, accessToken?: string) =>
+    request<TokenResponse>('/token', { method: 'POST', token: accessToken, ...json({ address }) }),
+  unlock: (credential: string) =>
+    request<UnlockResponse>('/unlock', { method: 'POST', ...json({ credential }) }),
+  lock: (accessToken: string) =>
+    request<void>('/lock', { method: 'DELETE', token: accessToken }),
   me: (token: string) => request<AccountResource>('/me', { token }),
   messages: (token: string, page = 1) =>
     request<HydraCollection<MessageSummary>>(`/messages?page=${page}`, { token }),

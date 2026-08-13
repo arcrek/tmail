@@ -115,6 +115,11 @@ export interface TokenResponse {
   token: string
 }
 
+export interface UnlockResponse {
+  accessToken: string
+  expiresAt: string
+}
+
 export interface SiteResource {
   appName: string
   logoDataUrl: string

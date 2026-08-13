@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ApiError, api } from '../api'
+import { clearAccessToken, loadAccessToken, saveAccessToken } from '../access'
 import { copyText } from '../clipboard'
 import { loadSessions, removeSession } from '../session'
 import type { AddressSession, DomainResource } from '../types'
@@ -20,6 +21,11 @@ const error = ref('')
 const domainError = ref('')
 const copied = ref(false)
 const sessions = ref(loadSessions())
+const accessToken = ref(loadAccessToken())
+const unlocking = ref(false)
+const unlockValue = ref('')
+const unlockOpen = ref(false)
+const unlockError = ref('')
 
 const address = computed(() =>
   localPart.value && selectedDomain.value
@@ -36,7 +42,7 @@ async function loadDomains(): Promise<void> {
   loadingDomains.value = true
   domainError.value = ''
   try {
-    const response = await api.domains()
+    const response = await api.domains(1, accessToken.value || undefined)
     domains.value = response['hydra:member'].filter((domain) => domain.isActive !== false)
     selectedDomain.value = domains.value[0]?.domain ?? ''
   } catch (cause) {
@@ -53,13 +59,43 @@ async function submit(): Promise<void> {
   submitting.value = true
   error.value = ''
   try {
-    const response = await api.token(address.value)
+    const response = await api.token(address.value, accessToken.value || undefined)
     emit('open', { address: address.value, token: response.token })
   } catch (cause) {
     error.value = message(cause)
   } finally {
     submitting.value = false
   }
+}
+
+async function unlock(): Promise<void> {
+  unlocking.value = true
+  unlockError.value = ''
+  try {
+    const response = await api.unlock(unlockValue.value)
+    saveAccessToken(response.accessToken)
+    accessToken.value = response.accessToken
+    unlockValue.value = ''
+    unlockOpen.value = false
+    await loadDomains()
+  } catch (cause) {
+    unlockError.value = cause instanceof ApiError && cause.status === 401
+      ? t('unlock.invalid')
+      : t('unlock.failed')
+  } finally {
+    unlocking.value = false
+  }
+}
+
+async function lock(): Promise<void> {
+  try {
+    await api.lock(accessToken.value)
+  } catch {
+    // Lock locally even when the server cannot be reached.
+  }
+  clearAccessToken()
+  accessToken.value = ''
+  await loadDomains()
 }
 
 async function randomize(): Promise<void> {
@@ -114,10 +150,37 @@ function forget(address: string): void {
   <div v-else-if="domains.length === 0" class="panel empty-state">
     <h2>{{ t('address.none') }}</h2>
     <p>{{ t('address.noneHelp') }}</p>
+    <template v-if="accessToken">
+      <p aria-live="polite">{{ t('unlock.unlocked') }}</p>
+      <button class="text-button" type="button" @click="lock">{{ t('unlock.lock') }}</button>
+    </template>
+    <template v-else>
+      <button class="text-button" type="button" @click="unlockOpen = !unlockOpen; unlockError = ''">
+        {{ t('unlock.open') }}
+      </button>
+      <form v-if="unlockOpen" class="field" @submit.prevent="unlock">
+        <label for="empty-access-credential">{{ t('unlock.credential') }}</label>
+        <input
+          id="empty-access-credential"
+          v-model="unlockValue"
+          type="text"
+          name="access-credential"
+          :placeholder="t('unlock.placeholder')"
+          autocomplete="off"
+        >
+        <button class="text-button" type="submit" :disabled="unlocking || !unlockValue">
+          {{ unlocking ? t('unlock.unlocking') : t('unlock.submit') }}
+        </button>
+        <button class="text-button" type="button" :disabled="unlocking" @click="unlockOpen = false; unlockError = ''">
+          {{ t('unlock.cancel') }}
+        </button>
+        <p class="form-error" aria-live="polite">{{ unlockError }}</p>
+      </form>
+    </template>
     <button type="submit" disabled>{{ t('address.open') }}</button>
   </div>
 
-  <form v-else class="panel address-form" @submit.prevent="submit">
+  <div v-else class="panel address-form">
     <div class="panel-heading">
       <h2>{{ t('address.create') }}</h2>
       <button class="text-button" type="button" :disabled="loadingDomains || !domains.length || submitting" @click="randomize">
@@ -126,7 +189,36 @@ function forget(address: string): void {
       </button>
     </div>
 
-    <div class="address-fields">
+    <div v-if="accessToken" aria-live="polite">
+      <span>{{ t('unlock.unlocked') }}</span>
+      <button class="text-button" type="button" @click="lock">{{ t('unlock.lock') }}</button>
+    </div>
+    <div v-else>
+      <button class="text-button" type="button" @click="unlockOpen = !unlockOpen; unlockError = ''">
+        {{ t('unlock.open') }}
+      </button>
+      <form v-if="unlockOpen" class="field" @submit.prevent="unlock">
+        <label for="access-credential">{{ t('unlock.credential') }}</label>
+        <input
+          id="access-credential"
+          v-model="unlockValue"
+          type="text"
+          name="access-credential"
+          :placeholder="t('unlock.placeholder')"
+          autocomplete="off"
+        >
+        <button class="text-button" type="submit" :disabled="unlocking || !unlockValue">
+          {{ unlocking ? t('unlock.unlocking') : t('unlock.submit') }}
+        </button>
+        <button class="text-button" type="button" :disabled="unlocking" @click="unlockOpen = false; unlockError = ''">
+          {{ t('unlock.cancel') }}
+        </button>
+        <p class="form-error" aria-live="polite">{{ unlockError }}</p>
+      </form>
+    </div>
+
+    <form @submit.prevent="submit">
+      <div class="address-fields">
       <div class="field local-field">
         <label for="local-part">{{ t('address.name') }}</label>
         <input
@@ -152,7 +244,7 @@ function forget(address: string): void {
       </div>
     </div>
 
-    <div class="address-preview">
+      <div class="address-preview">
       <span>{{ address || t('address.preview') }}</span>
       <button class="text-button" type="button" :disabled="!address" @click="copyAddress">
         <AppIcon :name="copied ? 'check' : 'copy'" />
@@ -160,13 +252,14 @@ function forget(address: string): void {
       </button>
     </div>
 
-    <p class="sr-only" aria-live="polite">{{ copied ? t('address.copiedNotice') : '' }}</p>
+      <p class="sr-only" aria-live="polite">{{ copied ? t('address.copiedNotice') : '' }}</p>
 
-    <p class="form-error" aria-live="polite">{{ error || initialError }}</p>
-    <button class="primary-button" type="submit" :disabled="submitting || !address">
-      {{ submitting ? t('address.opening') : t('address.open') }}
-    </button>
-  </form>
+      <p class="form-error" aria-live="polite">{{ error || initialError }}</p>
+      <button class="primary-button" type="submit" :disabled="submitting || !address">
+        {{ submitting ? t('address.opening') : t('address.open') }}
+      </button>
+    </form>
+  </div>
 
   <section class="panel saved-inboxes" aria-labelledby="remembered-title">
     <h2 id="remembered-title">{{ t('address.saved') }}</h2>

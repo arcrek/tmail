@@ -10,6 +10,8 @@ import { initLocale, setSiteLocale } from '../i18n'
 const mocks = vi.hoisted(() => ({
   domains: vi.fn(),
   token: vi.fn(),
+  unlock: vi.fn(),
+  lock: vi.fn(),
   site: vi.fn(),
   messages: vi.fn(),
 }))
@@ -54,6 +56,8 @@ describe('address flow', () => {
     history.replaceState({}, '', '/')
     mocks.domains.mockReset().mockResolvedValue(domains(['example.com']))
     mocks.token.mockReset().mockResolvedValue({ id: 'account-id', token: 'signed-token' })
+    mocks.unlock.mockReset().mockResolvedValue({ accessToken: 'access-token', expiresAt: '2026-09-12T00:00:00Z' })
+    mocks.lock.mockReset().mockResolvedValue(undefined)
     mocks.site.mockReset().mockResolvedValue({
       appName: 'Temporary Inbox',
       logoDataUrl: '',
@@ -220,7 +224,7 @@ describe('address flow', () => {
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
-    expect(mocks.token).toHaveBeenCalledWith('paper@example.com')
+    expect(mocks.token).toHaveBeenCalledWith('paper@example.com', undefined)
     expect(wrapper.emitted('open')?.[0]).toEqual([
       { address: 'paper@example.com', token: 'signed-token' },
     ])
@@ -239,6 +243,24 @@ describe('address flow', () => {
 
     expect(mocks.token).toHaveBeenCalledTimes(1)
     expect(wrapper.emitted('open')?.[0]?.[0]).toEqual({ address: 'cifuhe@two.example', token: 'signed-token' })
+  })
+
+  it('unlocks from an otherwise empty domain list and uses the access token', async () => {
+    mocks.domains.mockResolvedValueOnce(domains([])).mockResolvedValueOnce(domains(['hidden.example']))
+    const wrapper = mount(AddressPanel)
+    await flushPromises()
+
+    await wrapper.get('.empty-state .text-button').trigger('click')
+    await wrapper.get('#empty-access-credential').setValue('credential')
+    await wrapper.get('.empty-state form').trigger('submit')
+    await flushPromises()
+
+    expect(mocks.unlock).toHaveBeenCalledWith('credential')
+    expect(mocks.domains).toHaveBeenLastCalledWith(1, 'access-token')
+    await wrapper.get('#local-part').setValue('paper')
+    await wrapper.get('.address-form form').trigger('submit')
+    await flushPromises()
+    expect(mocks.token).toHaveBeenCalledWith('paper@hidden.example', 'access-token')
   })
 
   it('resets copied state when the composed address changes', async () => {
