@@ -21,7 +21,7 @@ server {
         add_header Cache-Control "public, max-age=31536000, immutable";
     }
 
-    location ~ ^/(?:domains(?:/|$)|accounts$|token$|me$|messages(?:/|$)|sources(?:/|$)|site$|admin/api(?:/|$)|docs(?:/|$)|redoc$|openapi\.json$|sandbox$|message-sandbox$) {
+    location ~ ^/(?:domains(?:/|$)|accounts$|token$|unlock$|lock$|me$|messages(?:/|$)|sources(?:/|$)|site$|admin/api(?:/|$)|docs(?:/|$)|redoc$|openapi\.json$|sandbox$|message-sandbox$) {
         proxy_pass http://api:8000;
         proxy_http_version 1.1;
         proxy_set_header Host $http_host;

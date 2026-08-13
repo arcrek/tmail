@@ -59,11 +59,18 @@ def test_nginx_keeps_spa_and_backend_routes_same_origin():
     assert "try_files $uri /index.html;" in nginx
     assert "proxy_pass http://api:8000;" in nginx
     for route in (
-        "domains", "accounts", "token", "me", "messages", "sources", "site",
+        "domains", "accounts", "token", "unlock", "lock", "me", "messages", "sources", "site",
         "admin/api", "docs", "redoc", "openapi\\.json", "sandbox",
         "message-sandbox",
     ):
         assert route in nginx
+
+
+def test_vite_dev_proxy_forwards_the_unlock_routes_to_the_api():
+    vite_config = (ROOT / "frontend/vite.config.ts").read_text()
+
+    for route in ("'/unlock': proxy", "'/lock': proxy"):
+        assert route in vite_config
 
 
 def test_nginx_preserves_https_without_trusting_client_ip_headers():

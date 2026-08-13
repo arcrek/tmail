@@ -12,6 +12,8 @@ export default defineConfig({
       '/domains': proxy,
       '/accounts': proxy,
       '/token': proxy,
+      '/unlock': proxy,
+      '/lock': proxy,
       '/me': proxy,
       '/messages': proxy,
       '/sources': proxy,
