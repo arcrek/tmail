@@ -5,7 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api'
 import App from '../App.vue'
 import AddressPanel from '../components/AddressPanel.vue'
+import ToastStack from '../components/ToastStack.vue'
 import { initLocale, setSiteLocale } from '../i18n'
+import { useToast } from '../toast'
 
 const mocks = vi.hoisted(() => ({
   domains: vi.fn(),
@@ -50,6 +52,8 @@ enableAutoUnmount(afterEach)
 
 describe('address flow', () => {
   beforeEach(() => {
+    const { toasts, dismiss } = useToast()
+    for (const toast of toasts.value) dismiss(toast.id)
     localStorage.clear()
     initLocale()
     setSiteLocale(undefined)
@@ -274,6 +278,7 @@ describe('address flow', () => {
   it('shows an inline error for an invalid credential without changing domains', async () => {
     mocks.unlock.mockRejectedValueOnce(new ApiError(401, 'Invalid credential'))
     const wrapper = mount(AddressPanel)
+    const toastStack = mount(ToastStack)
     await flushPromises()
 
     await wrapper.findAll('.address-form > div')[1]!.get('button').trigger('click')
@@ -281,7 +286,7 @@ describe('address flow', () => {
     await wrapper.get('.address-form > div > form').trigger('submit')
     await flushPromises()
 
-    expect(wrapper.get('.form-error').text()).toContain('The access credential is invalid.')
+    expect(toastStack.get('[role="alert"]').text()).toContain('The access credential is invalid.')
     expect(mocks.domains).toHaveBeenCalledTimes(1)
     expect(wrapper.get('#domain').text()).toContain('example.com')
     expect(localStorage.getItem('tmail.accessToken')).toBeNull()
@@ -330,21 +335,22 @@ describe('address flow', () => {
     expect(wrapper.get('.address-preview button').text()).toBe('Copy')
   })
 
-  it('clears a failed copy message after a successful retry', async () => {
+  it('shows a successful copy toast after a failed retry', async () => {
     const writeText = vi.fn().mockRejectedValueOnce(new Error('denied')).mockResolvedValueOnce(undefined)
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
     Object.defineProperty(document, 'execCommand', { configurable: true, value: vi.fn().mockReturnValue(false) })
     const wrapper = mount(AddressPanel)
+    const toastStack = mount(ToastStack)
     await flushPromises()
     await wrapper.get('#local-part').setValue('paper')
     await wrapper.get('.address-preview button').trigger('click')
     await flushPromises()
-    expect(wrapper.text()).toContain('Copy failed')
+    expect(toastStack.text()).toContain('Copy failed')
 
     await wrapper.get('.address-preview button').trigger('click')
     await flushPromises()
     expect(wrapper.get('.address-preview button').text()).toBe('Copied')
-    expect(wrapper.text()).not.toContain('Copy failed')
+    expect(toastStack.get('[role="status"]').text()).toContain('Address copied')
   })
 
   it('shows a useful empty-domain state', async () => {

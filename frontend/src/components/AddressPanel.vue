@@ -8,17 +8,17 @@ import type { AddressSession, DomainResource } from '../types'
 import AppIcon from './AppIcon.vue'
 import UnlockControl from './UnlockControl.vue'
 import { useI18n } from '../i18n'
+import { useToast } from '../toast'
 
-withDefaults(defineProps<{ initialError?: string }>(), { initialError: '' })
 const emit = defineEmits<{ open: [session: AddressSession] }>()
 const { t } = useI18n()
+const toast = useToast()
 
 const domains = ref<DomainResource[]>([])
 const selectedDomain = ref('')
 const localPart = ref('')
 const loadingDomains = ref(true)
 const submitting = ref(false)
-const error = ref('')
 const domainError = ref('')
 const copied = ref(false)
 const sessions = ref(loadSessions())
@@ -26,7 +26,6 @@ const accessToken = ref(loadAccessToken())
 const unlocking = ref(false)
 const unlockValue = ref('')
 const unlockOpen = ref(false)
-const unlockError = ref('')
 
 const address = computed(() =>
   localPart.value && selectedDomain.value
@@ -58,12 +57,11 @@ onMounted(loadDomains)
 async function submit(): Promise<void> {
   if (!address.value) return
   submitting.value = true
-  error.value = ''
   try {
     const response = await api.token(address.value, accessToken.value || undefined)
     emit('open', { address: address.value, token: response.token })
   } catch (cause) {
-    error.value = message(cause)
+    toast.error(message(cause))
   } finally {
     submitting.value = false
   }
@@ -71,7 +69,6 @@ async function submit(): Promise<void> {
 
 async function unlock(): Promise<void> {
   unlocking.value = true
-  unlockError.value = ''
   try {
     const response = await api.unlock(unlockValue.value)
     saveAccessToken(response.accessToken)
@@ -80,9 +77,9 @@ async function unlock(): Promise<void> {
     unlockOpen.value = false
     await loadDomains()
   } catch (cause) {
-    unlockError.value = cause instanceof ApiError && cause.status === 401
+    toast.error(cause instanceof ApiError && cause.status === 401
       ? t('unlock.invalid')
-      : t('unlock.failed')
+      : t('unlock.failed'))
   } finally {
     unlocking.value = false
   }
@@ -114,12 +111,12 @@ async function randomize(): Promise<void> {
 
 async function copyAddress(): Promise<void> {
   if (!address.value) return
-  error.value = ''
   try {
     await copyText(address.value)
     copied.value = true
+    toast.success(t('address.copiedNotice'))
   } catch {
-    error.value = t('error.copy')
+    toast.error(t('error.copy'))
   }
 }
 
@@ -157,7 +154,6 @@ function forget(address: string): void {
       :unlocking="unlocking"
       v-model:unlock-open="unlockOpen"
       v-model:unlock-value="unlockValue"
-      v-model:unlock-error="unlockError"
       @unlock="unlock"
       @lock="lock"
     />
@@ -180,7 +176,6 @@ function forget(address: string): void {
         :unlocking="unlocking"
         v-model:unlock-open="unlockOpen"
         v-model:unlock-value="unlockValue"
-        v-model:unlock-error="unlockError"
         @unlock="unlock"
         @lock="lock"
       />
@@ -221,9 +216,6 @@ function forget(address: string): void {
       </button>
     </div>
 
-      <p class="sr-only" aria-live="polite">{{ copied ? t('address.copiedNotice') : '' }}</p>
-
-      <p class="form-error" aria-live="polite">{{ error || initialError }}</p>
       <button class="primary-button" type="submit" :disabled="submitting || !address">
         {{ submitting ? t('address.opening') : t('address.open') }}
       </button>

@@ -3,6 +3,7 @@ import { reactive, ref, watch } from 'vue'
 import { api } from '../api'
 import type { AdminSettings, AdminSiteSettings } from '../types'
 import { useI18n } from '../i18n'
+import { useToast } from '../toast'
 
 const props = defineProps<{ site: AdminSiteSettings; csrf: string }>()
 const emit = defineEmits<{ updated: [settings: AdminSettings]; busy: [value: boolean] }>()
@@ -23,10 +24,9 @@ function generalValues(site: AdminSiteSettings) {
 const draft = reactive(generalValues(props.site))
 const pending = ref(false)
 const filePending = ref(0)
-const status = ref('')
-const error = ref('')
 const fileVersions = { logoDataUrl: 0, faviconDataUrl: 0 }
 const { t } = useI18n()
+const toast = useToast()
 
 watch([pending, filePending], ([saving, files]) => emit('busy', saving || files > 0))
 
@@ -48,13 +48,12 @@ async function chooseImage(event: Event, key: 'logoDataUrl' | 'faviconDataUrl'):
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
   const version = ++fileVersions[key]
-  error.value = ''
   if (!file.type.startsWith('image/')) {
-    error.value = t('error.imageType')
+    toast.error(t('error.imageType'))
     return
   }
   if (file.size > 1024 * 1024) {
-    error.value = t('error.imageSize')
+    toast.error(t('error.imageSize'))
     return
   }
   filePending.value += 1
@@ -62,7 +61,7 @@ async function chooseImage(event: Event, key: 'logoDataUrl' | 'faviconDataUrl'):
     const value = await readFile(file)
     if (version === fileVersions[key]) draft[key] = value
   } catch (cause) {
-    if (version === fileVersions[key]) error.value = cause instanceof Error ? cause.message : t('error.image')
+    if (version === fileVersions[key]) toast.error(cause instanceof Error ? cause.message : t('error.image'))
   } finally {
     filePending.value -= 1
   }
@@ -70,14 +69,12 @@ async function chooseImage(event: Event, key: 'logoDataUrl' | 'faviconDataUrl'):
 
 async function save(): Promise<void> {
   pending.value = true
-  error.value = ''
-  status.value = ''
   try {
     const settings = await api.admin.updateSettings({ site: { ...draft } }, props.csrf)
     emit('updated', settings)
-    status.value = t('general.saved')
+    toast.success(t('general.saved'))
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : t('error.general')
+    toast.error(cause instanceof Error ? cause.message : t('error.general'))
   } finally {
     pending.value = false
   }
@@ -102,8 +99,6 @@ async function save(): Promise<void> {
         <div class="field"><label for="cookie-text">{{ t('general.cookieText') }}</label><textarea id="cookie-text" v-model="draft.cookieText" name="cookieText" rows="4" :disabled="!draft.cookieEnabled" /></div>
         <div class="form-actions"><button class="primary-button" type="submit" :disabled="pending || filePending > 0">{{ pending ? t('reader.saving') : t('general.save') }}</button></div>
       </fieldset>
-      <p class="form-status" aria-live="polite">{{ status }}</p>
-      <p v-if="error" class="form-error" role="alert">{{ error }}</p>
     </form>
   </section>
 </template>

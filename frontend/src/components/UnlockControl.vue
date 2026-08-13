@@ -5,7 +5,6 @@ defineProps<{ inputId: string; accessToken: string; unlocking: boolean }>()
 const emit = defineEmits<{ unlock: []; lock: [] }>()
 const unlockOpen = defineModel<boolean>('unlockOpen', { required: true })
 const unlockValue = defineModel<string>('unlockValue', { required: true })
-const unlockError = defineModel<string>('unlockError', { required: true })
 const { t } = useI18n()
 </script>
 
@@ -15,7 +14,7 @@ const { t } = useI18n()
     <button class="text-button" type="button" @click="emit('lock')">{{ t('unlock.lock') }}</button>
   </template>
   <template v-else>
-    <button class="text-button" type="button" @click="unlockOpen = !unlockOpen; unlockError = ''">
+    <button class="text-button" type="button" @click="unlockOpen = !unlockOpen">
       {{ t('unlock.open') }}
     </button>
     <form v-if="unlockOpen" class="field" @submit.prevent="emit('unlock')">
@@ -31,10 +30,9 @@ const { t } = useI18n()
       <button class="text-button" type="submit" :disabled="unlocking || !unlockValue">
         {{ unlocking ? t('unlock.unlocking') : t('unlock.submit') }}
       </button>
-      <button class="text-button" type="button" :disabled="unlocking" @click="unlockOpen = false; unlockError = ''">
+      <button class="text-button" type="button" :disabled="unlocking" @click="unlockOpen = false">
         {{ t('unlock.cancel') }}
       </button>
-      <p class="form-error" aria-live="polite">{{ unlockError }}</p>
     </form>
   </template>
 </template>

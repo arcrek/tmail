@@ -264,7 +264,7 @@ onBeforeUnmount(() => { requestVersion += 1 })
         <div v-if="message.bcc.length"><dt>{{ t('reader.bcc') }}</dt><dd>{{ message.bcc.map(formatAddress).join(', ') }}</dd></div>
       </dl>
 
-      <p v-if="actionError" class="form-error reader-error" role="alert">{{ actionError }}</p>
+      <p v-if="actionError" class="reader-error" role="alert">{{ actionError }}</p>
 
       <section v-if="message.attachments.length" class="attachments" aria-labelledby="attachments-title">
         <h3 id="attachments-title">{{ t('reader.attachments') }}</h3>

@@ -4,6 +4,7 @@ import { api } from '../api'
 import { copyText } from '../clipboard'
 import type { AccessCredential } from '../types'
 import { useI18n } from '../i18n'
+import { useToast } from '../toast'
 
 const props = defineProps<{ csrf: string }>()
 const emit = defineEmits<{ busy: [value: boolean] }>()
@@ -15,20 +16,19 @@ const tokenLabel = ref('')
 const secret = ref('')
 const copied = ref(false)
 const pending = ref(false)
-const error = ref('')
 const { t, formatDate } = useI18n()
+const toast = useToast()
 
 async function loadCredentials(clearSecret = false): Promise<void> {
   if (clearSecret) secret.value = ''
   try {
     credentials.value = (await api.admin.accessCredentials.list()).credentials
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : t('error.accessLoad')
+    toast.error(cause instanceof Error ? cause.message : t('error.accessLoad'))
   }
 }
 
 async function create(body: { kind: 'password'; label: string; password: string } | { kind: 'token'; label: string }): Promise<boolean> {
-  error.value = ''
   pending.value = true
   emit('busy', true)
   try {
@@ -38,7 +38,7 @@ async function create(body: { kind: 'password'; label: string; password: string 
     await loadCredentials()
     return true
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : t('error.access')
+    toast.error(cause instanceof Error ? cause.message : t('error.access'))
     return false
   } finally {
     pending.value = false
@@ -48,7 +48,7 @@ async function create(body: { kind: 'password'; label: string; password: string 
 
 async function addPassword(): Promise<void> {
   if (password.value !== passwordConfirm.value) {
-    error.value = t('error.accessPasswordMatch')
+    toast.error(t('error.accessPasswordMatch'))
     return
   }
   if (!await create({ kind: 'password', label: passwordLabel.value, password: password.value })) return
@@ -64,14 +64,13 @@ async function generateToken(): Promise<void> {
 
 async function revoke(id: string, label: string): Promise<void> {
   if (!window.confirm(t('access.revokeConfirm', { label }))) return
-  error.value = ''
   pending.value = true
   emit('busy', true)
   try {
     await api.admin.accessCredentials.remove(id, props.csrf)
     await loadCredentials(true)
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : t('error.access')
+    toast.error(cause instanceof Error ? cause.message : t('error.access'))
   } finally {
     pending.value = false
     emit('busy', false)
@@ -83,7 +82,7 @@ async function copySecret(): Promise<void> {
     await copyText(secret.value)
     copied.value = true
   } catch {
-    error.value = t('error.accessCopy')
+    toast.error(t('error.accessCopy'))
   }
 }
 
@@ -130,6 +129,5 @@ onMounted(loadCredentials)
         </form>
       </div>
     </section>
-    <p v-if="error" class="form-error" role="alert">{{ error }}</p>
   </section>
 </template>

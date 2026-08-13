@@ -10,6 +10,8 @@ import DashboardTab from '../admin/DashboardTab.vue'
 import DomainsTab from '../admin/DomainsTab.vue'
 import GeneralTab from '../admin/GeneralTab.vue'
 import MailServerTab from '../admin/MailServerTab.vue'
+import ToastStack from '../components/ToastStack.vue'
+import { useToast } from '../toast'
 
 const styles = readFileSync(resolve(process.cwd(), 'src/styles.css'), 'utf8')
 
@@ -48,6 +50,12 @@ vi.mock('../api', async () => {
 })
 
 enableAutoUnmount(afterEach)
+
+function mountToastStack() {
+  const toast = useToast()
+  for (const entry of toast.toasts.value) toast.dismiss(entry.id)
+  return mount(ToastStack)
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -353,6 +361,7 @@ describe('administration frontend', () => {
 
   it('saves general settings with the in-memory CSRF token', async () => {
     const wrapper = mount(GeneralTab, { props: { site, csrf: 'csrf-value' } })
+    const toastStack = mountToastStack()
     await wrapper.get('input[name="appName"]').setValue('Mail Desk')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
@@ -367,23 +376,24 @@ describe('administration frontend', () => {
       cookieEnabled: false,
       cookieText: '',
     } }, 'csrf-value')
-    expect(wrapper.get('[aria-live="polite"]').text()).toContain('saved')
+    expect(toastStack.get('[role="status"]').text()).toContain('saved')
   })
 
   it('rejects non-image and oversized branding files before save', async () => {
     const wrapper = mount(GeneralTab, { props: { site, csrf: 'csrf-value' } })
+    const toastStack = mountToastStack()
     const input = wrapper.get('input[name="logo"]')
     const oversized = new File([new Uint8Array(1024 * 1024 + 1)], 'logo.png', { type: 'image/png' })
     Object.defineProperty(input.element, 'files', { configurable: true, value: [oversized] })
     await input.trigger('change')
 
-    expect(wrapper.text()).toContain('no larger than 1 MiB')
+    expect(toastStack.text()).toContain('no larger than 1 MiB')
     expect(mocks.updateSettings).not.toHaveBeenCalled()
 
     const text = new File(['not an image'], 'logo.txt', { type: 'text/plain' })
     Object.defineProperty(input.element, 'files', { configurable: true, value: [text] })
     await input.trigger('change')
-    expect(wrapper.text()).toContain('Choose an image file')
+    expect(toastStack.text()).toContain('Choose an image file')
   })
 
   it('keeps save disabled for overlapping file reads and uses only the latest selection', async () => {
@@ -430,12 +440,13 @@ describe('administration frontend', () => {
     }
     vi.stubGlobal('FileReader', AbortedReader)
     const wrapper = mount(GeneralTab, { props: { site, csrf: 'csrf-value' } })
+    const toastStack = mountToastStack()
     const input = wrapper.get('input[name="logo"]')
     Object.defineProperty(input.element, 'files', { configurable: true, value: [new File(['x'], 'logo.png', { type: 'image/png' })] })
     await input.trigger('change')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Could not read image')
+    expect(toastStack.text()).toContain('Could not read image')
     expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeUndefined()
   })
 
@@ -632,12 +643,13 @@ describe('administration frontend', () => {
         csrf: 'csrf-value',
       },
     })
+    const toastStack = mountToastStack()
 
     await wrapper.get('input[name="autoSyncDomains"]').setValue(false)
     await flushPromises()
 
     expect((wrapper.get('input[name="autoSyncDomains"]').element as HTMLInputElement).checked).toBe(true)
-    expect(wrapper.get('[role="alert"]').text()).toContain('save offline')
+    expect(toastStack.get('[role="alert"]').text()).toContain('save offline')
   })
 
   it('adds a receiving domain only after the settings response succeeds', async () => {
@@ -655,6 +667,7 @@ describe('administration frontend', () => {
       lastSyncError: settings.lastSyncError,
       csrf: 'csrf-value',
     } })
+    const toastStack = mountToastStack()
 
     await wrapper.get('input[name="manualDomain"]').setValue(' Added.Example ')
     await wrapper.findAll('form')[0]!.trigger('submit')
@@ -672,7 +685,7 @@ describe('administration frontend', () => {
 
     expect((wrapper.get('input[name="manualDomain"]').element as HTMLInputElement).value).toBe('retry.example')
     expect(wrapper.get('.domain-list').text()).toContain('added.example')
-    expect(wrapper.get('[role="alert"]').text()).toContain('save offline')
+    expect(toastStack.get('[role="alert"]').text()).toContain('save offline')
   })
 
   it('replaces the displayed whitelist only after a successful manual sync', async () => {
@@ -720,6 +733,7 @@ describe('administration frontend', () => {
         csrf: 'csrf-value',
       },
     })
+    const toastStack = mountToastStack()
 
     await wrapper.get('.admin-section-heading button').trigger('click')
     await flushPromises()
@@ -731,7 +745,7 @@ describe('administration frontend', () => {
     )
     expect(lastSuccessfulSync?.get('dd').text()).toContain('1 domain')
     expect(lastSuccessfulSync?.get('dd').text()).not.toContain('2 domains')
-    expect(wrapper.get('[role="alert"]').text()).toContain('synced, but settings refresh failed')
+    expect(toastStack.get('[role="alert"]').text()).toContain('synced, but settings refresh failed')
     expect(mocks.settings).toHaveBeenCalledTimes(1)
     expect(wrapper.emitted('synced')?.[0]).toEqual([[
       'post.example',
@@ -771,18 +785,19 @@ describe('administration frontend', () => {
 
   it('rejects duplicate normalized ad names and oversized content before submit', async () => {
     const wrapper = mount(ContentTab, { props: { site, csrf: 'csrf-value' } })
+    const toastStack = mountToastStack()
     await wrapper.get('.subsection-heading button').trigger('click')
     const names = wrapper.findAll('.ad-editor input')
     await names[1]!.setValue(' sidebar ')
     await wrapper.get('form').trigger('submit')
 
-    expect(wrapper.get('[role="alert"]').text()).toContain('unique')
+    expect(toastStack.get('[role="alert"]').text()).toContain('unique')
     expect(mocks.updateSettings).not.toHaveBeenCalled()
 
     await names[1]!.setValue('banner')
     await wrapper.get('textarea[name="headerHtml"]').setValue('x'.repeat(100_001))
     await wrapper.get('form').trigger('submit')
-    expect(wrapper.get('[role="alert"]').text()).toContain('100,000')
+    expect(toastStack.text()).toContain('100,000')
     expect(mocks.updateSettings).not.toHaveBeenCalled()
   })
 })

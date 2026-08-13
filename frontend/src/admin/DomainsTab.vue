@@ -3,6 +3,7 @@ import { reactive, ref, watch } from 'vue'
 import { api } from '../api'
 import type { AdminSettings, AdminSiteSettings, SyncStatus } from '../types'
 import { useI18n } from '../i18n'
+import { useToast } from '../toast'
 
 const props = defineProps<{
   site: AdminSiteSettings
@@ -35,9 +36,8 @@ const displayedSuccessfulSync = ref({ ...props.lastSuccessfulSync })
 const displayedSyncError = ref({ ...props.lastSyncError })
 const pending = ref(false)
 const syncing = ref(false)
-const status = ref('')
-const error = ref('')
 const { t, formatDate, formatNumber } = useI18n()
+const toast = useToast()
 
 watch([pending, syncing], ([saving, synchronizing]) => emit('busy', saving || synchronizing))
 
@@ -87,8 +87,6 @@ async function changeAutoSync(event: Event): Promise<void> {
   }
   const checked = input.checked
   draft.autoSyncDomains = checked
-  error.value = ''
-  status.value = ''
   pending.value = true
   try {
     const settings = await api.admin.updateSettings({ site: { autoSyncDomains: checked } }, props.csrf)
@@ -96,21 +94,19 @@ async function changeAutoSync(event: Event): Promise<void> {
     input.checked = settings.site.autoSyncDomains
     emit('updated', settings)
     applySettings(settings, true)
-    status.value = t('domains.autoStatus', { status: t(settings.site.autoSyncDomains ? 'domains.enabled' : 'domains.disabled') })
+    toast.success(t('domains.autoStatus', { status: t(settings.site.autoSyncDomains ? 'domains.enabled' : 'domains.disabled') }))
   } catch (cause) {
     draft.autoSyncDomains = previous
     input.checked = previous
-    error.value = cause instanceof Error ? cause.message : t('error.syncUpdate')
+    toast.error(cause instanceof Error ? cause.message : t('error.syncUpdate'))
   } finally {
     pending.value = false
   }
 }
 
 async function save(): Promise<void> {
-  error.value = ''
-  status.value = ''
   if (draft.localPartMin > draft.localPartMax) {
-    error.value = t('domains.localRange')
+    toast.error(t('domains.localRange'))
     return
   }
   pending.value = true
@@ -127,9 +123,9 @@ async function save(): Promise<void> {
     } }, props.csrf)
     emit('updated', settings)
     applySettings(settings, true)
-    status.value = t('domains.saved')
+    toast.success(t('domains.saved'))
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : t('error.domains')
+    toast.error(cause instanceof Error ? cause.message : t('error.domains'))
   } finally {
     pending.value = false
   }
@@ -138,8 +134,6 @@ async function save(): Promise<void> {
 async function addManualDomain(): Promise<void> {
   const domain = manualDomain.value.trim()
   if (!domain) return
-  error.value = ''
-  status.value = ''
   pending.value = true
   try {
     const settings = await api.admin.updateSettings({ site: {
@@ -148,9 +142,9 @@ async function addManualDomain(): Promise<void> {
     manualDomain.value = ''
     emit('updated', settings)
     applySettings(settings, true)
-    status.value = t('domains.added')
+    toast.success(t('domains.added'))
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : t('error.domains')
+    toast.error(cause instanceof Error ? cause.message : t('error.domains'))
   } finally {
     pending.value = false
   }
@@ -158,8 +152,6 @@ async function addManualDomain(): Promise<void> {
 
 async function removeDomain(domain: string): Promise<void> {
   const manual = props.site.manualDomains.includes(domain)
-  error.value = ''
-  status.value = ''
   pending.value = true
   try {
     const settings = await api.admin.updateSettings({ site: manual
@@ -168,9 +160,9 @@ async function removeDomain(domain: string): Promise<void> {
     }, props.csrf)
     emit('updated', settings)
     applySettings(settings, true)
-    status.value = manual ? t('domains.removed') : t('domains.hidden')
+    toast.success(manual ? t('domains.removed') : t('domains.hidden'))
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : t('error.domains')
+    toast.error(cause instanceof Error ? cause.message : t('error.domains'))
   } finally {
     pending.value = false
   }
@@ -178,8 +170,6 @@ async function removeDomain(domain: string): Promise<void> {
 
 async function syncNow(): Promise<void> {
   syncing.value = true
-  error.value = ''
-  status.value = ''
   try {
     try {
       const result = await api.admin.syncDomains(props.csrf)
@@ -187,9 +177,9 @@ async function syncNow(): Promise<void> {
       displayedSync.value = { ...result.lastSync }
       displayedSuccessfulSync.value = { ...result.lastSync }
       emit('synced', result.domains, result.lastSync)
-      status.value = t('domains.complete', { count: formatNumber(result.domains.length) })
+      toast.success(t('domains.complete', { count: formatNumber(result.domains.length) }))
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : t('error.sync')
+      toast.error(cause instanceof Error ? cause.message : t('error.sync'))
       try {
         const settings = await api.admin.settings()
         emit('updated', settings)
@@ -206,7 +196,7 @@ async function syncNow(): Promise<void> {
       applySettings(settings, true)
     } catch (cause) {
       const detail = cause instanceof Error ? cause.message : t('error.settingsRefresh')
-      error.value = t('error.domainsSynced', { detail })
+      toast.error(t('error.domainsSynced', { detail }))
     }
   } finally {
     syncing.value = false
@@ -263,8 +253,6 @@ async function syncNow(): Promise<void> {
         </div>
         <div class="form-actions"><button class="primary-button" type="submit" :disabled="pending || syncing">{{ pending ? t('reader.saving') : t('domains.save') }}</button></div>
       </fieldset>
-      <p class="form-status" aria-live="polite">{{ status }}</p>
-      <p v-if="error" class="form-error" role="alert">{{ error }}</p>
     </form>
   </section>
 </template>

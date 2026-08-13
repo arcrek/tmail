@@ -49,6 +49,6 @@ onMounted(refresh)
       </dl>
     </template>
 
-    <p v-if="error" class="form-error" role="alert">{{ error }}</p>
+    <p v-if="error" class="dashboard-error" role="alert">{{ error }}</p>
   </section>
 </template>
