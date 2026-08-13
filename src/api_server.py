@@ -270,9 +270,23 @@ def bearer_address(
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(401, "Bearer token required")
     try:
-        return _address(request, request.app.state.signer.read(credentials.credentials))
+        address, elevated = request.app.state.signer.read(credentials.credentials)
+        return _address(request, address, elevated=elevated)
     except (AddressValidationError, ValueError):
         raise HTTPException(401, "Invalid bearer token") from None
+
+
+def bearer_elevated(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_BEARER),
+) -> bool:
+    if credentials is None:
+        return False
+    try:
+        _addr, elevated = request.app.state.signer.read(credentials.credentials)
+    except ValueError:
+        return False
+    return elevated
 
 
 def elevated_access(
@@ -304,7 +318,7 @@ def _email_value(value: object) -> str | None:
 
 
 def _message_belongs_to_address(
-    request: Request, address: str, message: object, config: Config | None = None
+    request: Request, address: str, message: object, config: Config | None = None, elevated: bool = False
 ) -> bool:
     if not isinstance(message, dict):
         return False
@@ -316,7 +330,7 @@ def _message_belongs_to_address(
         if value is None:
             continue
         try:
-            if _address(request, value, config) == address:
+            if _address(request, value, config, elevated=elevated) == address:
                 return True
         except AddressValidationError:
             pass
@@ -324,11 +338,11 @@ def _message_belongs_to_address(
 
 
 def message_for_address(
-    request: Request, address: str, message_id: str, config: Config, jmap: JmapClient
+    request: Request, address: str, message_id: str, config: Config, jmap: JmapClient, elevated: bool = False
 ) -> tuple[str, dict]:
     account_id = mail_account_id(config, jmap)
     message = jmap.get_message(account_id, message_id)
-    if _message_belongs_to_address(request, address, message, config):
+    if _message_belongs_to_address(request, address, message, config, elevated=elevated):
         return account_id, message
     raise HTTPException(404, "Message not found")
 
@@ -556,7 +570,9 @@ def register_public_routes(app: FastAPI) -> None:
             address = _address(request, body.address, elevated=elevated)
         except AddressValidationError as exc:
             raise HTTPException(422, str(exc)) from None
-        return TokenResponse(id=_stable_id("account", address), token=request.app.state.signer.issue(address))
+        return TokenResponse(
+            id=_stable_id("account", address), token=request.app.state.signer.issue(address, elevated=elevated),
+        )
 
     @app.post("/unlock")
     def unlock(request: Request, body: dict[str, object]):
@@ -592,14 +608,20 @@ def register_public_routes(app: FastAPI) -> None:
         "/messages", response_model=HydraMessages, response_model_exclude_none=True,
         responses=_ERROR_RESPONSES,
     )
-    def messages(request: Request, page: int = Query(1, ge=1), address: str = Depends(bearer_address)):
+    def messages(
+        request: Request, page: int = Query(1, ge=1), address: str = Depends(bearer_address),
+        elevated: bool = Depends(bearer_elevated),
+    ):
         config, jmap = mail_runtime(request)
         settings = request.app.state.state_store.get_settings()
         limit = int(settings["message_limit"])
         account_id = mail_account_id(config, jmap)
         total, values = jmap.list_messages(account_id, address, limit, (page - 1) * limit)
         blocked = {str(value).encode("idna").decode("ascii").lower() for value in settings["blocked_sender_domains"]}
-        owned = [value for value in values if _message_belongs_to_address(request, address, value, config)]
+        owned = [
+            value for value in values
+            if _message_belongs_to_address(request, address, value, config, elevated=elevated)
+        ]
         safe_total = max(0, total - (len(values) - len(owned)))
         view, search = _collection_metadata("/messages", page, safe_total, limit)
         return HydraMessages(
@@ -610,25 +632,34 @@ def register_public_routes(app: FastAPI) -> None:
         )
 
     @app.get("/messages/{message_id}", response_model=MessageResource, responses=_ERROR_RESPONSES)
-    def message(message_id: str, request: Request, address: str = Depends(bearer_address)):
+    def message(
+        message_id: str, request: Request, address: str = Depends(bearer_address),
+        elevated: bool = Depends(bearer_elevated),
+    ):
         config, jmap = mail_runtime(request)
-        account_id, value = message_for_address(request, address, message_id, config, jmap)
+        account_id, value = message_for_address(request, address, message_id, config, jmap, elevated=elevated)
         settings = request.app.state.state_store.get_settings()
         blocked = {str(item).encode("idna").decode("ascii").lower() for item in settings["blocked_sender_domains"]}
         return _message(value, account_id, blocked)
 
     @app.patch("/messages/{message_id}", response_model=SeenPatch, responses=_ERROR_RESPONSES)
-    def patch_message(body: SeenPatch, message_id: str, request: Request, address: str = Depends(bearer_address)):
+    def patch_message(
+        body: SeenPatch, message_id: str, request: Request, address: str = Depends(bearer_address),
+        elevated: bool = Depends(bearer_elevated),
+    ):
         config, jmap = mail_runtime(request)
-        account_id, _value = message_for_address(request, address, message_id, config, jmap)
+        account_id, _value = message_for_address(request, address, message_id, config, jmap, elevated=elevated)
         if not jmap.set_seen(account_id, message_id, body.seen):
             raise HTTPException(502, "Could not update message")
         return body
 
     @app.delete("/messages/{message_id}", status_code=204, response_class=Response, responses=_ERROR_RESPONSES)
-    def delete_message(message_id: str, request: Request, address: str = Depends(bearer_address)):
+    def delete_message(
+        message_id: str, request: Request, address: str = Depends(bearer_address),
+        elevated: bool = Depends(bearer_elevated),
+    ):
         config, jmap = mail_runtime(request)
-        account_id, _value = message_for_address(request, address, message_id, config, jmap)
+        account_id, _value = message_for_address(request, address, message_id, config, jmap, elevated=elevated)
         if not jmap.delete_message(account_id, message_id):
             raise HTTPException(502, "Could not delete message")
         return Response(status_code=204)
@@ -637,9 +668,12 @@ def register_public_routes(app: FastAPI) -> None:
         "/messages/{message_id}/attachments/{blob_id}", response_class=StreamingResponse,
         responses=_ATTACHMENT_RESPONSES,
     )
-    def attachment(message_id: str, blob_id: str, request: Request, address: str = Depends(bearer_address)):
+    def attachment(
+        message_id: str, blob_id: str, request: Request, address: str = Depends(bearer_address),
+        elevated: bool = Depends(bearer_elevated),
+    ):
         config, jmap = mail_runtime(request)
-        account_id, value = message_for_address(request, address, message_id, config, jmap)
+        account_id, value = message_for_address(request, address, message_id, config, jmap, elevated=elevated)
         match = next((item for item in value.get("attachments") or [] if item.get("blobId") == blob_id), None)
         if match is None:
             raise HTTPException(404, "Attachment not found")
@@ -654,9 +688,12 @@ def register_public_routes(app: FastAPI) -> None:
         )
 
     @app.get("/sources/{message_id}", response_class=StreamingResponse, responses=_SOURCE_RESPONSES)
-    def source(message_id: str, request: Request, address: str = Depends(bearer_address)):
+    def source(
+        message_id: str, request: Request, address: str = Depends(bearer_address),
+        elevated: bool = Depends(bearer_elevated),
+    ):
         config, jmap = mail_runtime(request)
-        account_id, value = message_for_address(request, address, message_id, config, jmap)
+        account_id, value = message_for_address(request, address, message_id, config, jmap, elevated=elevated)
         blob_id = value.get("blobId")
         if not blob_id:
             raise HTTPException(404, "Message source not found")

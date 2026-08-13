@@ -86,12 +86,14 @@ class AddressToken:
         except (binascii.Error, ValueError):
             raise ValueError("Invalid address token") from None
 
-    def issue(self, address: str) -> str:
-        payload = json.dumps({"address": _token_address(address), "v": 1}, separators=(",", ":")).encode()
+    def issue(self, address: str, elevated: bool = False) -> str:
+        payload = json.dumps(
+            {"address": _token_address(address), "elevated": elevated, "v": 2}, separators=(",", ":"),
+        ).encode()
         signature = hmac.new(self._secret, payload, hashlib.sha256).digest()
         return f"{self._encode(payload)}.{self._encode(signature)}"
 
-    def read(self, token: str) -> str:
+    def read(self, token: str) -> tuple[str, bool]:
         try:
             payload_part, signature_part = token.split(".")
         except (AttributeError, ValueError):
@@ -103,9 +105,14 @@ class AddressToken:
             data = json.loads(payload)
         except (UnicodeDecodeError, json.JSONDecodeError):
             raise ValueError("Invalid address token") from None
-        if not isinstance(data, dict) or set(data) != {"address", "v"} or not isinstance(data["address"], str) or type(data["v"]) is not int or data["v"] != 1:
+        if not isinstance(data, dict) or not isinstance(data.get("address"), str):
             raise ValueError("Invalid address token")
-        return data["address"]
+        # v1 tokens predate the elevated-access feature and carry no elevation.
+        if data.get("v") == 1 and set(data) == {"address", "v"}:
+            return data["address"], False
+        if data.get("v") == 2 and set(data) == {"address", "elevated", "v"} and isinstance(data.get("elevated"), bool):
+            return data["address"], data["elevated"]
+        raise ValueError("Invalid address token")
 
 
 def active_domains(cache_file: str | DomainCache, state) -> list[str]:

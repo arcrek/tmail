@@ -9,9 +9,15 @@ from src.domain_cache import DomainCache
 def test_address_token_round_trip_and_tamper_rejection():
     signer = AddressToken("s" * 32)
     token = signer.issue("User@Example.com")
-    assert signer.read(token) == "user@example.com"
+    assert signer.read(token) == ("user@example.com", False)
     with pytest.raises(ValueError):
         signer.read(token + "x")
+
+
+def test_address_token_carries_elevated_flag():
+    signer = AddressToken("s" * 32)
+    token = signer.issue("user@example.com", elevated=True)
+    assert signer.read(token) == ("user@example.com", True)
 
 
 def test_normalize_address_applies_whitelist_and_forbidden_ids():

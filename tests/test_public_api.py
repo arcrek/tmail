@@ -436,6 +436,29 @@ def test_elevated_access_bypasses_blacklist_only_for_access_token(client):
     assert client.post("/accounts", json={"address": "box@example.com"}, headers=headers).status_code == 201
 
 
+def test_mailbox_token_for_blacklisted_domain_grants_inbox_access(client, fake_jmap):
+    # Regression: a mailbox token issued while elevated must stay usable for /me
+    # and /messages afterward, or unlocking a blacklisted domain would let a
+    # visitor create an inbox they can never actually read.
+    credential, _ = _access_credential(client)
+    access_token = client.post("/unlock", json={"credential": credential["secret"]}).json()["accessToken"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+    client.app.state.state_store.update_settings({"blacklisted_domains": ["example.com"]})
+
+    mailbox_token = client.post("/token", json={"address": "box@example.com"}, headers=headers).json()["token"]
+    mailbox_headers = {"Authorization": f"Bearer {mailbox_token}"}
+
+    assert client.get("/me", headers=mailbox_headers).status_code == 200
+
+    fake_jmap.list_messages.return_value = (1, [dict(MESSAGE)])
+    messages = client.get("/messages", headers=mailbox_headers)
+    assert messages.status_code == 200
+    assert len(messages.json()["hydra:member"]) == 1
+
+    fake_jmap.get_message.return_value = dict(MESSAGE)
+    assert client.get("/messages/m1", headers=mailbox_headers).status_code == 200
+
+
 def test_elevated_session_outlives_deleted_credential(client):
     credential, csrf = _access_credential(client)
     access_token = client.post("/unlock", json={"credential": credential["secret"]}).json()["accessToken"]
