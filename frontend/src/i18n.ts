@@ -5,7 +5,7 @@ type Params = Record<string, string | number>
 const STORAGE_KEY = 'tmail.locale'
 
 export const en = {
-  'nav.site': 'Site navigation', 'nav.docs': 'API docs', 'nav.admin': 'Admin', 'locale.label': 'Language', 'locale.english': 'English', 'locale.vietnamese': 'Vietnamese',
+  'nav.site': 'Site navigation', 'a11y.skipToContent': 'Skip to content', 'nav.docs': 'API docs', 'nav.admin': 'Admin', 'locale.label': 'Language', 'locale.english': 'English', 'locale.vietnamese': 'Vietnamese',
   'theme.light': 'Switch to light theme', 'theme.dark': 'Switch to dark theme',
   'toast.dismiss': 'Dismiss',
   'app.opening': 'Opening address', 'app.cookie': 'Cookie notice', 'app.header': 'Configured site header', 'app.footer': 'Configured site footer', 'app.content': 'Configured {name} content', 'app.defaultName': 'Temporary Inbox', 'app.messageContent': 'Message content', 'app.siteContent': 'Site content',
@@ -23,7 +23,7 @@ export const en = {
 } as const
 
 export const vi: Record<keyof typeof en, string> = {
-  'nav.site': 'Điều hướng trang', 'nav.docs': 'Tài liệu API', 'nav.admin': 'Quản trị', 'locale.label': 'Ngôn ngữ', 'locale.english': 'Tiếng Anh', 'locale.vietnamese': 'Tiếng Việt', 'theme.light': 'Chuyển sang giao diện sáng', 'theme.dark': 'Chuyển sang giao diện tối',
+  'nav.site': 'Điều hướng trang', 'a11y.skipToContent': 'Chuyển tới nội dung chính', 'nav.docs': 'Tài liệu API', 'nav.admin': 'Quản trị', 'locale.label': 'Ngôn ngữ', 'locale.english': 'Tiếng Anh', 'locale.vietnamese': 'Tiếng Việt', 'theme.light': 'Chuyển sang giao diện sáng', 'theme.dark': 'Chuyển sang giao diện tối',
   'toast.dismiss': 'Đóng',
   'app.opening': 'Đang mở địa chỉ', 'app.cookie': 'Thông báo cookie', 'app.header': 'Phần đầu trang đã cấu hình', 'app.footer': 'Phần cuối trang đã cấu hình', 'app.content': 'Nội dung {name} đã cấu hình', 'app.defaultName': 'Hộp thư tạm thời', 'app.messageContent': 'Nội dung thư', 'app.siteContent': 'Nội dung trang',
   'address.eyebrow': 'Hộp thư tạm thời', 'address.title': 'Nhận thư. Giữ địa chỉ của bạn.', 'address.lede': 'Chọn tên, mở hộp thư và không cần tạo tài khoản.', 'address.loading': 'Đang tải tên miền nhận thư', 'address.failed': 'Không thể tải tên miền', 'address.none': 'Không có tên miền nhận thư', 'address.noneHelp': 'Hãy thử lại sau hoặc yêu cầu quản trị viên bật tên miền.', 'address.retry': 'Thử lại', 'address.open': 'Mở hộp thư', 'address.opening': 'Đang mở hộp thư', 'address.create': 'Tạo địa chỉ', 'address.random': 'Mở email ngẫu nhiên', 'address.name': 'Tên địa chỉ', 'address.domain': 'Tên miền nhận thư', 'address.preview': 'Địa chỉ của bạn xuất hiện ở đây', 'address.copy': 'Sao chép', 'address.copied': 'Đã sao chép', 'address.copiedNotice': 'Đã sao chép địa chỉ.', 'address.saved': 'Hộp thư đã lưu', 'address.savedHelp': 'Các địa chỉ bạn mở trên thiết bị này sẽ xuất hiện ở đây.', 'address.forget': 'Quên {address}', 'error.unavailable': 'Dịch vụ thư không khả dụng. Hãy thử lại.', 'error.copy': 'Sao chép thất bại. Hãy chọn địa chỉ và sao chép thủ công.',

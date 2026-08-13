@@ -166,6 +166,25 @@ a {
   outline-offset: 3px;
 }
 
+.skip-link {
+  position: fixed;
+  top: -3rem;
+  left: var(--space-4);
+  z-index: 2000; /* documented ceiling: above .toast-stack (1000) and fixed headers */
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  text-decoration: none;
+  transition: top var(--transition);
+}
+
+.skip-link:focus-visible {
+  top: var(--space-4);
+}
+
 h1,
 h2,
 p {
@@ -714,7 +733,7 @@ main {
 .toolbar-notice {
   margin: 0;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
 }
 
 .auto-refresh-hint {
@@ -745,7 +764,7 @@ main {
 
 .list-heading span {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
 }
 
 .message-list-state {
@@ -831,7 +850,7 @@ main {
 .message-row-top time,
 .message-intro {
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
 }
 
 .message-subject {
@@ -843,7 +862,7 @@ main {
   align-items: center;
   width: max-content;
   color: var(--accent);
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
 }
 
 .pagination {
@@ -871,7 +890,7 @@ main {
 
 .pagination span {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
 }
 
 .message-reader {

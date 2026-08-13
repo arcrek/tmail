@@ -198,6 +198,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="app-frame">
+    <a class="skip-link" href="#main-content">{{ t('a11y.skipToContent') }}</a>
     <SandboxFrame
       v-if="site?.headerHtml"
       class="site-content-frame site-header-frame"
@@ -221,7 +222,7 @@ onBeforeUnmount(() => {
       @lock="lock"
     />
 
-    <main>
+    <main id="main-content" tabindex="-1">
       <SandboxFrame
         v-for="([name, html]) in adSlots"
         :key="name"
