@@ -47,7 +47,7 @@ None. No unfinished plan overlaps this scope (`260812-1455-domain-blacklist-patt
 | 1 | [Backend credential storage and elevated domain access](./phase-01-backend-elevated-access.md) | Complete |
 | 2 | [Admin API for credential management](./phase-02-admin-credential-api.md) | Complete |
 | 3 | [Frontend unlock experience](./phase-03-frontend-unlock.md) | Complete |
-| 4 | [Admin Access tab UI](./phase-04-admin-access-tab.md) | Pending |
+| 4 | [Admin Access tab UI](./phase-04-admin-access-tab.md) | Complete |
 | 5 | [Tests and regression coverage](./phase-05-tests.md) | Pending |
 
 ## Validation

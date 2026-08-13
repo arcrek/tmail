@@ -120,6 +120,13 @@ export interface UnlockResponse {
   expiresAt: string
 }
 
+export interface AccessCredential {
+  id: string
+  kind: 'password' | 'token'
+  label: string
+  createdAt: string
+}
+
 export interface SiteResource {
   appName: string
   logoDataUrl: string

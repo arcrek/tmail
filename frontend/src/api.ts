@@ -1,5 +1,6 @@
 import type {
   AccountResource,
+  AccessCredential,
   AdminSettings,
   AdminSettingsUpdate,
   DashboardResource,
@@ -107,6 +108,13 @@ export const api = {
         '/admin/api/test-mail',
         { method: 'POST', csrf },
       ),
+    accessCredentials: {
+      list: () => request<{ credentials: AccessCredential[] }>('/admin/api/access-credentials'),
+      create: (body: { kind: 'password'; label: string; password: string } | { kind: 'token'; label: string }, csrf: string) =>
+        request<AccessCredential & { secret?: string }>('/admin/api/access-credentials', { method: 'POST', csrf, ...json(body) }),
+      remove: (id: string, csrf: string) =>
+        request<void>(`/admin/api/access-credentials/${encodeURIComponent(id)}`, { method: 'DELETE', csrf }),
+    },
     dashboard: () => request<DashboardResource>('/admin/api/dashboard'),
   },
 }

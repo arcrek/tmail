@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { api } from '../api'
 import type { AdminSettings } from '../types'
+import AccessTab from './AccessTab.vue'
 import ContentTab from './ContentTab.vue'
 import DashboardTab from './DashboardTab.vue'
 import DomainsTab from './DomainsTab.vue'
@@ -9,7 +10,7 @@ import GeneralTab from './GeneralTab.vue'
 import MailServerTab from './MailServerTab.vue'
 import { useI18n } from '../i18n'
 
-const tabs = [{ id: 'dashboard', key: 'admin.dashboard' }, { id: 'general', key: 'admin.general' }, { id: 'mail', key: 'admin.mail' }, { id: 'domains', key: 'admin.domains' }, { id: 'content', key: 'admin.content' }] as const
+const tabs = [{ id: 'dashboard', key: 'admin.dashboard' }, { id: 'general', key: 'admin.general' }, { id: 'mail', key: 'admin.mail' }, { id: 'domains', key: 'admin.domains' }, { id: 'access', key: 'admin.access' }, { id: 'content', key: 'admin.content' }] as const
 type Tab = typeof tabs[number]['id']
 const { t } = useI18n()
 
@@ -178,6 +179,7 @@ async function logout(): Promise<void> {
         <GeneralTab v-else-if="activeTab === 'general'" :site="settings.site" :csrf="csrf" @busy="childBusy = $event" @updated="settings = $event" />
         <MailServerTab v-else-if="activeTab === 'mail'" :mail-server="settings.mailServer" :csrf="csrf" @busy="childBusy = $event" @updated="settings = $event" />
         <DomainsTab v-else-if="activeTab === 'domains'" :site="settings.site" :domains="settings.domains" :last-sync="settings.lastSync" :last-successful-sync="settings.lastSuccessfulSync" :last-sync-error="settings.lastSyncError" :csrf="csrf" @busy="childBusy = $event" @synced="applyDomainSync" @updated="settings = $event" />
+        <AccessTab v-else-if="activeTab === 'access'" :csrf="csrf" @busy="childBusy = $event" />
         <ContentTab v-else :site="settings.site" :csrf="csrf" @busy="childBusy = $event" @updated="settings = $event" />
       </div>
     </section>

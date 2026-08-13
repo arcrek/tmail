@@ -166,6 +166,7 @@ describe('administration frontend', () => {
       'General',
       'Mail Server',
       'Domains & Inbox',
+      'Access',
       'HTML & Ads',
     ])
     expect(wrapper.get('.admin-shell').classes()).toContain('three-pane')
@@ -182,7 +183,7 @@ describe('administration frontend', () => {
     await flushPromises()
 
     expect(mocks.settings).toHaveBeenCalledTimes(1)
-    expect(wrapper.findAll('[role="tab"]')).toHaveLength(5)
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(6)
     await wrapper.get('.rail-signout').trigger('click')
     expect(mocks.logout).toHaveBeenCalledWith('resumed-csrf')
   })
@@ -229,10 +230,10 @@ describe('administration frontend', () => {
     await flushPromises()
 
     await wrapper.get('.rail-signout').trigger('click')
-    expect(wrapper.findAll('[role="tab"]')).toHaveLength(5)
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(6)
     logout.reject(new Error('Logout unavailable'))
     await flushPromises()
-    expect(wrapper.findAll('[role="tab"]')).toHaveLength(5)
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(6)
     expect(wrapper.get('[role="alert"]').text()).toContain('Logout unavailable')
 
     await wrapper.get('.rail-signout').trigger('click')
