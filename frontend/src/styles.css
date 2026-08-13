@@ -247,7 +247,7 @@ textarea {
 .eyebrow {
   margin-bottom: 2rem;
   color: var(--primary);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   font-weight: 750;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -887,7 +887,7 @@ main {
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--ink);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   font-weight: 700;
 }
 
@@ -1150,7 +1150,7 @@ main {
   border-radius: var(--radius);
   background: var(--surface);
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
 }
 
 .api-status i {
@@ -1359,7 +1359,7 @@ main {
 .field small,
 .preview-field > span {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   line-height: 1.4;
 }
 
