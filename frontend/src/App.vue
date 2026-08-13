@@ -4,6 +4,7 @@ import AddressPanel from './components/AddressPanel.vue'
 import AppHeader from './components/AppHeader.vue'
 import InboxView from './components/InboxView.vue'
 import SandboxFrame from './components/SandboxFrame.vue'
+import ToastStack from './components/ToastStack.vue'
 import AdminApp from './admin/AdminApp.vue'
 import { ApiError, api } from './api'
 import { parseRoute } from './route'
@@ -234,5 +235,7 @@ onBeforeUnmount(() => {
       mode="content"
       :title="t('app.footer')"
     />
+
+    <ToastStack />
   </div>
 </template>
