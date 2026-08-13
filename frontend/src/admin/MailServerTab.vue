@@ -3,15 +3,15 @@ import { reactive, ref, watch } from 'vue'
 import { api } from '../api'
 import type { AdminSettings, MailServerSettings } from '../types'
 import { useI18n } from '../i18n'
+import { useToast } from '../toast'
 
 const props = defineProps<{ mailServer: MailServerSettings; csrf: string }>()
 const emit = defineEmits<{ updated: [settings: AdminSettings]; busy: [value: boolean] }>()
 const draft = reactive({ ...props.mailServer })
 const pending = ref(false)
 const testing = ref(false)
-const status = ref('')
-const error = ref('')
 const { t, formatNumber } = useI18n()
+const toast = useToast()
 
 watch([pending, testing], ([saving, checking]) => emit('busy', saving || checking))
 
@@ -29,10 +29,8 @@ function valid(): boolean {
 }
 
 async function save(): Promise<void> {
-  error.value = ''
-  status.value = ''
   if (!valid()) {
-    error.value = t('error.mailValid')
+    toast.error(t('error.mailValid'))
     return
   }
   pending.value = true
@@ -41,9 +39,9 @@ async function save(): Promise<void> {
   try {
     const settings = await api.admin.updateSettings({ mailServer: values }, props.csrf)
     emit('updated', settings)
-    status.value = t('mail.saved')
+    toast.success(t('mail.saved'))
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : t('error.mail')
+    toast.error(cause instanceof Error ? cause.message : t('error.mail'))
   } finally {
     pending.value = false
   }
@@ -51,13 +49,11 @@ async function save(): Promise<void> {
 
 async function testConnection(): Promise<void> {
   testing.value = true
-  error.value = ''
-  status.value = ''
   try {
     const result = await api.admin.testMail(props.csrf)
-    status.value = t('mail.passed', { domains: formatNumber(result.domainCount), messages: formatNumber(result.messages.stored) })
+    toast.success(t('mail.passed', { domains: formatNumber(result.domainCount), messages: formatNumber(result.messages.stored) }))
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : t('error.connection')
+    toast.error(cause instanceof Error ? cause.message : t('error.connection'))
   } finally {
     testing.value = false
   }
@@ -82,8 +78,6 @@ async function testConnection(): Promise<void> {
           <button class="primary-button" type="submit" :disabled="pending || testing">{{ pending ? t('reader.saving') : t('mail.save') }}</button>
         </div>
       </fieldset>
-      <p class="form-status" aria-live="polite">{{ status }}</p>
-      <p v-if="error" class="form-error" role="alert">{{ error }}</p>
     </form>
   </section>
 </template>

@@ -4,6 +4,7 @@ import { api } from '../api'
 import SandboxFrame from '../components/SandboxFrame.vue'
 import type { AdminSettings, AdminSiteSettings } from '../types'
 import { useI18n } from '../i18n'
+import { useToast } from '../toast'
 
 const props = defineProps<{ site: AdminSiteSettings; csrf: string }>()
 const emit = defineEmits<{ updated: [settings: AdminSettings]; busy: [value: boolean] }>()
@@ -23,10 +24,9 @@ const draft = reactive({
   ads: adRows(props.site.adSlots),
 })
 const pending = ref(false)
-const status = ref('')
-const error = ref('')
 const MAX_CONTENT_LENGTH = 100_000
 const { t } = useI18n()
+const toast = useToast()
 
 watch(pending, (value) => emit('busy', value))
 
@@ -48,20 +48,18 @@ function removeSlot(index: number): void {
 }
 
 async function save(): Promise<void> {
-  error.value = ''
-  status.value = ''
   const names = draft.ads.map((slot) => slot.name.trim())
   if (names.some((name) => !name)) {
-    error.value = t('content.everyName')
+    toast.error(t('content.everyName'))
     return
   }
   if (new Set(names).size !== names.length) {
-    error.value = t('content.unique')
+    toast.error(t('content.unique'))
     return
   }
   if ([draft.headerHtml, draft.footerHtml, draft.contentCss, ...draft.ads.map((slot) => slot.html)]
     .some((value) => value.length > MAX_CONTENT_LENGTH)) {
-    error.value = t('content.limit')
+    toast.error(t('content.limit'))
     return
   }
   pending.value = true
@@ -73,9 +71,9 @@ async function save(): Promise<void> {
       adSlots: Object.fromEntries(draft.ads.map((slot, index) => [names[index], slot.html])),
     } }, props.csrf)
     emit('updated', settings)
-    status.value = t('content.saved')
+    toast.success(t('content.saved'))
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : t('error.content')
+    toast.error(cause instanceof Error ? cause.message : t('error.content'))
   } finally {
     pending.value = false
   }
@@ -115,8 +113,6 @@ async function save(): Promise<void> {
 
         <div class="form-actions"><button class="primary-button" type="submit" :disabled="pending">{{ pending ? t('reader.saving') : t('content.save') }}</button></div>
       </fieldset>
-      <p class="form-status" aria-live="polite">{{ status }}</p>
-      <p v-if="error" class="form-error" role="alert">{{ error }}</p>
     </form>
   </section>
 </template>
