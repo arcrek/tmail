@@ -8,8 +8,8 @@
 
   /* Brand indirection: site admin overrides only touch these two; every other color
      token below derives from them so a re-skin never has to know the derivation math. */
-  --brand-primary: #4f46e5;
-  --brand-accent: #4338ca;
+  --brand-primary: #3454e0;
+  --brand-accent: #4a4fce;
 
   /* Light surfaces */
   --canvas: #f6f7fb;
@@ -546,6 +546,7 @@ main {
 
 .address-preview {
   display: flex;
+  flex-wrap: wrap;
   min-height: 46px;
   align-items: center;
   justify-content: space-between;
@@ -557,6 +558,12 @@ main {
   font-family: var(--font-mono);
   font-size: 0.82rem;
   overflow-wrap: anywhere;
+}
+
+.address-preview-value {
+  color: var(--ink);
+  font-size: clamp(1.05rem, 2.6vw, 1.5rem);
+  font-weight: 700;
 }
 
 .saved-inboxes {
