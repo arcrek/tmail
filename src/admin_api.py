@@ -7,6 +7,7 @@ import hashlib
 import json
 import re
 import secrets
+import sqlite3
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request, Response
@@ -184,6 +185,23 @@ def _validate_mail(values: dict[str, object]) -> dict[str, object]:
     return result
 
 
+def _validate_access_credential(body: dict[str, object]) -> tuple[str, str, str | None]:
+    kind = _string(body.get("kind"), "kind")
+    if kind not in {"password", "token"}:
+        raise HTTPException(422, "kind must be password or token")
+    label = _string(body.get("label"), "label").strip()
+    if not label or len(label) > 100:
+        raise HTTPException(422, "label must be a non-empty string no longer than 100 characters")
+    password = body.get("password")
+    if kind == "password":
+        password = _string(password, "password").strip()
+        if len(password) < 8:
+            raise HTTPException(422, "password must be at least 8 characters")
+    elif password not in (None, ""):
+        raise HTTPException(422, "password must be empty for token credentials")
+    return kind, label, password
+
+
 def _active_domains(request: Request, settings: dict[str, object] | None = None) -> list[str]:
     return active_domains(request.app.state.domain_cache, request.app.state.state_store)
 
@@ -336,6 +354,44 @@ def test_mail(request: Request, _session_value: dict[str, object] = Depends(_csr
     except Exception:
         raise HTTPException(502, "Mail connection failed") from None
     return {"ok": True, "domainCount": len(domains), "messages": messages}
+
+
+@router.get("/access-credentials")
+def access_credentials(request: Request, _session_value: dict[str, object] = Depends(_session)):
+    credentials = request.app.state.state_store.list_access_credentials()
+    return {"credentials": [{_camel(key): value for key, value in credential.items()} for credential in credentials]}
+
+
+@router.post("/access-credentials")
+def create_access_credential(
+    request: Request,
+    body: dict[str, object] = Body(...),
+    _session_value: dict[str, object] = Depends(_csrf),
+):
+    kind, label, password = _validate_access_credential(body)
+    secret = password if kind == "password" else secrets.token_urlsafe(32)
+    id = secrets.token_hex(12)
+    created_at = datetime.now(timezone.utc)
+    state = request.app.state.state_store
+    try:
+        state.create_access_credential(id, kind, label, hashlib.sha256(secret.encode()).hexdigest(), created_at)
+    except sqlite3.IntegrityError:
+        raise HTTPException(422, "Credential already exists") from None
+    state.record_event("access_credential_created", detail=f"{kind}:{label}")
+    return JSONResponse(status_code=201, content={
+        "id": id, "kind": kind, "label": label, "createdAt": created_at.isoformat(), "secret": secret,
+    })
+
+
+@router.delete("/access-credentials/{id}")
+def delete_access_credential(
+    request: Request, id: str, _session_value: dict[str, object] = Depends(_csrf)
+):
+    state = request.app.state.state_store
+    if not state.delete_access_credential(id):
+        raise HTTPException(404, "Credential not found")
+    state.record_event("access_credential_revoked", detail=id)
+    return Response(status_code=204)
 
 
 @router.get("/dashboard")
