@@ -165,6 +165,45 @@ def test_csrf_mismatch_is_rejected(admin_client):
     assert response.status_code == 403
 
 
+def test_access_credentials_crud_keeps_secrets_one_time(admin_client):
+    password = admin_client.post("/admin/api/access-credentials", json={
+        "kind": "password", "label": "Support", "password": "password-secret",
+    }, headers=admin_client.csrf)
+    assert password.status_code == 201
+    assert admin_client.get("/admin/api/access-credentials").json()["credentials"] == [{
+        "id": password.json()["id"], "kind": "password", "label": "Support",
+        "createdAt": password.json()["createdAt"],
+    }]
+
+    token = admin_client.post("/admin/api/access-credentials", json={
+        "kind": "token", "label": "Automation",
+    }, headers=admin_client.csrf)
+    assert token.status_code == 201
+    assert token.json()["secret"]
+    assert all("secret" not in item and "password" not in item
+               for item in admin_client.get("/admin/api/access-credentials").json()["credentials"])
+    assert admin_client.post("/admin/api/access-credentials", json={
+        "kind": "password", "label": "Duplicate", "password": "password-secret",
+    }, headers=admin_client.csrf).status_code == 422
+
+    path = f"/admin/api/access-credentials/{password.json()['id']}"
+    assert admin_client.delete(path, headers=admin_client.csrf).status_code == 204
+    assert admin_client.delete(path, headers=admin_client.csrf).status_code == 404
+    assert password.json()["id"] not in {
+        item["id"] for item in admin_client.get("/admin/api/access-credentials").json()["credentials"]
+    }
+
+
+@pytest.mark.parametrize(("method", "path", "body"), [
+    ("get", "/admin/api/access-credentials", None),
+    ("post", "/admin/api/access-credentials", {"kind": "token", "label": "No auth"}),
+    ("delete", "/admin/api/access-credentials/missing", None),
+])
+def test_access_credentials_require_admin_auth(client, method, path, body):
+    response = getattr(client, method)(path, json=body) if body else getattr(client, method)(path)
+    assert response.status_code == 401
+
+
 @pytest.mark.parametrize("site", [
     {"fetchSeconds": 9},
     {"fetchSeconds": 301},

@@ -22,13 +22,28 @@ const mocks = vi.hoisted(() => ({
   syncDomains: vi.fn(),
   testMail: vi.fn(),
   dashboard: vi.fn(),
+  accessList: vi.fn(),
+  accessCreate: vi.fn(),
+  accessRemove: vi.fn(),
 }))
 
 vi.mock('../api', async () => {
   const actual = await vi.importActual<typeof import('../api')>('../api')
   return {
     ...actual,
-    api: { ...actual.api, admin: { ...actual.api.admin, ...mocks } },
+    api: {
+      ...actual.api,
+      admin: {
+        ...actual.api.admin,
+        ...mocks,
+        accessCredentials: {
+          ...actual.api.admin.accessCredentials,
+          list: mocks.accessList,
+          create: mocks.accessCreate,
+          remove: mocks.accessRemove,
+        },
+      },
+    },
   }
 })
 
@@ -126,6 +141,9 @@ describe('administration frontend', () => {
     })
     mocks.testMail.mockResolvedValue({ ok: true, domainCount: 2, messages: dashboard.messages })
     mocks.dashboard.mockResolvedValue(dashboard)
+    mocks.accessList.mockResolvedValue({ credentials: [] })
+    mocks.accessCreate.mockResolvedValue({ id: 'credential-id', kind: 'password', label: 'Main password', createdAt: '2026-08-13T00:00:00Z' })
+    mocks.accessRemove.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -253,6 +271,72 @@ describe('administration frontend', () => {
     expect(tabs[1]?.attributes('aria-selected')).toBe('true')
     expect(document.activeElement).toBe(tabs[1]?.element)
     expect(wrapper.get('[role="tabpanel"]').attributes('aria-labelledby')).toBe(tabs[1]?.attributes('id'))
+  })
+
+  it('manages access credentials from the Access tab', async () => {
+    const password = { id: 'password-id', kind: 'password' as const, label: 'Main password', createdAt: '2026-08-13T00:00:00Z' }
+    const token = { id: 'token-id', kind: 'token' as const, label: 'CI token', createdAt: '2026-08-13T00:00:00Z' }
+    mocks.accessList.mockResolvedValueOnce({ credentials: [] }).mockResolvedValueOnce({ credentials: [password] }).mockResolvedValueOnce({ credentials: [password, token] }).mockResolvedValueOnce({ credentials: [password, token] }).mockResolvedValueOnce({ credentials: [password] })
+    mocks.accessCreate.mockResolvedValueOnce(password).mockResolvedValueOnce({ ...token, secret: 'one-time-secret' })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const wrapper = mount(AdminApp)
+    await wrapper.get('input[type="password"]').setValue('correct horse')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    const tab = (name: string) => wrapper.findAll('[role="tab"]').find((item) => item.text() === name)!
+
+    await tab('Access').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('No access credentials have been created.')
+
+    await wrapper.get('#access-password-label').setValue('Main password')
+    await wrapper.get('#access-password').setValue('correct horse')
+    await wrapper.get('#access-password-confirm').setValue('correct horse')
+    await wrapper.findAll('.settings-form')[0]!.trigger('submit')
+    await flushPromises()
+    expect(mocks.accessCreate).toHaveBeenCalledWith({ kind: 'password', label: 'Main password', password: 'correct horse' }, 'csrf-value')
+    expect(wrapper.text()).toContain('Main password')
+
+    await wrapper.get('#access-token-label').setValue('CI token')
+    await wrapper.findAll('.settings-form')[1]!.trigger('submit')
+    await flushPromises()
+    expect(wrapper.text()).toContain('one-time-secret')
+
+    await tab('General').trigger('click')
+    await tab('Access').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('one-time-secret')
+
+    await wrapper.findAll('button.danger-text')[1]!.trigger('click')
+    await flushPromises()
+    expect(mocks.accessRemove).toHaveBeenCalledWith('token-id', 'csrf-value')
+    expect(wrapper.text()).not.toContain('one-time-secret')
+    expect(wrapper.text()).not.toContain('CI token')
+  })
+
+  it('disables tab switching while an Access-tab mutation is pending', async () => {
+    const response = deferred<{ id: string; kind: 'password'; label: string; createdAt: string }>()
+    mocks.accessCreate.mockReturnValueOnce(response.promise)
+    const wrapper = mount(AdminApp)
+    await wrapper.get('input[type="password"]').setValue('correct horse')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    const tab = (name: string) => wrapper.findAll('[role="tab"]').find((item) => item.text() === name)!
+    await tab('Access').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('#access-password-label').setValue('Main password')
+    await wrapper.get('#access-password').setValue('correct horse')
+    await wrapper.get('#access-password-confirm').setValue('correct horse')
+    await wrapper.findAll('.settings-form')[0]!.trigger('submit')
+
+    expect(tab('General').attributes('disabled')).toBeDefined()
+    await tab('General').trigger('click')
+    expect(wrapper.get('#access-password-label').exists()).toBe(true)
+
+    response.resolve({ id: 'password-id', kind: 'password', label: 'Main password', createdAt: '2026-08-13T00:00:00Z' })
+    await flushPromises()
+    expect(tab('General').attributes('disabled')).toBeUndefined()
   })
 
   it('renders mail activity without host metrics or charts', async () => {

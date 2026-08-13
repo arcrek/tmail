@@ -102,6 +102,15 @@ def bearer(client):
     return {"Authorization": f"Bearer {token}"}
 
 
+def _access_credential(client, kind="password", label="Test access", password="password-secret"):
+    login = client.post("/admin/api/login", json={"password": "admin-secret"})
+    response = client.post("/admin/api/access-credentials", json={
+        "kind": kind, "label": label, **({"password": password} if kind == "password" else {}),
+    }, headers={"X-CSRF-Token": login.json()["csrfToken"]})
+    assert response.status_code == 201
+    return response.json(), {"X-CSRF-Token": login.json()["csrfToken"]}
+
+
 def test_domains_are_a_hydra_collection(client):
     response = client.get("/domains")
     assert response.status_code == 200
@@ -380,6 +389,76 @@ def test_blacklisted_domain_is_denied_only_on_the_public_api(client, bearer):
     assert client.post("/token", json={"address": "box@example.com"}).status_code == 422
     assert client.get("/me", headers=bearer).status_code == 401
     assert client.get("/messages", headers=bearer).status_code == 401
+
+
+def test_unlock_accepts_password_and_token_credentials(client):
+    password, _ = _access_credential(client)
+    token, _ = _access_credential(client, kind="token", label="Test token")
+
+    unlocked_password = client.post("/unlock", json={"credential": password["secret"]})
+    unlocked_token = client.post("/unlock", json={"credential": token["secret"]})
+
+    assert unlocked_password.status_code == unlocked_token.status_code == 200
+    assert unlocked_password.json()["accessToken"]
+    assert unlocked_token.json()["accessToken"]
+
+
+@pytest.mark.parametrize(("body", "status"), [
+    ({"credential": "wrong-secret"}, 401),
+    ({}, 422),
+])
+def test_unlock_rejects_invalid_or_missing_credentials(client, body, status):
+    assert client.post("/unlock", json=body).status_code == status
+
+
+def test_unlock_is_rate_limited(client):
+    credential, _ = _access_credential(client)
+    for _ in range(10):
+        assert client.post("/unlock", json={"credential": credential["secret"]}).status_code == 200
+    assert client.post("/unlock", json={"credential": credential["secret"]}).status_code == 429
+
+
+def test_elevated_access_bypasses_blacklist_only_for_access_token(client):
+    credential, _ = _access_credential(client)
+    access_token = client.post("/unlock", json={"credential": credential["secret"]}).json()["accessToken"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+    normal_token = client.post("/token", json={"address": "box@example.com"}).json()["token"]
+    client.app.state.state_store.update_settings({"blacklisted_domains": ["example.com"]})
+
+    # The negative case is the security boundary: ordinary clients never see it.
+    assert client.get("/domains").json()["hydra:member"] == []
+    assert client.get("/domains", headers={"Authorization": f"Bearer {normal_token}"}).json()["hydra:member"] == []
+    elevated_domains = client.get("/domains", headers=headers)
+    assert [item["domain"] for item in elevated_domains.json()["hydra:member"]] == ["example.com"]
+    domain_id = elevated_domains.json()["hydra:member"][0]["id"]
+    assert client.get(f"/domains/{domain_id}", headers=headers).status_code == 200
+    assert client.post("/token", json={"address": "box@example.com"}, headers=headers).status_code == 200
+    assert client.post("/accounts", json={"address": "box@example.com"}, headers=headers).status_code == 201
+
+
+def test_elevated_session_outlives_deleted_credential(client):
+    credential, csrf = _access_credential(client)
+    access_token = client.post("/unlock", json={"credential": credential["secret"]}).json()["accessToken"]
+    client.app.state.state_store.update_settings({"blacklisted_domains": ["example.com"]})
+
+    assert client.delete(
+        f"/admin/api/access-credentials/{credential['id']}", headers=csrf
+    ).status_code == 204
+    assert [item["domain"] for item in client.get(
+        "/domains", headers={"Authorization": f"Bearer {access_token}"}
+    ).json()["hydra:member"]] == ["example.com"]
+
+
+def test_lock_invalidates_session_and_is_idempotent(client):
+    credential, _ = _access_credential(client)
+    access_token = client.post("/unlock", json={"credential": credential["secret"]}).json()["accessToken"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+    client.app.state.state_store.update_settings({"blacklisted_domains": ["example.com"]})
+
+    assert client.delete("/lock", headers=headers).status_code == 204
+    assert client.get("/domains", headers=headers).json()["hydra:member"] == []
+    assert client.delete("/lock").status_code == 204
+    assert client.delete("/lock", headers={"Authorization": "Bearer garbage"}).status_code == 204
 
 
 def test_wildcard_blacklist_blocks_public_access_except_manual_domains(client):

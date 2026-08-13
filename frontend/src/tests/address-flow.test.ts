@@ -263,6 +263,58 @@ describe('address flow', () => {
     expect(mocks.token).toHaveBeenCalledWith('paper@hidden.example', 'access-token')
   })
 
+  it('keeps the unlock form collapsed until requested', async () => {
+    const wrapper = mount(AddressPanel)
+    await flushPromises()
+
+    expect(wrapper.get('.address-form').text()).toContain('Unlock full access')
+    expect(wrapper.find('#access-credential').exists()).toBe(false)
+  })
+
+  it('shows an inline error for an invalid credential without changing domains', async () => {
+    mocks.unlock.mockRejectedValueOnce(new ApiError(401, 'Invalid credential'))
+    const wrapper = mount(AddressPanel)
+    await flushPromises()
+
+    await wrapper.findAll('.address-form > div')[1]!.get('button').trigger('click')
+    await wrapper.get('#access-credential').setValue('wrong')
+    await wrapper.get('.address-form > div > form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.get('.form-error').text()).toContain('The access credential is invalid.')
+    expect(mocks.domains).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('#domain').text()).toContain('example.com')
+    expect(localStorage.getItem('tmail.accessToken')).toBeNull()
+  })
+
+  it('locks locally, clears the token, and reloads filtered domains', async () => {
+    localStorage.setItem('tmail.accessToken', 'access-token')
+    mocks.domains.mockResolvedValueOnce(domains(['hidden.example'])).mockResolvedValueOnce(domains(['example.com']))
+    const wrapper = mount(AddressPanel)
+    await flushPromises()
+
+    await wrapper.findAll('.address-form button').find((button) => button.text() === 'Lock')!.trigger('click')
+    await flushPromises()
+
+    expect(mocks.lock).toHaveBeenCalledWith('access-token')
+    expect(mocks.domains).toHaveBeenLastCalledWith(1, undefined)
+    expect(wrapper.get('#domain').text()).toContain('example.com')
+    expect(localStorage.getItem('tmail.accessToken')).toBeNull()
+  })
+
+  it('restores unlocked access from local storage after a page reload', async () => {
+    localStorage.setItem('tmail.accessToken', 'saved-token')
+    const firstMount = mount(AddressPanel)
+    await flushPromises()
+    firstMount.unmount()
+
+    const wrapper = mount(AddressPanel)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Unlocked')
+    expect(mocks.domains).toHaveBeenLastCalledWith(1, 'saved-token')
+  })
+
   it('resets copied state when the composed address changes', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })

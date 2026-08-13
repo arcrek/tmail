@@ -1,7 +1,7 @@
 ---
 title: "Frontend access-credential unlock layer"
 description: "Let visitors unlock full mailbox access (bypassing blacklisted domains) with an admin-issued password or token, managed from the admin panel."
-status: pending
+status: complete
 priority: P2
 effort: 8h
 issue: null
@@ -48,7 +48,7 @@ None. No unfinished plan overlaps this scope (`260812-1455-domain-blacklist-patt
 | 2 | [Admin API for credential management](./phase-02-admin-credential-api.md) | Complete |
 | 3 | [Frontend unlock experience](./phase-03-frontend-unlock.md) | Complete |
 | 4 | [Admin Access tab UI](./phase-04-admin-access-tab.md) | Complete |
-| 5 | [Tests and regression coverage](./phase-05-tests.md) | Pending |
+| 5 | [Tests and regression coverage](./phase-05-tests.md) | Complete |
 
 ## Validation
 
