@@ -11,6 +11,7 @@ import { parseRoute } from './route'
 import { loadSessions, saveSession } from './session'
 import type { AddressSession, SiteResource } from './types'
 import { setSiteLocale, useI18n } from './i18n'
+import { useToast } from './toast'
 
 type View = 'address' | 'inbox' | 'admin'
 
@@ -19,7 +20,7 @@ const view = ref<View>(initialRoute.name === 'admin' ? 'admin' : 'address')
 const current = ref<AddressSession | null>(null)
 const site = ref<SiteResource | null>(null)
 const loading = ref(initialRoute.name === 'address')
-const error = ref('')
+const toast = useToast()
 let navigationVersion = 0
 let siteVersion = 0
 const root = document.documentElement
@@ -96,7 +97,6 @@ async function reconcileRoute(): Promise<void> {
   const version = ++navigationVersion
   const route = parseRoute(window.location.pathname)
   current.value = null
-  error.value = ''
   loading.value = false
 
   if (route.name === 'admin') {
@@ -121,7 +121,7 @@ async function reconcileRoute(): Promise<void> {
     if (version === navigationVersion) openInbox({ address: route.address, token: response.token }, false)
   } catch (cause) {
     if (version === navigationVersion) {
-      error.value = cause instanceof ApiError ? cause.message : 'The mail service is unavailable. Try again.'
+      toast.error(cause instanceof ApiError ? cause.message : t('error.unavailable'))
       view.value = 'address'
     }
   } finally {
@@ -132,7 +132,6 @@ async function reconcileRoute(): Promise<void> {
 function newAddress(): void {
   navigationVersion += 1
   current.value = null
-  error.value = ''
   view.value = 'address'
   if (location.pathname !== '/') history.pushState({}, '', '/')
 }
@@ -212,7 +211,6 @@ onBeforeUnmount(() => {
 
         <AddressPanel
           v-else
-          :initial-error="error"
           @open="openCreatedInbox"
         />
       </div>
