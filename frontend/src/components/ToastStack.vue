@@ -15,7 +15,7 @@ const { t } = useI18n()
         class="toast"
         :class="`toast-${toast.kind}`"
         :role="toast.kind === 'error' ? 'alert' : 'status'"
-        aria-live="polite"
+        :aria-live="toast.kind === 'error' ? 'assertive' : 'polite'"
       >
         <span>{{ toast.message }}</span>
         <button type="button" class="toast-dismiss" :aria-label="t('toast.dismiss')" @click="dismiss(toast.id)">×</button>
