@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import os
 from pathlib import Path
@@ -228,17 +228,23 @@ def _stable_id(kind: str, value: str) -> str:
     return hashlib.sha256(f"{kind}:{value}".encode()).hexdigest()[:24]
 
 
-def current_domains(request: Request, config: Config | None = None) -> list[str]:
+def current_domains(
+    request: Request, config: Config | None = None, elevated: bool = False
+) -> list[str]:
     domains = active_domains(request.app.state.domain_cache, request.app.state.state_store)
     settings = request.app.state.state_store.get_settings()
+    if elevated:
+        return domains
     manual = {_domain(value) for value in settings["manual_domains"]}
     return [domain for domain in domains if domain in manual or not any(
         _domain_matches_rule(domain, rule) for rule in settings["blacklisted_domains"]
     )]
 
 
-def _address(request: Request, value: str, config: Config | None = None) -> str:
-    domains = current_domains(request, config)
+def _address(
+    request: Request, value: str, config: Config | None = None, elevated: bool = False
+) -> str:
+    domains = current_domains(request, config, elevated=elevated)
     settings = request.app.state.state_store.get_settings()
     try:
         raw_domain = value.rsplit("@", 1)[1] if value.count("@") == 1 else ""
@@ -253,7 +259,7 @@ def _address(request: Request, value: str, config: Config | None = None) -> str:
             refresh_domains(request, require_auto=True)
         except Exception:
             pass
-        domains = current_domains(request, config)
+        domains = current_domains(request, config, elevated=elevated)
     return normalize_address(value, domains, settings)
 
 
@@ -267,6 +273,16 @@ def bearer_address(
         return _address(request, request.app.state.signer.read(credentials.credentials))
     except (AddressValidationError, ValueError):
         raise HTTPException(401, "Invalid bearer token") from None
+
+
+def elevated_access(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_BEARER),
+) -> bool:
+    if credentials is None:
+        return False
+    token_hash = hashlib.sha256(credentials.credentials.encode()).hexdigest()
+    return request.app.state.state_store.get_access_session(token_hash, datetime.now(timezone.utc))
 
 
 def mail_runtime(request: Request) -> tuple[Config, JmapClient]:
@@ -478,14 +494,16 @@ def register_public_routes(app: FastAPI) -> None:
         "/domains", response_model=HydraDomains, response_model_exclude_none=True,
         response_class=_JsonLdResponse,
     )
-    def domains(request: Request, page: int = Query(1, ge=1)):
+    def domains(
+        request: Request, page: int = Query(1, ge=1), elevated: bool = Depends(elevated_access)
+    ):
         if request.app.state.state_store.get_settings()["auto_sync_domains"]:
             try:
                 refresh_domains(request, require_auto=True)
             except Exception:
                 pass
         members = []
-        for domain in current_domains(request):
+        for domain in current_domains(request, elevated=elevated):
             domain_id = _stable_id("domain", domain)
             members.append(DomainResource(
                 iri=f"/domains/{domain_id}",
@@ -501,8 +519,8 @@ def register_public_routes(app: FastAPI) -> None:
         return HydraDomains(total_items=total, member=members[start:start + 30], view=view, search=search)
 
     @app.get("/domains/{domain_id}", response_model=DomainResource, responses=_ERROR_RESPONSES)
-    def domain(request: Request, domain_id: str):
-        for name in current_domains(request):
+    def domain(request: Request, domain_id: str, elevated: bool = Depends(elevated_access)):
+        for name in current_domains(request, elevated=elevated):
             if _stable_id("domain", name) == domain_id:
                 return DomainResource(
                     iri=f"/domains/{domain_id}", type="Domain", id=domain_id, domain=name,
@@ -520,9 +538,9 @@ def register_public_routes(app: FastAPI) -> None:
         )})
 
     @app.post("/accounts", status_code=201, response_model=AccountResource, responses=_ERROR_RESPONSES)
-    def accounts(body: AddressRequest, request: Request):
+    def accounts(body: AddressRequest, request: Request, elevated: bool = Depends(elevated_access)):
         try:
-            return _account(_address(request, body.address))
+            return _account(_address(request, body.address, elevated=elevated))
         except AddressValidationError as exc:
             raise HTTPException(422, str(exc)) from None
 
@@ -533,12 +551,38 @@ def register_public_routes(app: FastAPI) -> None:
         summary="Issue a passwordless address token",
         description="Validates a whitelisted address and returns a stateless bearer token; no account or password is stored.",
     )
-    def token(body: AddressRequest, request: Request):
+    def token(body: AddressRequest, request: Request, elevated: bool = Depends(elevated_access)):
         try:
-            address = _address(request, body.address)
+            address = _address(request, body.address, elevated=elevated)
         except AddressValidationError as exc:
             raise HTTPException(422, str(exc)) from None
         return TokenResponse(id=_stable_id("account", address), token=request.app.state.signer.issue(address))
+
+    @app.post("/unlock")
+    def unlock(request: Request, body: dict[str, object]):
+        credential = body.get("credential")
+        if not isinstance(credential, str) or not credential:
+            raise HTTPException(422, "credential must be a non-empty string")
+        credential_hash = hashlib.sha256(credential.encode()).hexdigest()
+        if request.app.state.state_store.find_access_credential_by_hash(credential_hash) is None:
+            raise HTTPException(401, "Invalid credential")
+        token = secrets.token_urlsafe(32)
+        expires = datetime.now(timezone.utc) + timedelta(days=30)
+        request.app.state.state_store.create_access_session(
+            hashlib.sha256(token.encode()).hexdigest(), expires
+        )
+        return {"accessToken": token, "expiresAt": expires.isoformat()}
+
+    @app.delete("/lock", status_code=204)
+    def lock(
+        request: Request,
+        credentials: HTTPAuthorizationCredentials | None = Depends(_BEARER),
+    ):
+        if credentials is not None:
+            request.app.state.state_store.delete_access_session(
+                hashlib.sha256(credentials.credentials.encode()).hexdigest()
+            )
+        return Response(status_code=204)
 
     @app.get("/me", response_model=AccountResource, responses=_ERROR_RESPONSES)
     def me(address: str = Depends(bearer_address)):
@@ -645,7 +689,7 @@ def create_app(config_path: str) -> FastAPI:
 
     @app.middleware("http")
     async def security(request: Request, call_next):
-        if request.url.path in {"/token", "/admin/login", "/admin/api/login"}:
+        if request.url.path in {"/token", "/unlock", "/admin/login", "/admin/api/login"}:
             client_ip = request.client.host if request.client else "unknown"
             if not limiter.allow((request.url.path, client_ip)):
                 response = _error(429, "Too many requests", "Try again later")

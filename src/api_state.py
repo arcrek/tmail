@@ -44,6 +44,17 @@ class StateStore:
                   csrf_token TEXT NOT NULL,
                   expires_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS access_credentials (
+                  id TEXT PRIMARY KEY,
+                  kind TEXT NOT NULL,
+                  label TEXT NOT NULL,
+                  secret_hash TEXT NOT NULL UNIQUE,
+                  created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS access_sessions (
+                  token_hash TEXT PRIMARY KEY,
+                  expires_at TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS activity (
                   id INTEGER PRIMARY KEY,
                   kind TEXT NOT NULL,
@@ -108,6 +119,54 @@ class StateStore:
     def delete_admin_session(self, token_hash: str) -> None:
         with self._connect() as conn:
             conn.execute("DELETE FROM admin_sessions WHERE token_hash = ?", (token_hash,))
+
+    def create_access_credential(
+        self, id: str, kind: str, label: str, secret_hash: str, created_at: datetime
+    ) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO access_credentials (id, kind, label, secret_hash, created_at) VALUES (?, ?, ?, ?, ?)",
+                (id, kind, label, secret_hash, created_at.isoformat()),
+            )
+
+    def list_access_credentials(self) -> list[dict[str, object]]:
+        with self._connect() as conn:
+            return [dict(row) for row in conn.execute(
+                "SELECT id, kind, label, created_at FROM access_credentials ORDER BY created_at DESC"
+            )]
+
+    def delete_access_credential(self, id: str) -> bool:
+        with self._connect() as conn:
+            cursor = conn.execute("DELETE FROM access_credentials WHERE id = ?", (id,))
+            return cursor.rowcount > 0
+
+    def find_access_credential_by_hash(self, secret_hash: str) -> dict[str, object] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id, kind, label FROM access_credentials WHERE secret_hash = ?", (secret_hash,)
+            ).fetchone()
+            return dict(row) if row is not None else None
+
+    def create_access_session(self, token_hash: str, expires_at: datetime) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO access_sessions (token_hash, expires_at) VALUES (?, ?)",
+                (token_hash, expires_at.isoformat()),
+            )
+
+    def get_access_session(self, token_hash: str, now: datetime) -> bool:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT expires_at FROM access_sessions WHERE token_hash = ?", (token_hash,)
+            ).fetchone()
+            if row is None or datetime.fromisoformat(row["expires_at"]) <= now:
+                conn.execute("DELETE FROM access_sessions WHERE token_hash = ?", (token_hash,))
+                return False
+            return True
+
+    def delete_access_session(self, token_hash: str) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM access_sessions WHERE token_hash = ?", (token_hash,))
 
     def record_event(self, kind: str, domain: str | None = None, detail: str | None = None) -> None:
         with self._connect() as conn:
