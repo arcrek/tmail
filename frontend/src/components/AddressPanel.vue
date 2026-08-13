@@ -160,7 +160,7 @@ function forget(address: string): void {
     </div>
 
       <div class="address-preview">
-      <span>{{ address || t('address.preview') }}</span>
+      <span :class="{ 'address-preview-value': address }">{{ address || t('address.preview') }}</span>
       <button class="text-button" type="button" :disabled="!address" @click="copyAddress">
         <AppIcon :name="copied ? 'check' : 'copy'" />
         {{ copied ? t('address.copied') : t('address.copy') }}

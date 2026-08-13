@@ -277,6 +277,7 @@ onBeforeUnmount(() => {
             <strong>{{ item.from.name || item.from.address }}</strong>
             <time :datetime="item.createdAt">{{ formatDate(item.createdAt) }}</time>
           </span>
+          <span v-if="!item.seen" class="sr-only">{{ t('inbox.unread') }}</span>
           <span class="message-subject">{{ item.subject || t('inbox.noSubject') }}</span>
           <span class="message-intro">{{ item.intro || t('inbox.noPreview') }}</span>
           <span v-if="item.hasAttachments" class="attachment-flag">

@@ -147,6 +147,7 @@ async function logout(): Promise<void> {
   </section>
 
   <div v-else class="admin-shell three-pane">
+    <a class="skip-link" href="#admin-main-content">{{ t('a11y.skipToContent') }}</a>
     <aside class="admin-account-rail account-rail">
       <div class="api-status"><i aria-hidden="true" /> {{ t('admin.apiStatus') }} <strong>{{ t('admin.healthy') }}</strong></div>
       <button class="rail-signout" type="button" :disabled="pending || childBusy" @click="logout">
@@ -173,7 +174,7 @@ async function logout(): Promise<void> {
       </nav>
     </aside>
 
-    <section class="admin-content">
+    <section id="admin-main-content" class="admin-content" tabindex="-1">
       <div role="tabpanel" tabindex="0" :aria-labelledby="`admin-tab-${tabs.findIndex((tab) => tab.id === activeTab)}`">
         <DashboardTab v-if="activeTab === 'dashboard'" />
         <GeneralTab v-else-if="activeTab === 'general'" :site="settings.site" :csrf="csrf" @busy="childBusy = $event" @updated="settings = $event" />
