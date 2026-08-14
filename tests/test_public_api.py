@@ -667,6 +667,14 @@ def test_admin_login_path_is_rate_limited(client):
     assert limited.json()["@type"] == "hydra:Error"
 
 
+def test_accounts_path_is_rate_limited(client):
+    for _ in range(10):
+        assert client.post("/accounts", json={"address": "box@example.com"}).status_code == 201
+    limited = client.post("/accounts", json={"address": "box@example.com"})
+    assert limited.status_code == 429
+    assert limited.json()["@type"] == "hydra:Error"
+
+
 def test_fixed_window_prunes_expired_keys_and_separates_paths(monkeypatch):
     monkeypatch.setattr(api_server.time, "monotonic", MagicMock(side_effect=[0, 0, 61]))
     limiter = api_server._FixedWindowLimiter(limit=1, seconds=60)
@@ -683,6 +691,7 @@ def test_openapi_documents_passwordless_bearer_contract(client):
     assert schema["paths"]["/messages"]["get"]["security"] == [{"HTTPBearer": []}]
     assert "413" in schema["paths"]["/token"]["post"]["responses"]
     assert "429" in schema["paths"]["/token"]["post"]["responses"]
+    assert "429" in schema["paths"]["/accounts"]["post"]["responses"]
     attachment = schema["paths"]["/messages/{message_id}/attachments/{blob_id}"]["get"]
     assert attachment["responses"]["200"]["content"]["application/octet-stream"]["schema"] == {
         "type": "string", "format": "binary",
