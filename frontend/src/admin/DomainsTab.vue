@@ -240,13 +240,13 @@ async function syncNow(): Promise<void> {
     <form class="settings-form" @submit.prevent="save">
       <fieldset class="settings-fields" :disabled="pending || syncing">
         <label class="check-field"><input :checked="draft.autoSyncDomains" name="autoSyncDomains" type="checkbox" @change="changeAutoSync"> {{ t('domains.auto') }}</label>
-        <div class="settings-grid settings-grid-three">
+        <div class="settings-grid">
           <div class="field"><label for="fetch-seconds">{{ t('domains.poll') }}</label><input id="fetch-seconds" v-model.number="draft.fetchSeconds" name="fetchSeconds" type="number" min="10" max="300" required></div>
           <div class="field"><label for="message-limit">{{ t('domains.limit') }}</label><input id="message-limit" v-model.number="draft.messageLimit" name="messageLimit" type="number" min="1" max="100" required></div>
           <div class="field"><label for="local-min">{{ t('domains.min') }}</label><input id="local-min" v-model.number="draft.localPartMin" name="localPartMin" type="number" min="1" max="64" required></div>
           <div class="field"><label for="local-max">{{ t('domains.max') }}</label><input id="local-max" v-model.number="draft.localPartMax" name="localPartMax" type="number" min="1" max="64" required></div>
         </div>
-        <div class="settings-grid">
+        <div class="settings-grid settings-grid-three">
           <div class="field"><label for="forbidden-ids">{{ t('domains.forbidden') }}</label><textarea id="forbidden-ids" v-model="draft.forbiddenIds" name="forbiddenIds" rows="7" /><small>{{ t('domains.listHelp') }}</small></div>
           <div class="field"><label for="blocked-senders">{{ t('domains.blocked') }}</label><textarea id="blocked-senders" v-model="draft.blockedSenderDomains" name="blockedSenderDomains" rows="7" /><small>{{ t('domains.listHelp') }}</small></div>
           <div class="field"><label for="blacklisted-domains">{{ t('domains.blacklisted') }}</label><textarea id="blacklisted-domains" v-model="draft.blacklistedDomains" name="blacklistedDomains" rows="7" /><small>{{ t('domains.blacklistHelp') }}</small></div>
