@@ -1,7 +1,7 @@
 ---
 title: "Domain MX health monitoring"
 description: "Record MX-check failures the policy daemon already sees, and surface them plus the already-computed (but currently unrendered) domain provisioning stats on the admin Dashboard."
-status: pending
+status: done
 priority: P1
 effort: 3h
 issue: null
@@ -58,8 +58,8 @@ This plan closes both gaps using the existing `activity` table/event-log pattern
 
 | Phase | Name | Status |
 |---|---|---|
-| 1 | [Backend: record and expose MX failures](./phase-01-backend-mx-failure-logging.md) | Pending |
-| 2 | [Frontend: render domain stats + MX failures on Dashboard](./phase-02-dashboard-domain-health.md) | Pending |
+| 1 | [Backend: record and expose MX failures](./phase-01-backend-mx-failure-logging.md) | Done |
+| 2 | [Frontend: render domain stats + MX failures on Dashboard](./phase-02-dashboard-domain-health.md) | Done |
 
 ## Validation
 

@@ -3,7 +3,7 @@
 ## Overview
 
 **Priority:** P1
-**Status:** Pending
+**Status:** Done
 **Estimate:** 1.5h
 **Depends on:** Phase 1 (`recentMxFailures` must exist on the `/dashboard` response)
 
@@ -51,9 +51,9 @@
 
 ## Todo
 
-- [ ] Add `recentMxFailures` to the `DashboardResource` type.
-- [ ] Render the already-returned `domains.active`/`domainsToday`/`domainsSevenDays`.
-- [ ] Render `recentMxFailures` with a kind-to-copy mapping and empty state.
-- [ ] Add the 5 new i18n keys (EN + VI).
-- [ ] Create `DashboardTab.test.ts` with the 4 cases above.
-- [ ] Run `npm test -- --run src/tests/DashboardTab.test.ts`.
+- [x] Add `recentMxFailures` to the `DashboardResource` type.
+- [x] Render the already-returned `domains.active`/`domainsToday`/`domainsSevenDays`.
+- [x] Render `recentMxFailures` with a kind-to-copy mapping and empty state.
+- [x] Add the 5 new i18n keys (EN + VI).
+- [x] Create `DashboardTab.test.ts` with the 4 cases above.
+- [x] Run `npm test -- --run src/tests/DashboardTab.test.ts`.

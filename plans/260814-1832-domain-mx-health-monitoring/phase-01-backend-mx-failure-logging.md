@@ -3,7 +3,7 @@
 ## Overview
 
 **Priority:** P1
-**Status:** Pending
+**Status:** Done
 **Estimate:** 1.5h
 
 ## Related code files
@@ -71,9 +71,9 @@
 
 ## Todo
 
-- [ ] Record `mx_mismatch` in the MX-mismatch branch.
-- [ ] Record `mx_lookup_error` (with `detail=str(exc)`) in the `MxLookupError` branch.
-- [ ] Wrap both in try/except matching the existing `domain_provisioned` pattern.
-- [ ] Extend `activity_summary()` with `recentMxFailures`.
-- [ ] Extend/add the tests above.
-- [ ] Run `pytest tests/test_policy_daemon.py tests/test_api_state.py -q`.
+- [x] Record `mx_mismatch` in the MX-mismatch branch.
+- [x] Record `mx_lookup_error` (with `detail=str(exc)`) in the `MxLookupError` branch.
+- [x] Wrap both in try/except matching the existing `domain_provisioned` pattern.
+- [x] Extend `activity_summary()` with `recentMxFailures`.
+- [x] Extend/add the tests above.
+- [x] Run `pytest tests/test_policy_daemon.py tests/test_api_state.py -q`.
