@@ -113,12 +113,16 @@ function startStream(): void {
   streamController?.abort()
   const controller = new AbortController()
   streamController = controller
-  void streamMessages(props.session.token, () => void refresh(), controller.signal).catch(() => {
+  const fallback = () => {
     if (streamController === controller && !controller.signal.aborted) {
       streamController = undefined
       startPolling()
     }
-  })
+  }
+  // Both a rejected stream (network error, non-OK response) and a stream that
+  // simply ends (server closed the connection, proxy killed it) must fall
+  // back to polling — only an intentional abort() should not.
+  void streamMessages(props.session.token, () => void refresh(), controller.signal).then(fallback, fallback)
 }
 
 function restartRefresh(): void {

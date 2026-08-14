@@ -639,37 +639,41 @@ def register_public_routes(app: FastAPI) -> None:
         elevated: bool = Depends(bearer_elevated),
     ):
         config, jmap = mail_runtime(request)
-        account_id = mail_account_id(config, jmap)
         interval = int(request.app.state.state_store.get_settings()["fetch_seconds"])
 
         async def events():
+            account_id = await run_in_threadpool(mail_account_id, config, jmap)
             last_id = None
             first_tick = True
-            elapsed = 0.0
+            tick = min(max(1, interval), 15)
+            since_check = float(interval)  # force an immediate check on the first loop
+            since_heartbeat = 0.0
             while True:
                 if await request.is_disconnected():
                     return
-                try:
-                    _total, values = await run_in_threadpool(
-                        jmap.list_messages, account_id, address, 1, 0,
-                    )
-                except Exception:
-                    await asyncio.sleep(max(1, interval))
-                    continue
-                newest = values[0]["id"] if values else None
-                if first_tick:
-                    last_id = newest
-                    first_tick = False
-                elif newest != last_id:
-                    last_id = newest
-                    yield b"event: update\ndata: \n\n"
-                    elapsed = 0.0
-                else:
-                    elapsed += interval
-                    if elapsed >= 15:
-                        yield b": keep-alive\n\n"
-                        elapsed = 0.0
-                await asyncio.sleep(max(1, interval))
+                if since_check >= interval:
+                    since_check = 0.0
+                    try:
+                        _total, values = await run_in_threadpool(
+                            jmap.list_messages, account_id, address, 1, 0,
+                        )
+                    except Exception:
+                        values = None  # transient JMAP error: skip this check, try again next
+                    if values is not None:
+                        newest = values[0]["id"] if values else None
+                        if first_tick:
+                            last_id = newest
+                            first_tick = False
+                        elif newest != last_id:
+                            last_id = newest
+                            yield b"event: update\ndata: \n\n"
+                            since_heartbeat = 0.0
+                if since_heartbeat >= 15:
+                    yield b": keep-alive\n\n"
+                    since_heartbeat = 0.0
+                await asyncio.sleep(tick)
+                since_check += tick
+                since_heartbeat += tick
 
         return StreamingResponse(events(), media_type="text/event-stream", headers={
             "Cache-Control": "no-cache", "X-Accel-Buffering": "no",
