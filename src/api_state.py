@@ -220,8 +220,16 @@ class StateStore:
                     "ORDER BY id DESC LIMIT 10"
                 )
             ]
+            recent_mx_failures = [
+                dict(row)
+                for row in conn.execute(
+                    "SELECT kind, domain, detail, created_at FROM activity "
+                    "WHERE kind IN ('mx_mismatch', 'mx_lookup_error') ORDER BY id DESC LIMIT 10"
+                )
+            ]
             return {
                 "domainsToday": domains_today,
                 "domainsSevenDays": domains_seven_days,
                 "recentDomains": recent_domains,
+                "recentMxFailures": recent_mx_failures,
             }

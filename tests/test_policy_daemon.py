@@ -51,12 +51,13 @@ def test_unknown_mx_match_provisions_records_and_returns_ok():
     state.record_event.assert_called_once_with("domain_provisioned", "newdomain.com")
 
 def test_unknown_mx_mismatch_no_provision():
-    cache, jmap, _state = _setup()
+    cache, jmap, state = _setup()
     h = _handler(["recipient=user@wrongmx.com"])
     with patch("src.policy_daemon.mx_matches", return_value=False):
         h.handle()
     assert h.wfile.getvalue() == b"action=REJECT\n\n"
     jmap.provision_domain.assert_not_called()
+    state.record_event.assert_called_once_with("mx_mismatch", "wrongmx.com")
 
 def test_jmap_failure_does_not_cache_and_defers():
     cache, jmap, _state = _setup(jmap_ok=False)
@@ -86,11 +87,13 @@ def test_multiple_attrs_parsed_correctly():
 
 
 def test_transient_mx_failure_defers():
-    _cache, _jmap, _state = _setup()
+    _cache, _jmap, state = _setup()
     h = _handler(["recipient=user@example.com"])
-    with patch("src.policy_daemon.mx_matches", side_effect=pd.MxLookupError("temporary")):
+    exc = pd.MxLookupError("temporary")
+    with patch("src.policy_daemon.mx_matches", side_effect=exc):
         h.handle()
     assert h.wfile.getvalue() == b"action=DEFER_IF_PERMIT DNS lookup failed, try again later\n\n"
+    state.record_event.assert_called_once_with("mx_lookup_error", "example.com", detail=str(exc))
 
 
 def test_metric_failure_does_not_change_smtp_response():
@@ -100,6 +103,15 @@ def test_metric_failure_does_not_change_smtp_response():
     with patch("src.policy_daemon.mx_matches", return_value=True):
         h.handle()
     assert h.wfile.getvalue() == b"action=OK\n\n"
+
+
+def test_mx_mismatch_metric_failure_does_not_change_smtp_response():
+    _cache, _jmap, state = _setup()
+    state.record_event.side_effect = RuntimeError("disk full")
+    h = _handler(["recipient=user@wrongmx.com"])
+    with patch("src.policy_daemon.mx_matches", return_value=False):
+        h.handle()
+    assert h.wfile.getvalue() == b"action=REJECT\n\n"
 
 
 def test_changed_mail_config_rebuilds_jmap_client():

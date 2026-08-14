@@ -7,7 +7,11 @@ import { useI18n } from '../i18n'
 const dashboard = ref<DashboardResource | null>(null)
 const loading = ref(false)
 const error = ref('')
-const { t, formatNumber } = useI18n()
+const { t, formatDate, formatNumber } = useI18n()
+
+function failureKind(kind: string): string {
+  return t(kind === 'mx_mismatch' ? 'dashboard.mxMismatch' : 'dashboard.mxLookupError')
+}
 
 async function refresh(): Promise<void> {
   loading.value = true
@@ -47,6 +51,22 @@ onMounted(refresh)
         <div><dt>{{ t('dashboard.today') }}</dt><dd>{{ formatNumber(dashboard.messages.today) }}</dd></div>
         <div><dt>{{ t('dashboard.week') }}</dt><dd>{{ formatNumber(dashboard.messages.sevenDays) }}</dd></div>
       </dl>
+
+      <dl class="metric-grid">
+        <div><dt>{{ t('dashboard.domainsActive') }}</dt><dd>{{ formatNumber(dashboard.domains.active) }}</dd></div>
+        <div><dt>{{ t('dashboard.domainsToday') }}</dt><dd>{{ formatNumber(dashboard.domains.domainsToday) }}</dd></div>
+        <div><dt>{{ t('dashboard.domainsWeek') }}</dt><dd>{{ formatNumber(dashboard.domains.domainsSevenDays) }}</dd></div>
+      </dl>
+
+      <section aria-labelledby="mx-failures-title">
+        <h2 id="mx-failures-title">{{ t('dashboard.mxFailures') }}</h2>
+        <ul class="domain-list">
+          <li v-for="failure in dashboard.domains.recentMxFailures" :key="`${failure.created_at}-${failure.domain}-${failure.kind}`">
+            <span>{{ failure.domain }} — {{ failureKind(failure.kind) }}</span><time :datetime="failure.created_at">{{ formatDate(failure.created_at, { dateStyle: 'medium', timeStyle: 'short' }) }}</time>
+          </li>
+          <li v-if="!dashboard.domains.recentMxFailures.length">{{ t('dashboard.mxFailuresEmpty') }}</li>
+        </ul>
+      </section>
     </template>
 
     <p v-if="error" class="dashboard-error" role="alert">{{ error }}</p>

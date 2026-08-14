@@ -28,11 +28,21 @@ def test_activity_summary_counts_domains_today_and_seven_days(tmp_path):
             ((datetime.now(timezone.utc) - timedelta(days=8)).isoformat(), "old.example"),
         )
     store.record_event("domain_provisioned", "example.com")
+    for index in range(11):
+        store.record_event(
+            "mx_mismatch" if index % 2 else "mx_lookup_error",
+            f"failure-{index}.example",
+            detail=f"detail-{index}",
+        )
     summary = store.activity_summary()
     assert summary["domainsToday"] == 1
     assert summary["domainsSevenDays"] == 1
     assert summary["recentDomains"][0]["domain"] == "example.com"
     assert {event["domain"] for event in summary["recentDomains"]} == {"example.com", "old.example"}
+    assert [event["domain"] for event in summary["recentMxFailures"]] == [
+        f"failure-{index}.example" for index in range(10, 0, -1)
+    ]
+    assert len(summary["recentMxFailures"]) == 10
 
 
 def test_sync_history_retains_success_and_error_independently(tmp_path):
