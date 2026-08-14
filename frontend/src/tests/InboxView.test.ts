@@ -90,6 +90,86 @@ describe('InboxView polling', () => {
     expect(wrapper.get('.message-list').attributes('aria-label')).toBe('Thư')
   })
 
+  it('narrows rows by a case-insensitive subject fragment', async () => {
+    const values = collection(['one', 'two'])
+    values['hydra:member'][0] = { ...summary('one'), subject: 'Quarterly Report' }
+    values['hydra:member'][1] = { ...summary('two'), subject: 'Team update' }
+    mocks.messages.mockResolvedValue(values)
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 30 },
+    })
+    await flushPromises()
+
+    await wrapper.get('[type="search"]').setValue('REPORT')
+
+    expect(wrapper.findAll('.message-row')).toHaveLength(1)
+    expect(wrapper.text()).toContain('Quarterly Report')
+    expect(wrapper.text()).not.toContain('Team update')
+  })
+
+  it('narrows rows by sender name and address fragments', async () => {
+    const values = collection(['one', 'two'])
+    values['hydra:member'][0] = { ...summary('one'), from: { name: 'Alice Adams', address: 'alice@example.com' } }
+    values['hydra:member'][1] = { ...summary('two'), from: { name: 'Bob Brown', address: 'bob@example.com' } }
+    mocks.messages.mockResolvedValue(values)
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 30 },
+    })
+    await flushPromises()
+
+    const search = wrapper.get('[type="search"]')
+    await search.setValue('alice')
+    expect(wrapper.text()).toContain('Alice Adams')
+    expect(wrapper.text()).not.toContain('Bob Brown')
+
+    await search.setValue('bob@example.com')
+    expect(wrapper.text()).toContain('Bob Brown')
+    expect(wrapper.text()).not.toContain('Alice Adams')
+  })
+
+  it('restores the full page list when the query is cleared', async () => {
+    mocks.messages.mockResolvedValue(collection(['one', 'two']))
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 30 },
+    })
+    await flushPromises()
+
+    const search = wrapper.get('[type="search"]')
+    await search.setValue('one')
+    expect(wrapper.findAll('.message-row')).toHaveLength(1)
+    await search.setValue('')
+    expect(wrapper.findAll('.message-row')).toHaveLength(2)
+  })
+
+  it('clears the query when changing pages', async () => {
+    mocks.messages
+      .mockResolvedValueOnce(collection(['one'], { next: true }))
+      .mockResolvedValueOnce(collection(['two'], { page: 2, previous: true }))
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 30 },
+    })
+    await flushPromises()
+
+    await wrapper.get('[type="search"]').setValue('one')
+    await wrapper.get('.pagination button:last-child').trigger('click')
+    await flushPromises()
+
+    expect((wrapper.get('[type="search"]').element as HTMLInputElement).value).toBe('')
+    expect(wrapper.text()).toContain('Message two')
+  })
+
+  it('shows search-specific empty copy when this page has no matches', async () => {
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 30 },
+    })
+    await flushPromises()
+
+    await wrapper.get('[type="search"]').setValue('nothing')
+
+    expect(wrapper.text()).toContain('No messages match your search on this page.')
+    expect(wrapper.text()).not.toContain('Waiting for mail')
+  })
+
   it('pauses while hidden, refreshes on return, and cleans up', async () => {
     const remove = vi.spyOn(document, 'removeEventListener')
     const wrapper = mount(InboxView, {

@@ -21,6 +21,7 @@ const loading = ref(true)
 const refreshing = ref(false)
 const error = ref('')
 const notice = ref('')
+const query = ref('')
 const notificationPermission = ref<NotificationPermission>(
   typeof Notification === 'undefined' ? 'denied' : Notification.permission,
 )
@@ -37,7 +38,16 @@ watch(selectedId, (value) => {
   void nextTick(() => listHeading.value?.focus())
 })
 
-const messages = computed(() => collection.value?.['hydra:member'] ?? [])
+const pageMessages = computed(() => collection.value?.['hydra:member'] ?? [])
+const messages = computed(() => {
+  const needle = query.value.trim().toLowerCase()
+  if (!needle) return pageMessages.value
+  return pageMessages.value.filter((item) =>
+    item.subject.toLowerCase().includes(needle) ||
+    item.from.address.toLowerCase().includes(needle) ||
+    (item.from.name ?? '').toLowerCase().includes(needle),
+  )
+})
 const canPrevious = computed(() => Boolean(collection.value?.['hydra:view']['hydra:previous']))
 const canNext = computed(() => Boolean(collection.value?.['hydra:view']['hydra:next']))
 
@@ -134,6 +144,7 @@ async function enableNotifications(): Promise<void> {
 function changePage(next: number): void {
   page.value = next
   selectedId.value = null
+  query.value = ''
   loading.value = true
   restartRefresh()
 }
@@ -158,6 +169,7 @@ function resetSession(): void {
   page.value = 1
   collection.value = null
   selectedId.value = null
+  query.value = ''
   loading.value = true
   refreshing.value = false
   error.value = ''
@@ -243,6 +255,15 @@ onBeforeUnmount(() => {
           <h2 ref="listHeading" tabindex="-1">{{ t('inbox.messages') }}</h2>
           <span>{{ t('inbox.total', { count: collection?.['hydra:totalItems'] ?? 0 }) }}</span>
         </div>
+        <div class="field">
+          <label for="message-search">{{ t('inbox.searchLabel') }}</label>
+          <input
+            id="message-search"
+            v-model="query"
+            type="search"
+            :placeholder="t('inbox.searchPlaceholder')"
+          >
+        </div>
       </div>
 
       <div v-if="loading" class="message-list-state" aria-live="polite">
@@ -256,6 +277,10 @@ onBeforeUnmount(() => {
         <h3>{{ t('inbox.unavailable') }}</h3>
         <p>{{ error }}</p>
         <button class="secondary-button compact-button" type="button" @click="refresh">{{ t('address.retry') }}</button>
+      </div>
+
+      <div v-else-if="query && pageMessages.length && !messages.length" class="message-list-state">
+        <h3>{{ t('inbox.noSearchResults') }}</h3>
       </div>
 
       <div v-else-if="!messages.length" class="message-list-state">
