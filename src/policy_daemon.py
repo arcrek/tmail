@@ -78,9 +78,17 @@ class PolicyHandler(socketserver.StreamRequestHandler):
                     self.wfile.write(b"action=DEFER_IF_PERMIT Service temporarily unavailable\n\n")
             else:
                 logger.debug("MX mismatch, rejecting: %s", domain)
+                try:
+                    _state.record_event("mx_mismatch", domain)
+                except Exception as exc:
+                    logger.warning("Metric write failed for %s: %s", domain, exc)
                 self.wfile.write(b"action=REJECT\n\n")
         except MxLookupError as exc:
             logger.warning("DNS transient error for %s: %s", domain, exc)
+            try:
+                _state.record_event("mx_lookup_error", domain, detail=str(exc))
+            except Exception as inner:
+                logger.warning("Metric write failed for %s: %s", domain, inner)
             self.wfile.write(b"action=DEFER_IF_PERMIT DNS lookup failed, try again later\n\n")
 
 
