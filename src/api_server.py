@@ -551,7 +551,7 @@ def register_public_routes(app: FastAPI) -> None:
             "header_html", "footer_html", "content_css", "ad_slots",
         )})
 
-    @app.post("/accounts", status_code=201, response_model=AccountResource, responses=_ERROR_RESPONSES)
+    @app.post("/accounts", status_code=201, response_model=AccountResource, responses=_TOKEN_RESPONSES)
     def accounts(body: AddressRequest, request: Request, elevated: bool = Depends(elevated_access)):
         try:
             return _account(_address(request, body.address, elevated=elevated))
@@ -726,7 +726,7 @@ def create_app(config_path: str) -> FastAPI:
 
     @app.middleware("http")
     async def security(request: Request, call_next):
-        if request.url.path in {"/token", "/unlock", "/admin/login", "/admin/api/login"}:
+        if request.url.path in {"/accounts", "/token", "/unlock", "/admin/login", "/admin/api/login"}:
             client_ip = request.client.host if request.client else "unknown"
             if not limiter.allow((request.url.path, client_ip)):
                 response = _error(429, "Too many requests", "Try again later")
