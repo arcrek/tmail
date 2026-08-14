@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 import hashlib
 import os
@@ -16,6 +17,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.background import BackgroundTask
+from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
@@ -630,6 +632,48 @@ def register_public_routes(app: FastAPI) -> None:
             view=view,
             search=search,
         )
+
+    @app.get("/messages/stream", responses=_ERROR_RESPONSES)
+    async def messages_stream(
+        request: Request, address: str = Depends(bearer_address),
+        elevated: bool = Depends(bearer_elevated),
+    ):
+        config, jmap = mail_runtime(request)
+        account_id = mail_account_id(config, jmap)
+        interval = int(request.app.state.state_store.get_settings()["fetch_seconds"])
+
+        async def events():
+            last_id = None
+            first_tick = True
+            elapsed = 0.0
+            while True:
+                if await request.is_disconnected():
+                    return
+                try:
+                    _total, values = await run_in_threadpool(
+                        jmap.list_messages, account_id, address, 1, 0,
+                    )
+                except Exception:
+                    await asyncio.sleep(max(1, interval))
+                    continue
+                newest = values[0]["id"] if values else None
+                if first_tick:
+                    last_id = newest
+                    first_tick = False
+                elif newest != last_id:
+                    last_id = newest
+                    yield b"event: update\ndata: \n\n"
+                    elapsed = 0.0
+                else:
+                    elapsed += interval
+                    if elapsed >= 15:
+                        yield b": keep-alive\n\n"
+                        elapsed = 0.0
+                await asyncio.sleep(max(1, interval))
+
+        return StreamingResponse(events(), media_type="text/event-stream", headers={
+            "Cache-Control": "no-cache", "X-Accel-Buffering": "no",
+        })
 
     @app.get("/messages/{message_id}", response_model=MessageResource, responses=_ERROR_RESPONSES)
     def message(
