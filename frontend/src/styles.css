@@ -368,7 +368,9 @@ button:active:not(:disabled) {
 .app-frame {
   width: 100%;
   min-height: 100dvh;
-  background: var(--surface);
+  background:
+    radial-gradient(60rem 34rem at 50% -8%, color-mix(in srgb, var(--brand-primary) 7%, transparent), transparent 70%),
+    var(--surface);
 }
 
 .cookie-notice {
@@ -437,6 +439,7 @@ main {
   color: var(--muted);
   font-size: 0.85rem;
   font-weight: 650;
+  white-space: nowrap;
   text-decoration: none;
   transition: color var(--transition);
 }
@@ -1535,6 +1538,9 @@ main {
   }
 
   .app-header-nav {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: 0.5rem;
     gap: 0.75rem;
   }
 
