@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ApiError, api } from '../api'
+import { ApiError, api, streamMessages } from '../api'
 import { copyText } from '../clipboard'
 import type { AddressSession, HydraCollection, MessageSummary } from '../types'
 import AppIcon from './AppIcon.vue'
@@ -27,6 +27,7 @@ const notificationPermission = ref<NotificationPermission>(
 )
 const listHeading = ref<HTMLElement | null>(null)
 let interval: number | undefined
+let streamController: AbortController | undefined
 let requestVersion = 0
 let initialized = false
 let knownIds = new Set<string>()
@@ -75,7 +76,7 @@ function notifyNew(values: MessageSummary[]): void {
 }
 
 async function refresh(): Promise<void> {
-  if (refreshing.value || document.hidden) return
+  if (refreshing.value) return
   const version = ++requestVersion
   const requestedPage = page.value
   refreshing.value = true
@@ -107,6 +108,19 @@ function startPolling(): void {
   }
 }
 
+function startStream(): void {
+  stopPolling()
+  streamController?.abort()
+  const controller = new AbortController()
+  streamController = controller
+  void streamMessages(props.session.token, () => void refresh(), controller.signal).catch(() => {
+    if (streamController === controller && !controller.signal.aborted) {
+      streamController = undefined
+      startPolling()
+    }
+  })
+}
+
 function restartRefresh(): void {
   requestVersion += 1
   refreshing.value = false
@@ -114,6 +128,7 @@ function restartRefresh(): void {
 }
 
 function handleVisibility(): void {
+  if (streamController) return
   if (document.hidden) stopPolling()
   else {
     restartRefresh()
@@ -176,21 +191,27 @@ function resetSession(): void {
   notice.value = ''
   initialized = false
   knownIds = new Set<string>()
+  streamController?.abort()
+  streamController = undefined
   void refresh()
-  startPolling()
+  startStream()
 }
 
 watch([() => props.session.address, () => props.session.token], resetSession)
-watch(() => props.fetchSeconds, startPolling)
+watch(() => props.fetchSeconds, () => {
+  if (!streamController) startPolling()
+})
 
 onMounted(() => {
   document.addEventListener('visibilitychange', handleVisibility)
   void refresh()
-  startPolling()
+  startStream()
 })
 
 onBeforeUnmount(() => {
   requestVersion += 1
+  streamController?.abort()
+  streamController = undefined
   stopPolling()
   document.removeEventListener('visibilitychange', handleVisibility)
 })

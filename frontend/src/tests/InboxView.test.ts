@@ -13,11 +13,12 @@ const mocks = vi.hoisted(() => ({
   messages: vi.fn(),
   message: vi.fn(),
   setSeen: vi.fn(),
+  streamMessages: vi.fn(),
 }))
 
 vi.mock('../api', async () => {
   const actual = await vi.importActual<typeof import('../api')>('../api')
-  return { ...actual, api: { ...actual.api, ...mocks } }
+  return { ...actual, api: { ...actual.api, ...mocks }, streamMessages: mocks.streamMessages }
 })
 
 enableAutoUnmount(afterEach)
@@ -71,6 +72,7 @@ describe('InboxView polling', () => {
     mocks.messages.mockReset().mockResolvedValue(collection(['one']))
     mocks.message.mockReset().mockResolvedValue({ ...summary('one'), cc: [], bcc: [], flagged: false, verifications: [], retention: false, retentionDate: null, text: 'Body', html: [], attachments: [] })
     mocks.setSeen.mockReset().mockResolvedValue({ seen: true })
+    mocks.streamMessages.mockReset().mockRejectedValue(new Error('Stream failed'))
   })
 
   afterEach(() => {
@@ -192,6 +194,47 @@ describe('InboxView polling', () => {
     expect(remove).toHaveBeenCalledWith('visibilitychange', expect.any(Function))
     await vi.advanceTimersByTimeAsync(1000)
     expect(mocks.messages).toHaveBeenCalledTimes(2)
+  })
+
+  it('refreshes when the stream emits an update event', async () => {
+    let onUpdate: (() => void) | undefined
+    mocks.streamMessages.mockImplementation((_token, callback) => {
+      onUpdate = callback
+      return new Promise(() => {})
+    })
+    mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 1 },
+    })
+    await flushPromises()
+    expect(mocks.messages).toHaveBeenCalledTimes(1)
+
+    onUpdate?.()
+    await flushPromises()
+    expect(mocks.messages).toHaveBeenCalledTimes(2)
+  })
+
+  it('falls back to interval polling when the stream fails', async () => {
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 1 },
+    })
+    await flushPromises()
+    expect(mocks.messages).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(mocks.messages).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('aborts the stream on unmount', async () => {
+    const abort = vi.spyOn(AbortController.prototype, 'abort')
+    mocks.streamMessages.mockReturnValue(new Promise(() => {}))
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 1 },
+    })
+    await flushPromises()
+
+    wrapper.unmount()
+    expect(abort).toHaveBeenCalledTimes(1)
   })
 
   it('starts a fresh visibility refresh when an older request is pending', async () => {
