@@ -54,6 +54,29 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   return body as T
 }
 
+export async function streamMessages(token: string, onUpdate: () => void, signal: AbortSignal): Promise<void> {
+  const response = await fetch('/messages/stream', {
+    headers: { Authorization: `Bearer ${token}` },
+    credentials: 'same-origin',
+    signal,
+  })
+  if (!response.ok || !response.body) throw new ApiError(response.status, 'Stream failed')
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) return
+    buffer += decoder.decode(value, { stream: true })
+    const frames = buffer.split('\n\n')
+    buffer = frames.pop() ?? ''
+    for (const frame of frames) {
+      if (frame.startsWith('event: update')) onUpdate()
+    }
+  }
+}
+
 const json = (body: unknown): Pick<RequestInit, 'body'> => ({ body: JSON.stringify(body) })
 
 export const api = {

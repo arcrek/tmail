@@ -155,6 +155,80 @@ def test_messages_require_bearer_and_return_hydra(client, bearer):
     assert response.json()["@id"] == "/messages"
 
 
+def _messages_stream_endpoint(app):
+    return next(route.endpoint for route in app.routes if route.path == "/messages/stream")
+
+
+def test_messages_stream_requires_bearer_token(client, bearer):
+    assert client.get("/messages/stream").status_code == 401
+    assert client.get("/messages/stream", headers={"Authorization": "Bearer invalid"}).status_code == 401
+
+
+def test_messages_stream_emits_update_on_new_message(client, fake_jmap, monkeypatch):
+    fake_jmap.list_messages.side_effect = [(1, [{"id": "old"}]), (1, [{"id": "new"}])]
+
+    async def no_sleep(_seconds):
+        pass
+
+    async def connected():
+        return False
+
+    monkeypatch.setattr(api_server.asyncio, "sleep", no_sleep)
+
+    async def exercise():
+        request = SimpleNamespace(app=client.app, is_disconnected=connected)
+        response = await _messages_stream_endpoint(client.app)(request, "box@example.com", False)
+        # Heartbeat comment frames may interleave before the change is detected
+        # (heartbeat cadence is decoupled from the poll interval); skip past
+        # them like a real client does, bounded so a real regression fails fast.
+        frames = []
+        for _ in range(10):
+            frame = await anext(response.body_iterator)
+            frames.append(frame)
+            if frame == b"event: update\ndata: \n\n":
+                break
+        await response.body_iterator.aclose()
+        return frames
+
+    frames = asyncio.run(exercise())
+    assert frames[-1] == b"event: update\ndata: \n\n"
+    assert all(frame == b": keep-alive\n\n" for frame in frames[:-1])
+
+
+def test_messages_stream_stays_silent_when_unchanged(client, fake_jmap, monkeypatch):
+    fake_jmap.list_messages.return_value = (1, [{"id": "same"}])
+
+    async def no_sleep(_seconds):
+        pass
+
+    async def connected():
+        return False
+
+    monkeypatch.setattr(api_server.asyncio, "sleep", no_sleep)
+
+    async def exercise():
+        request = SimpleNamespace(app=client.app, is_disconnected=connected)
+        response = await _messages_stream_endpoint(client.app)(request, "box@example.com", False)
+        event = await anext(response.body_iterator)
+        await response.body_iterator.aclose()
+        return event
+
+    assert asyncio.run(exercise()) == b": keep-alive\n\n"
+
+
+def test_messages_stream_stops_on_disconnect(client):
+    async def disconnected():
+        return True
+
+    async def exercise():
+        request = SimpleNamespace(app=client.app, is_disconnected=disconnected)
+        response = await _messages_stream_endpoint(client.app)(request, "box@example.com", False)
+        with pytest.raises(StopAsyncIteration):
+            await asyncio.wait_for(anext(response.body_iterator), timeout=0.1)
+
+    asyncio.run(exercise())
+
+
 def test_messages_accept_null_jmap_address_names(client, bearer, fake_jmap):
     message = dict(MESSAGE)
     message["from"] = [{"name": None, "email": "sender@example.net"}]
