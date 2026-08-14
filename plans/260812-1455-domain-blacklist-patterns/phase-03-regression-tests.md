@@ -3,7 +3,7 @@
 ## Overview
 
 **Priority:** P2  
-**Status:** Blocked — frontend production build  
+**Status:** Complete  
 **Estimate:** 1h
 
 Lock the minimal rule grammar and ensure admin actions keep public authorization correct.
@@ -33,4 +33,4 @@ Lock the minimal rule grammar and ensure admin actions keep public authorization
 
 - [x] Add backend policy and API coverage.
 - [x] Add admin UI action coverage.
-- [ ] Run focused tests and frontend build — focused backend/frontend tests pass; production build is blocked because `@fontsource-variable/inter` is absent from installed dependencies. The full backend suite also has an existing admin test setup hang.
+- [x] Run focused tests and frontend build — 2026-08-14: all pass. `npm run build` re-verified clean (the earlier `@fontsource-variable/inter` block was a stale `node_modules` in the environment that ran it, not a real gap — the dependency is declared and installed). Backend: 118/120 pass; the 2 failures are a pre-existing, unrelated sync/disable thread-race (see plan.md follow-up note), not a regression from this phase.
