@@ -125,6 +125,32 @@ describe('MessageReader', () => {
     expect(wrapper.find('.verification-code').exists()).toBe(false)
   })
 
+  it('matches a hyphenated code in the subject over an unrelated number in the body', async () => {
+    mocks.message.mockResolvedValueOnce({
+      ...message('one'),
+      subject: 'SpaceXAI confirmation code: 859-133',
+      text: 'plain text body',
+      html: ['<p>Verification code</p><p>333333</p>'],
+    })
+    const wrapper = mount(MessageReader, { props: { token: 'signed', id: 'one' } })
+    await flushPromises()
+    expect(wrapper.get('.verification-code').text()).toContain('859-133')
+  })
+
+  it('does not treat short hyphenated reference numbers as a code', async () => {
+    mocks.message.mockResolvedValueOnce({ ...message('one'), subject: 'Table 12-34 rows', text: 'no code here', html: [] })
+    const wrapper = mount(MessageReader, { props: { token: 'signed', id: 'one' } })
+    await flushPromises()
+    expect(wrapper.find('.verification-code').exists()).toBe(false)
+  })
+
+  it('matches an asymmetric 3-4 digit hyphenated code as a single candidate', async () => {
+    mocks.message.mockResolvedValueOnce({ ...message('one'), subject: 'Order 401-8842 confirmed', text: '', html: [] })
+    const wrapper = mount(MessageReader, { props: { token: 'signed', id: 'one' } })
+    await flushPromises()
+    expect(wrapper.get('.verification-code').text()).toContain('401-8842')
+  })
+
   it('downloads attachments and source through the authenticated API', async () => {
     const wrapper = mount(MessageReader, { props: { token: 'signed', id: 'one' } })
     await flushPromises()
