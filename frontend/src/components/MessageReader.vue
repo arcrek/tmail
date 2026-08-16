@@ -28,7 +28,14 @@ let requestVersion = 0
 const verificationCode = computed(() => {
   const current = message.value
   if (!current) return ''
-  const find = (value: string) => value.match(/(?<![0-9])[0-9]{4,8}(?![0-9])/)?.[0] ?? ''
+  const find = (value: string) => {
+    const candidates = value.match(/(?<![0-9])(?:[0-9]{3,4}[\s-][0-9]{3,4}|[0-9]{4,8})(?![0-9])/g)
+    for (const candidate of candidates ?? []) {
+      const digits = candidate.replace(/\D/g, '')
+      if (digits.length >= 4 && digits.length <= 8) return candidate
+    }
+    return ''
+  }
   return find(current.subject) || find(current.text) || find(new DOMParser().parseFromString(current.html.join('\n'), 'text/html').body.textContent ?? '')
 })
 
