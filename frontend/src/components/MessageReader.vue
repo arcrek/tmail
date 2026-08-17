@@ -273,29 +273,6 @@ onBeforeUnmount(() => { requestVersion += 1 })
 
       <p v-if="actionError" class="reader-error" role="alert">{{ actionError }}</p>
 
-      <section v-if="message.attachments.length" class="attachments" aria-labelledby="attachments-title">
-        <h3 id="attachments-title">{{ t('reader.attachments') }}</h3>
-        <ul>
-          <li v-for="attachment in message.attachments" :key="attachment.id">
-            <span>
-              <strong>{{ safeFilename(attachment.filename) }}</strong>
-              <small>{{ formatBytes(attachment.size) }} · {{ attachment.contentType }}</small>
-            </span>
-            <button
-              class="text-button"
-              type="button"
-              data-download-attachment
-              :disabled="Boolean(busy)"
-              :aria-label="t('reader.downloadFile', { filename: safeFilename(attachment.filename) })"
-              @click="downloadAttachment(attachment)"
-            >
-              <AppIcon name="download" />
-              {{ busy === `attachment:${attachment.id}` ? t('reader.saving') : t('reader.download') }}
-            </button>
-          </li>
-        </ul>
-      </section>
-
       <div class="reader-content-grid">
         <aside v-if="verificationCode" class="verification-code" :aria-label="t('reader.code')">
           <strong>{{ t('reader.code') }}</strong>
@@ -318,6 +295,29 @@ onBeforeUnmount(() => { requestVersion += 1 })
           <pre v-else class="plain-message">{{ message.text || t('reader.empty') }}</pre>
         </div>
       </div>
+
+      <section v-if="message.attachments.length" class="attachments" aria-labelledby="attachments-title">
+        <h3 id="attachments-title">{{ t('reader.attachments') }}</h3>
+        <ul>
+          <li v-for="attachment in message.attachments" :key="attachment.id">
+            <span>
+              <strong>{{ safeFilename(attachment.filename) }}</strong>
+              <small>{{ formatBytes(attachment.size) }} · {{ attachment.contentType }}</small>
+            </span>
+            <button
+              class="text-button"
+              type="button"
+              data-download-attachment
+              :disabled="Boolean(busy)"
+              :aria-label="t('reader.downloadFile', { filename: safeFilename(attachment.filename) })"
+              @click="downloadAttachment(attachment)"
+            >
+              <AppIcon name="download" />
+              {{ busy === `attachment:${attachment.id}` ? t('reader.saving') : t('reader.download') }}
+            </button>
+          </li>
+        </ul>
+      </section>
     </template>
   </article>
 </template>
