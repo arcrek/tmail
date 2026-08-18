@@ -683,6 +683,36 @@ def test_security_headers_and_token_rate_limit(client):
     assert client.post("/admin/login").status_code == 404
 
 
+def test_elevated_token_rate_limit_is_independent_from_anonymous(client):
+    credential, _ = _access_credential(client)
+    access_token = client.post("/unlock", json={"credential": credential["secret"]}).json()["accessToken"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    for _ in range(10):
+        assert client.post("/token", json={"address": "box@example.com"}).status_code == 200
+    assert client.post("/token", json={"address": "box@example.com"}).status_code == 429
+    assert client.post("/token", json={"address": "box@example.com"}, headers=headers).status_code == 200
+
+
+def test_anonymous_token_rate_limit_is_independent_from_elevated(client):
+    credential, _ = _access_credential(client)
+    access_token = client.post("/unlock", json={"credential": credential["secret"]}).json()["accessToken"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    for _ in range(10):
+        assert client.post("/token", json={"address": "box@example.com"}, headers=headers).status_code == 200
+    assert client.post("/token", json={"address": "box@example.com"}, headers=headers).status_code == 429
+    assert client.post("/token", json={"address": "box@example.com"}).status_code == 200
+
+
+def test_invalid_elevated_token_shares_anonymous_rate_limit_bucket(client):
+    for _ in range(10):
+        assert client.post("/token", json={"address": "box@example.com"}).status_code == 200
+    assert client.post(
+        "/token", json={"address": "box@example.com"}, headers={"Authorization": "Bearer invalid"},
+    ).status_code == 429
+
+
 def test_spa_csp_allows_data_images_and_sandbox_frames_without_inline_parent_code(client):
     csp = client.get("/").headers["content-security-policy"]
 
@@ -747,6 +777,22 @@ def test_accounts_path_is_rate_limited(client):
     limited = client.post("/accounts", json={"address": "box@example.com"})
     assert limited.status_code == 429
     assert limited.json()["@type"] == "hydra:Error"
+
+
+def test_cf_connecting_ip_gets_independent_rate_limit_budgets(client):
+    for ip in ("198.51.100.1", "198.51.100.2"):
+        for _ in range(10):
+            assert client.post(
+                "/token", json={"address": "box@example.com"}, headers={"CF-Connecting-IP": ip},
+            ).status_code == 200
+    assert client.post(
+        "/token", json={"address": "box@example.com"}, headers={"CF-Connecting-IP": "198.51.100.1"},
+    ).status_code == 429
+
+
+def test_client_ip_without_cf_connecting_ip_falls_back_to_peer():
+    request = SimpleNamespace(headers={}, client=SimpleNamespace(host="192.0.2.1"))
+    assert api_server._client_ip(request) == "192.0.2.1"
 
 
 def test_fixed_window_prunes_expired_keys_and_separates_paths(monkeypatch):

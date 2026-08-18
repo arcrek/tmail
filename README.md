@@ -62,7 +62,7 @@ docker compose up -d --build
 
 The application is available at `http://127.0.0.1:8080`. Use `TMAIL_HTTP_PORT` to change the port. The `tmail-data` volume keeps runtime configuration, cached domains, and application state across rebuilds.
 
-Use an HTTPS reverse proxy in production. The default Compose bind exposes the service on all interfaces, so protect it with a network boundary. If the proxy sanitizes forwarded headers, enable trusted forwarding with `TMAIL_TRUST_FORWARD_HEADERS=on`.
+Use an HTTPS reverse proxy in production. The default Compose bind exposes the service on all interfaces, so protect it with a network boundary. If the proxy sanitizes forwarded headers, enable trusted forwarding with `TMAIL_TRUST_FORWARD_HEADERS=on`. Note the bundled nginx config does not strip `CF-Connecting-IP`; since the rate limiter trusts that header unconditionally (see "Running behind Cloudflare Tunnel" below), any client able to reach this Compose deployment directly can spoof it to bypass rate limiting unless your proxy strips or overwrites it.
 
 ## Production installation
 
@@ -81,6 +81,14 @@ For later deployments:
 The deployed services use `/var/lib/tmail-policy/config.json` as mutable runtime configuration. The release under `/opt/tmail-policy` remains read-only to the service.
 
 Postfix must own port 25 and consult `inet:127.0.0.1:10030`, as shown in `deploy/postfix_main_snippet.cf`. Stalwart receives accepted relay mail on port 2525.
+
+### Running behind Cloudflare Tunnel
+
+The rate limiter trusts the `CF-Connecting-IP` header unconditionally to key its per-visitor
+buckets (`src/api_server.py`'s `_client_ip`). This is correct and safe **only if the app has no
+ingress other than the tunnel** — no public-facing port, no other reverse proxy in front. If this
+app is ever exposed directly, that header becomes spoofable per-request and the rate limiter on
+`/accounts`, `/token`, `/unlock`, `/admin/login`, and `/admin/api/login` can be bypassed entirely.
 
 ## Use
 
