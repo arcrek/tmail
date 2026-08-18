@@ -159,22 +159,14 @@ describe('InboxView polling', () => {
     expect(wrapper.get('.message-list').attributes('aria-label')).toBe('Thư')
   })
 
-  it('keeps inline creation collapsed until requested, then loads domains', async () => {
+  it('shows the inline creation form immediately and loads domains', async () => {
     const wrapper = mount(InboxView, {
       props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
     })
     await flushPromises()
 
-    const toggle = wrapper.get('#inbox-create-toggle')
-    expect(toggle.attributes('aria-expanded')).toBe('false')
-    expect(wrapper.find('#inbox-create-address').exists()).toBe(false)
-    expect(mocks.domains).not.toHaveBeenCalled()
-
-    await toggle.trigger('click')
-    await flushPromises()
-
-    expect(toggle.attributes('aria-expanded')).toBe('true')
     expect(mocks.domains).toHaveBeenCalledWith(1, undefined)
+    expect(wrapper.find('#inbox-create-address').exists()).toBe(true)
     expect(wrapper.get('label[for="inbox-create-local-part"]').exists()).toBe(true)
     expect(wrapper.get('label[for="inbox-create-domain"]').exists()).toBe(true)
   })
@@ -184,8 +176,6 @@ describe('InboxView polling', () => {
       props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
     })
     await flushPromises()
-    await wrapper.get('#inbox-create-toggle').trigger('click')
-    await flushPromises()
     await wrapper.get('#inbox-create-local-part').setValue('paper')
     await wrapper.get('#inbox-create-address form').trigger('submit')
     await flushPromises()
@@ -194,6 +184,9 @@ describe('InboxView polling', () => {
     expect(wrapper.emitted('create')?.[0]).toEqual([
       { address: 'paper@example.com', token: 'created-token' },
     ])
+    // The form stays open after creating (no longer closes) — the domain select
+    // must keep a valid option, not blank to '' with no matching <option>.
+    expect((wrapper.get('#inbox-create-domain').element as HTMLSelectElement).value).toBe('example.com')
   })
 
   it('creates a random address without a separate submit action', async () => {
@@ -205,8 +198,6 @@ describe('InboxView polling', () => {
     const wrapper = mount(InboxView, {
       props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
     })
-    await flushPromises()
-    await wrapper.get('#inbox-create-toggle').trigger('click')
     await flushPromises()
     await wrapper.get('#inbox-create-address .text-button').trigger('click')
     await flushPromises()
@@ -222,8 +213,6 @@ describe('InboxView polling', () => {
       props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
     })
     await flushPromises()
-    await wrapper.get('#inbox-create-toggle').trigger('click')
-    await flushPromises()
 
     expect(wrapper.get('#inbox-create-address').text()).toContain('Domain list unavailable')
     expect(wrapper.find('.message-list').exists()).toBe(true)
@@ -235,8 +224,6 @@ describe('InboxView polling', () => {
     const wrapper = mount(InboxView, {
       props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
     })
-    await flushPromises()
-    await wrapper.get('#inbox-create-toggle').trigger('click')
     await flushPromises()
     await wrapper.get('#inbox-create-local-part').setValue('paper')
     await wrapper.get('#inbox-create-address form').trigger('submit')
@@ -603,18 +590,21 @@ describe('InboxView polling', () => {
     expect(wrapper.text()).not.toMatch(/Sent|Contacts|Addresses/)
   })
 
-  it('copies the inbox address', async () => {
+  it('copies the inbox address and shows a success toast', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
     const wrapper = mount(InboxView, {
       props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
     })
+    const { default: ToastStack } = await import('../components/ToastStack.vue')
+    const toastStack = mount(ToastStack)
     await flushPromises()
     await wrapper.get('.inbox-hero-actions button:first-child').trigger('click')
     await flushPromises()
 
     expect(writeText).toHaveBeenCalledWith('box@example.com')
-    expect(wrapper.text()).toContain('Address copied.')
+    expect(toastStack.text()).toContain('Address copied.')
+    toastStack.unmount()
   })
 
   it('uses fallback copy feedback when Clipboard API is unavailable', async () => {
@@ -623,14 +613,19 @@ describe('InboxView polling', () => {
     const wrapper = mount(InboxView, {
       props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
     })
+    const { default: ToastStack } = await import('../components/ToastStack.vue')
+    const toastStack = mount(ToastStack)
     await flushPromises()
     await wrapper.get('.inbox-hero-actions button:first-child').trigger('click')
     await flushPromises()
-    expect(wrapper.text()).toContain('Copy failed')
+    // toast.error is mocked module-wide (see vi.mock('../toast') above), so the
+    // failure feedback is asserted via the mock call, not a rendered toast.
+    expect(mocks.toastError).toHaveBeenCalledWith('Copy failed. Select the address and copy it manually.')
 
     Object.defineProperty(document, 'execCommand', { configurable: true, value: vi.fn().mockReturnValue(true) })
     await wrapper.get('.inbox-hero-actions button:first-child').trigger('click')
     await flushPromises()
-    expect(wrapper.text()).toContain('Address copied.')
+    expect(toastStack.text()).toContain('Address copied.')
+    toastStack.unmount()
   })
 })

@@ -31,7 +31,6 @@ const notificationPermission = ref<NotificationPermission>(
   typeof Notification === 'undefined' ? 'denied' : Notification.permission,
 )
 const listHeading = ref<HTMLElement | null>(null)
-const createOpen = ref(false)
 const createDomains = ref<DomainResource[]>([])
 const createDomain = ref('')
 const createLocalPart = ref('')
@@ -97,20 +96,17 @@ async function loadCreateDomains(): Promise<void> {
   }
 }
 
-function toggleCreate(): void {
-  createOpen.value = !createOpen.value
-  if (createOpen.value && !createDomainsLoaded.value) void loadCreateDomains()
-}
-
 async function submitCreate(): Promise<void> {
   if (!createAddress.value) return
   createSubmitting.value = true
   try {
     const response = await api.token(createAddress.value, props.accessToken || undefined)
     emit('create', { address: createAddress.value, token: response.token })
-    createOpen.value = false
+    // The form stays visible after creating (it no longer closes), so leave the
+    // domain select on a valid option instead of blanking it to '' — otherwise it
+    // renders unselected until something else reloads the domain list.
     createLocalPart.value = ''
-    createDomain.value = ''
+    createDomain.value = createDomains.value[0]?.domain ?? ''
   } catch (cause) {
     toast.error(createFailure(cause))
   } finally {
@@ -151,6 +147,7 @@ function notifyNew(values: MessageSummary[]): void {
 async function copyAction(text: string): Promise<void> {
   try {
     await copyText(text)
+    toast.success(t('address.copied'))
   } catch {
     toast.error(t('error.copy'))
   }
@@ -242,9 +239,9 @@ function handleVisibility(): void {
 async function copyAddress(): Promise<void> {
   try {
     await copyText(props.session.address)
-    notice.value = t('address.copiedNotice')
+    toast.success(t('address.copiedNotice'))
   } catch {
-    notice.value = t('error.copy')
+    toast.error(t('error.copy'))
   }
 }
 
@@ -305,7 +302,6 @@ watch(() => props.fetchSeconds, () => {
   if (!streamController) startPolling()
 })
 watch(() => props.accessToken, () => {
-  if (!createOpen.value && !createDomainsLoaded.value) return
   createDomainsLoaded.value = false
   void loadCreateDomains()
 })
@@ -314,6 +310,7 @@ onMounted(() => {
   document.addEventListener('visibilitychange', handleVisibility)
   void refresh()
   startStream()
+  void loadCreateDomains()
 })
 
 onBeforeUnmount(() => {
@@ -367,18 +364,9 @@ onBeforeUnmount(() => {
       <p v-if="notice" class="toolbar-notice" aria-live="polite">{{ notice }}</p>
       <p class="auto-refresh-hint">{{ t('inbox.autoRefresh', { seconds: fetchSeconds }) }}</p>
 
-      <button
-        id="inbox-create-toggle"
-        class="text-button"
-        type="button"
-        :aria-controls="createOpen ? 'inbox-create-address' : undefined"
-        :aria-expanded="createOpen"
-        @click="toggleCreate"
-      >
-        {{ t('address.create') }}
-      </button>
+      <h2 id="inbox-create-heading" class="inbox-create-heading">{{ t('address.create') }}</h2>
 
-      <section v-if="createOpen" id="inbox-create-address" class="inbox-create" :aria-label="t('address.create')">
+      <section id="inbox-create-address" class="inbox-create" aria-labelledby="inbox-create-heading">
         <div v-if="createLoadingDomains" class="inbox-create-state" aria-live="polite">
           <span class="skeleton skeleton-field" />
           <span class="sr-only">{{ t('address.loading') }}</span>
