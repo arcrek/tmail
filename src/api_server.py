@@ -810,7 +810,7 @@ def create_app(config_path: str) -> FastAPI:
             if request.url.path == "/token":
                 scheme, raw_token = get_authorization_scheme_param(request.headers.get("Authorization"))
                 if scheme.lower() == "bearer":
-                    token_hash = _elevated_token_hash(request, raw_token)
+                    token_hash = await run_in_threadpool(_elevated_token_hash, request, raw_token)
                     if token_hash:
                         key = (request.url.path, f"elevated:{token_hash}")
             if not limiter.allow(key):
