@@ -123,7 +123,7 @@ async function reconcileRoute(): Promise<void> {
   view.value = 'address'
   loading.value = true
   try {
-    const response = await api.token(route.address)
+    const response = await api.token(route.address, accessToken.value || undefined)
     if (version === navigationVersion) openInbox({ address: route.address, token: response.token }, false)
   } catch (cause) {
     if (version === navigationVersion) {

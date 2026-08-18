@@ -103,12 +103,22 @@ describe('address flow', () => {
     const wrapper = mount(App)
     await flushPromises()
 
-    expect(mocks.token).toHaveBeenCalledWith('box@example.com')
+    expect(mocks.token).toHaveBeenCalledWith('box@example.com', undefined)
     expect(wrapper.find('.inbox-view').exists()).toBe(true)
     expect(wrapper.text()).toContain('box@example.com')
     expect(JSON.parse(localStorage.getItem('tmail.addresses') ?? '[]')).toEqual([
       { address: 'box@example.com', token: 'signed-token' },
     ])
+  })
+
+  it('forwards a stored access token when a fresh tab lands on an address route', async () => {
+    localStorage.setItem('tmail.accessToken', 'saved-token')
+    history.replaceState({}, '', '/box@example.com')
+    const wrapper = mount(App)
+    await flushPromises()
+
+    expect(mocks.token).toHaveBeenCalledWith('box@example.com', 'saved-token')
+    expect(wrapper.find('.inbox-view').exists()).toBe(true)
   })
 
   it('lets visitors choose and persist Vietnamese from the header', async () => {
@@ -203,7 +213,7 @@ describe('address flow', () => {
     const wrapper = mount(App)
     await flushPromises()
 
-    expect(mocks.token).toHaveBeenCalledWith('bad..local@example.com')
+    expect(mocks.token).toHaveBeenCalledWith('bad..local@example.com', undefined)
     expect(wrapper.text()).toContain('Invalid address')
   })
 
@@ -216,7 +226,7 @@ describe('address flow', () => {
     const wrapper = mount(App)
     await flushPromises()
 
-    expect(mocks.token).toHaveBeenCalledWith('box@example.com')
+    expect(mocks.token).toHaveBeenCalledWith('box@example.com', undefined)
     expect(wrapper.find('.inbox-view').exists()).toBe(true)
     expect(wrapper.text()).toContain('box@example.com')
   })
