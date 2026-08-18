@@ -1547,7 +1547,8 @@ main {
 
 .toast-action:hover { color: var(--primary-hover); }
 
-.toast-action + .toast-dismiss { margin-left: 0; }
+.toast-action + .toast-dismiss,
+.toast-action + .toast-action { margin-left: 0; }
 
 .toast-enter-active,
 .toast-leave-active,

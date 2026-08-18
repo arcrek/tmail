@@ -82,17 +82,28 @@ function notifyNew(values: MessageSummary[]): void {
   initialized = true
 }
 
+async function copyAction(text: string): Promise<void> {
+  try {
+    await copyText(text)
+  } catch {
+    toast.error(t('error.copy'))
+  }
+}
+
 async function announceToast(item: MessageSummary): Promise<void> {
+  // Snapshot the session that received this message — props.session can change
+  // (user switches address) while the api.message() fetch below is in flight.
+  const { token, address } = props.session
   let code = ''
   try {
-    const full = await api.message(props.session.token, item.id)
+    const full = await api.message(token, item.id)
     code = extractVerificationCode(full.subject, full.text, full.html)
   } catch {
     // best-effort — still show the toast with just the copy-email action
   }
   const actions = [
-    { label: t('inbox.copyEmailAction'), onClick: () => void copyText(props.session.address) },
-    ...(code ? [{ label: t('inbox.copyCodeAction'), onClick: () => void copyText(code) }] : []),
+    { label: t('inbox.copyEmailAction'), onClick: () => void copyAction(address) },
+    ...(code ? [{ label: t('inbox.copyCodeAction'), onClick: () => void copyAction(code) }] : []),
   ]
   toast.success(item.subject || t('inbox.noSubject'), actions)
 }
