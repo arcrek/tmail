@@ -87,7 +87,7 @@ describe('BulkCodeView', () => {
     await wrapper.get('#bulk-code-addresses').setValue('slow@example.com')
     await wrapper.get('.bulk-controls').trigger('submit')
 
-    expect(wrapper.findAll('td[aria-live="polite"]')).toHaveLength(2)
+    expect(wrapper.findAll('td[aria-live="polite"]')).toHaveLength(1)
     expect(wrapper.text()).toContain('Loading latest message')
     resolveToken({ token: 'signed' })
     await flushPromises()
@@ -140,6 +140,55 @@ describe('BulkCodeView', () => {
 
     expect(mocks.messages).toHaveBeenCalledTimes(2)
     expect(mocks.token).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('does not retry a failed row on poll ticks, only on manual refresh', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    mocks.token.mockImplementation((address: string) => address === 'bad@example.com'
+      ? Promise.reject(new ApiError(422, 'Domain not accepted'))
+      : Promise.resolve({ token: `signed-${address}` }))
+    const setInterval = vi.spyOn(window, 'setInterval')
+    const wrapper = mount(BulkCodeView, { props: { fetchSeconds: 1 } })
+    await wrapper.get('#bulk-code-addresses').setValue('one@example.com, bad@example.com')
+    await wrapper.get('.bulk-controls').trigger('submit')
+    await flushPromises()
+    expect(mocks.token).toHaveBeenCalledTimes(2)
+
+    const tick = setInterval.mock.calls[0]?.[0] as () => void
+    tick()
+    await flushPromises()
+    expect(mocks.token).toHaveBeenCalledTimes(2)
+
+    await wrapper.get('[data-action="refresh"]').trigger('click')
+    await flushPromises()
+    expect(mocks.token).toHaveBeenCalledTimes(3)
+    wrapper.unmount()
+  })
+
+  it('keeps the last-known code visible while a poll tick refetches it', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    const setInterval = vi.spyOn(window, 'setInterval')
+    const wrapper = mount(BulkCodeView, { props: { fetchSeconds: 1 } })
+    await wrapper.get('#bulk-code-addresses').setValue('one@example.com')
+    await wrapper.get('.bulk-controls').trigger('submit')
+    await flushPromises()
+    expect(wrapper.text()).toContain('123456')
+
+    let resolveMessages!: (value: ReturnType<typeof messages>) => void
+    mocks.messages.mockReset().mockImplementationOnce(() => new Promise((resolve) => { resolveMessages = resolve }))
+    const tick = setInterval.mock.calls[0]?.[0] as () => void
+    tick()
+    await flushPromises()
+    // Row is mid-refresh (messages() still pending) — code must stay visible, not blank to a skeleton.
+    expect(wrapper.text()).toContain('123456')
+    expect(wrapper.findAll('td[aria-live="polite"]')).toHaveLength(0)
+
+    resolveMessages(messages())
+    await flushPromises()
+    expect(wrapper.text()).toContain('123456')
     wrapper.unmount()
   })
 

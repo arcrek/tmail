@@ -13,7 +13,6 @@ const toast = useToast()
 
 type BulkCodeRow = {
   address: string
-  token?: string
   status: 'loading' | 'ready' | 'error'
   subject?: string
   code?: string
@@ -43,7 +42,6 @@ async function fetchLatestMessage(row: BulkCodeRow, retryToken = true): Promise<
     token = (await api.token(row.address, props.accessToken || undefined)).token
     tokenCache.set(row.address, token)
   }
-  row.token = token
   try {
     const latest = (await api.messages(token, 1))['hydra:member'][0]
     if (latest) {
@@ -61,30 +59,44 @@ async function fetchLatestMessage(row: BulkCodeRow, retryToken = true): Promise<
   }
 }
 
-async function resolveRow(row: BulkCodeRow): Promise<void> {
-  row.status = 'loading'
-  row.error = ''
-  row.subject = ''
-  row.code = ''
+// `silent` is used for background refreshes (poll ticks, manual Refresh): it skips the
+// loading-skeleton flip and leaves the previously-shown subject/code in place until the new
+// fetch actually resolves, instead of blanking an already-ready row on every cycle.
+async function resolveRow(row: BulkCodeRow, options: { silent?: boolean } = {}): Promise<void> {
+  if (!options.silent) {
+    row.status = 'loading'
+    row.subject = ''
+    row.code = ''
+  }
   try {
     await fetchLatestMessage(row)
     row.status = 'ready'
+    row.error = ''
   } catch (cause) {
     row.status = 'error'
     row.error = message(cause)
   }
 }
 
-async function refresh(): Promise<void> {
+// Poll ticks (and resuming from a hidden tab) skip rows already in 'error' — an address that
+// failed token issuance would otherwise re-issue /token every interval, sharing the same
+// 10-req/60s budget as good rows. Manual Refresh is a deliberate one-off action, so it retries
+// error rows too (retryErrors).
+async function refresh(options: { retryErrors?: boolean } = {}): Promise<void> {
   if (refreshing.value || rows.value.length === 0) return
+  const targets = options.retryErrors ? rows.value : rows.value.filter((row) => row.status !== 'error')
+  if (targets.length === 0) return
   const version = ++refreshVersion
-  const currentRows = rows.value
   refreshing.value = true
   try {
-    await Promise.allSettled(currentRows.map(resolveRow))
+    await Promise.allSettled(targets.map((row) => resolveRow(row, { silent: true })))
   } finally {
     if (version === refreshVersion) refreshing.value = false
   }
+}
+
+function manualRefresh(): void {
+  void refresh({ retryErrors: true })
 }
 
 function stopPolling(): void {
@@ -115,7 +127,7 @@ async function submit(): Promise<void> {
   rows.value = submittedRows
   refreshing.value = true
   try {
-    await Promise.allSettled(submittedRows.map(resolveRow))
+    await Promise.allSettled(submittedRows.map((row) => resolveRow(row)))
   } finally {
     if (version === submitVersion) refreshing.value = false
   }
@@ -155,7 +167,7 @@ onBeforeUnmount(() => {
         <textarea id="bulk-code-addresses" v-model="input" rows="5" :placeholder="t('bulkCode.placeholder')" />
       </div>
       <button class="primary-button" type="submit" :disabled="addresses.length === 0">{{ t('bulkCode.submit') }}</button>
-      <button v-if="rows.length" class="secondary-button" type="button" data-action="refresh" :disabled="refreshing" @click="refresh">
+      <button v-if="rows.length" class="secondary-button" type="button" data-action="refresh" :disabled="refreshing" @click="manualRefresh">
         <AppIcon name="refresh-cw" />
         {{ refreshing ? t('bulkCode.refreshing') : t('bulkCode.refresh') }}
       </button>
@@ -167,11 +179,11 @@ onBeforeUnmount(() => {
         <thead><tr><th scope="col">{{ t('bulkCode.email') }}</th><th scope="col">{{ t('bulkCode.subject') }}</th><th scope="col">{{ t('bulkCode.code') }}</th><th scope="col"><span class="sr-only">{{ t('bulkCode.actions') }}</span></th></tr></thead>
         <tbody>
           <tr v-for="row in rows" :key="row.address">
-            <td><span class="saved-address">{{ row.address }}</span><button class="bulk-open-button" type="button" :aria-label="t('bulkCode.copyEmailFor', { address: row.address })" @click="copy(row.address, 'bulkCode.emailCopied')"><AppIcon name="copy" /></button></td>
+            <td><span class="saved-address">{{ row.address }}</span><button class="row-icon-button" type="button" :aria-label="t('bulkCode.copyEmailFor', { address: row.address })" @click="copy(row.address, 'bulkCode.emailCopied')"><AppIcon name="copy" /></button></td>
             <td v-if="row.status === 'loading'" aria-live="polite"><span class="skeleton skeleton-label" /><span class="sr-only">{{ t('bulkCode.loading') }}</span></td>
             <td v-else-if="row.status === 'error'"><span role="alert">{{ row.error }}</span></td>
             <td v-else>{{ row.subject || t('bulkCode.noSubject') }}</td>
-            <td v-if="row.status === 'loading'" aria-live="polite"><span class="skeleton skeleton-label" /><span class="sr-only">{{ t('bulkCode.loading') }}</span></td>
+            <td v-if="row.status === 'loading'"><span class="skeleton skeleton-label" /></td>
             <td v-else>{{ row.code || t('bulkCode.noCode') }}</td>
             <td><button class="text-button" type="button" :disabled="!row.code" :aria-label="t('bulkCode.copyCodeFor', { address: row.address })" @click="copy(row.code ?? '', 'bulkCode.codeCopied')">{{ t('bulkCode.copyCode') }}</button><button v-if="row.status === 'error'" class="text-button" type="button" @click="resolveRow(row)">{{ t('address.retry') }}</button></td>
           </tr>

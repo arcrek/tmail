@@ -612,6 +612,30 @@ main {
 
 .bulk-results {
   margin-top: 1.5rem;
+  overflow-x: auto;
+}
+
+.bulk-results table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.bulk-results th,
+.bulk-results td {
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--line);
+}
+
+.bulk-results th {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.bulk-results tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .bulk-partial {
@@ -638,7 +662,8 @@ main {
   border-bottom: 0;
 }
 
-.bulk-open-button {
+.bulk-open-button,
+.row-icon-button {
   display: inline-grid;
   place-items: center;
   width: 44px;
@@ -649,7 +674,8 @@ main {
   color: var(--muted);
 }
 
-.bulk-open-button:hover {
+.bulk-open-button:hover,
+.row-icon-button:hover {
   border-color: var(--line);
   background: var(--surface-2);
   color: var(--accent);
