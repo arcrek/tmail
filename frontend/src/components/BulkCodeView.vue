@@ -34,7 +34,7 @@ const addresses = computed(() => parsedAddresses.value.slice(0, 10))
 const partialCount = computed(() => parsedAddresses.value.length > 10 ? addresses.value.length : null)
 
 const message = (value: unknown) =>
-  value instanceof ApiError ? value.message : t('error.unavailable')
+  value instanceof ApiError ? value.message : t('bulkCode.rowError')
 
 async function fetchLatestMessage(row: BulkCodeRow, retryToken = true): Promise<void> {
   let token = tokenCache.get(row.address)
@@ -119,7 +119,7 @@ async function submit(): Promise<void> {
   } finally {
     if (version === submitVersion) refreshing.value = false
   }
-  if (version === submitVersion && rows.value === submittedRows) startPolling()
+  if (version === submitVersion) startPolling()
 }
 
 async function copy(value: string, notice: 'bulkCode.codeCopied' | 'bulkCode.emailCopied'): Promise<void> {
@@ -167,12 +167,13 @@ onBeforeUnmount(() => {
         <thead><tr><th scope="col">{{ t('bulkCode.email') }}</th><th scope="col">{{ t('bulkCode.subject') }}</th><th scope="col">{{ t('bulkCode.code') }}</th><th scope="col"><span class="sr-only">{{ t('bulkCode.actions') }}</span></th></tr></thead>
         <tbody>
           <tr v-for="row in rows" :key="row.address">
-            <td><span class="saved-address">{{ row.address }}</span><button class="bulk-open-button" type="button" :aria-label="t('bulkCode.copyEmail')" @click="copy(row.address, 'bulkCode.emailCopied')"><AppIcon name="copy" /></button></td>
-            <td v-if="row.status === 'loading'"><span class="skeleton skeleton-label" /></td>
-            <td v-else>{{ row.status === 'error' ? row.error : row.subject || '—' }}</td>
-            <td v-if="row.status === 'loading'"><span class="skeleton skeleton-label" /></td>
-            <td v-else>{{ row.code || '—' }}</td>
-            <td><button class="text-button" type="button" :disabled="!row.code" @click="copy(row.code ?? '', 'bulkCode.codeCopied')">{{ t('bulkCode.copyCode') }}</button><button v-if="row.status === 'error'" class="text-button" type="button" @click="resolveRow(row)">{{ t('address.retry') }}</button></td>
+            <td><span class="saved-address">{{ row.address }}</span><button class="bulk-open-button" type="button" :aria-label="t('bulkCode.copyEmailFor', { address: row.address })" @click="copy(row.address, 'bulkCode.emailCopied')"><AppIcon name="copy" /></button></td>
+            <td v-if="row.status === 'loading'" aria-live="polite"><span class="skeleton skeleton-label" /><span class="sr-only">{{ t('bulkCode.loading') }}</span></td>
+            <td v-else-if="row.status === 'error'"><span role="alert">{{ row.error }}</span></td>
+            <td v-else>{{ row.subject || t('bulkCode.noSubject') }}</td>
+            <td v-if="row.status === 'loading'" aria-live="polite"><span class="skeleton skeleton-label" /><span class="sr-only">{{ t('bulkCode.loading') }}</span></td>
+            <td v-else>{{ row.code || t('bulkCode.noCode') }}</td>
+            <td><button class="text-button" type="button" :disabled="!row.code" :aria-label="t('bulkCode.copyCodeFor', { address: row.address })" @click="copy(row.code ?? '', 'bulkCode.codeCopied')">{{ t('bulkCode.copyCode') }}</button><button v-if="row.status === 'error'" class="text-button" type="button" @click="resolveRow(row)">{{ t('address.retry') }}</button></td>
           </tr>
         </tbody>
       </table>
