@@ -34,7 +34,7 @@ This is a pure frontend feature reusing existing public endpoints (`POST /token`
 
 | Relationship | Plan | Status |
 |---|---|---|
-| Blocks | [260818-0723-toast-copy-actions](../260818-0723-toast-copy-actions/plan.md) | pending |
+| Blocks | [260818-0723-toast-copy-actions](../260818-0723-toast-copy-actions/plan.md) | done |
 
 `260818-0723-toast-copy-actions` wires an in-app "new mail" toast with a "Copy code" action in `InboxView.vue`, using `extractVerificationCode()` from this plan's Phase 1. It must land after this plan's Phase 1 (the extraction alone, not the whole plan, but tracked at plan granularity here since there's no sub-phase dependency field).
 
