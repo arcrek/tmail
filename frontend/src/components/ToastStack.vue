@@ -18,6 +18,13 @@ const { t } = useI18n()
         :aria-live="toast.kind === 'error' ? 'assertive' : 'polite'"
       >
         <span>{{ toast.message }}</span>
+        <button
+          v-for="action in toast.actions"
+          :key="action.label"
+          type="button"
+          class="toast-action"
+          @click="() => { action.onClick(); dismiss(toast.id) }"
+        >{{ action.label }}</button>
         <button type="button" class="toast-dismiss" :aria-label="t('toast.dismiss')" @click="dismiss(toast.id)">×</button>
       </div>
     </TransitionGroup>

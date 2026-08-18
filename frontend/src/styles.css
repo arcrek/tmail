@@ -1533,6 +1533,22 @@ main {
 
 .toast-dismiss:hover { color: var(--ink); }
 
+.toast-action {
+  margin-left: auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.toast-action:hover { color: var(--primary-hover); }
+
+.toast-action + .toast-dismiss { margin-left: 0; }
+
 .toast-enter-active,
 .toast-leave-active,
 .toast-move {
