@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api'
 import App from '../App.vue'
 import AddressPanel from '../components/AddressPanel.vue'
+import InboxView from '../components/InboxView.vue'
 import ToastStack from '../components/ToastStack.vue'
 import { initLocale, setSiteLocale } from '../i18n'
 import { useToast } from '../toast'
@@ -229,6 +230,22 @@ describe('address flow', () => {
     expect(mocks.token).toHaveBeenCalledWith('box@example.com', undefined)
     expect(wrapper.find('.inbox-view').exists()).toBe(true)
     expect(wrapper.text()).toContain('box@example.com')
+  })
+
+  it('switches to a newly created inbox in place', async () => {
+    history.replaceState({}, '', '/old@example.com')
+    const wrapper = mount(App)
+    await flushPromises()
+
+    wrapper.findComponent(InboxView).vm.$emit('create', {
+      address: 'new@example.com',
+      token: 'new-token',
+    })
+    await flushPromises()
+
+    expect(location.pathname).toBe('/new%40example.com')
+    expect(wrapper.find('.inbox-view').text()).toContain('new@example.com')
+    expect(mocks.messages).toHaveBeenLastCalledWith('new-token', 1)
   })
 
   it('creates a custom address with an active domain', async () => {
