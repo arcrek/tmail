@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta, timezone
 import hashlib
+import logging
 import os
 from pathlib import Path
 import re
@@ -224,6 +225,21 @@ class _FixedWindowLimiter:
                 return False
             self._windows[key] = (started, count + 1)
             return True
+
+
+def _client_ip(request: Request) -> str:
+    """Client IP for rate-limit bucketing.
+
+    Trusts Cloudflare's CF-Connecting-IP header unconditionally (no allowlist/config
+    gate) — see plan.md "Design decisions" for the accepted trade-off. Safe only when
+    this app has no ingress other than a Cloudflare Tunnel/proxy that sets this header;
+    otherwise a client can spoof a fresh value per request and bypass rate limiting
+    entirely on every limited path.
+    """
+    cf_ip = request.headers.get("CF-Connecting-IP")
+    if cf_ip and cf_ip.strip():
+        return cf_ip.strip()
+    return request.client.host if request.client else "unknown"
 
 
 def _stable_id(kind: str, value: str) -> str:
@@ -771,11 +787,15 @@ def create_app(config_path: str) -> FastAPI:
     app.state.admin_lock = threading.Lock()
 
     limiter = _FixedWindowLimiter(limit=10, seconds=60)
+    logging.getLogger(__name__).warning(
+        "Rate limiter trusts the CF-Connecting-IP header unconditionally for client-IP "
+        "bucketing; ensure this app has no ingress other than a trusted Cloudflare Tunnel/proxy."
+    )
 
     @app.middleware("http")
     async def security(request: Request, call_next):
         if request.url.path in {"/accounts", "/token", "/unlock", "/admin/login", "/admin/api/login"}:
-            client_ip = request.client.host if request.client else "unknown"
+            client_ip = _client_ip(request)
             if not limiter.allow((request.url.path, client_ip)):
                 response = _error(429, "Too many requests", "Try again later")
                 _set_security_headers(request, response)

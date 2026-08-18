@@ -82,6 +82,14 @@ The deployed services use `/var/lib/tmail-policy/config.json` as mutable runtime
 
 Postfix must own port 25 and consult `inet:127.0.0.1:10030`, as shown in `deploy/postfix_main_snippet.cf`. Stalwart receives accepted relay mail on port 2525.
 
+### Running behind Cloudflare Tunnel
+
+The rate limiter trusts the `CF-Connecting-IP` header unconditionally to key its per-visitor
+buckets (`src/api_server.py`'s `_client_ip`). This is correct and safe **only if the app has no
+ingress other than the tunnel** — no public-facing port, no other reverse proxy in front. If this
+app is ever exposed directly, that header becomes spoofable per-request and the rate limiter on
+`/accounts`, `/token`, `/unlock`, `/admin/login`, and `/admin/api/login` can be bypassed entirely.
+
 ## Use
 
 - `/` — choose or open a temporary inbox.

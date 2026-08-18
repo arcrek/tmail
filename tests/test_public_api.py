@@ -749,6 +749,22 @@ def test_accounts_path_is_rate_limited(client):
     assert limited.json()["@type"] == "hydra:Error"
 
 
+def test_cf_connecting_ip_gets_independent_rate_limit_budgets(client):
+    for ip in ("198.51.100.1", "198.51.100.2"):
+        for _ in range(10):
+            assert client.post(
+                "/token", json={"address": "box@example.com"}, headers={"CF-Connecting-IP": ip},
+            ).status_code == 200
+    assert client.post(
+        "/token", json={"address": "box@example.com"}, headers={"CF-Connecting-IP": "198.51.100.1"},
+    ).status_code == 429
+
+
+def test_client_ip_without_cf_connecting_ip_falls_back_to_peer():
+    request = SimpleNamespace(headers={}, client=SimpleNamespace(host="192.0.2.1"))
+    assert api_server._client_ip(request) == "192.0.2.1"
+
+
 def test_fixed_window_prunes_expired_keys_and_separates_paths(monkeypatch):
     monkeypatch.setattr(api_server.time, "monotonic", MagicMock(side_effect=[0, 0, 61]))
     limiter = api_server._FixedWindowLimiter(limit=1, seconds=60)
