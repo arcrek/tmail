@@ -77,19 +77,23 @@ function failure(cause: unknown): string {
 const createFailure = (cause: unknown) =>
   cause instanceof ApiError ? cause.message : t('error.unavailable')
 
+let createDomainsVersion = 0
+
 async function loadCreateDomains(): Promise<void> {
-  if (createLoadingDomains.value) return
+  const version = ++createDomainsVersion
   createLoadingDomains.value = true
   createDomainError.value = ''
   try {
     const response = await api.domains(1, props.accessToken || undefined)
+    if (version !== createDomainsVersion) return
     createDomains.value = response['hydra:member'].filter((domain) => domain.isActive !== false)
     createDomain.value = createDomains.value[0]?.domain ?? ''
     createDomainsLoaded.value = true
   } catch (cause) {
+    if (version !== createDomainsVersion) return
     createDomainError.value = createFailure(cause)
   } finally {
-    createLoadingDomains.value = false
+    if (version === createDomainsVersion) createLoadingDomains.value = false
   }
 }
 
@@ -301,7 +305,7 @@ watch(() => props.fetchSeconds, () => {
   if (!streamController) startPolling()
 })
 watch(() => props.accessToken, () => {
-  if (!createDomainsLoaded.value) return
+  if (!createOpen.value && !createDomainsLoaded.value) return
   createDomainsLoaded.value = false
   void loadCreateDomains()
 })
@@ -364,29 +368,30 @@ onBeforeUnmount(() => {
       <p class="auto-refresh-hint">{{ t('inbox.autoRefresh', { seconds: fetchSeconds }) }}</p>
 
       <button
+        id="inbox-create-toggle"
         class="text-button"
         type="button"
-        aria-controls="inbox-create-address"
+        :aria-controls="createOpen ? 'inbox-create-address' : undefined"
         :aria-expanded="createOpen"
         @click="toggleCreate"
       >
         {{ t('address.create') }}
       </button>
 
-      <section v-if="createOpen" id="inbox-create-address" :aria-label="t('address.create')">
-        <div v-if="createLoadingDomains" class="message-list-state" aria-live="polite">
+      <section v-if="createOpen" id="inbox-create-address" class="inbox-create" :aria-label="t('address.create')">
+        <div v-if="createLoadingDomains" class="inbox-create-state" aria-live="polite">
           <span class="skeleton skeleton-field" />
           <span class="sr-only">{{ t('address.loading') }}</span>
         </div>
 
-        <div v-else-if="createDomainError" class="message-list-state" role="alert">
+        <div v-else-if="createDomainError" class="inbox-create-state" role="alert">
           <p>{{ createDomainError }}</p>
           <button class="secondary-button compact-button" type="button" @click="loadCreateDomains">
             {{ t('address.retry') }}
           </button>
         </div>
 
-        <div v-else-if="!createDomains.length" class="message-list-state">
+        <div v-else-if="!createDomains.length" class="inbox-create-state">
           <p>{{ t('address.noneHelp') }}</p>
         </div>
 

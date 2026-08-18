@@ -165,7 +165,7 @@ describe('InboxView polling', () => {
     })
     await flushPromises()
 
-    const toggle = wrapper.get('[aria-controls="inbox-create-address"]')
+    const toggle = wrapper.get('#inbox-create-toggle')
     expect(toggle.attributes('aria-expanded')).toBe('false')
     expect(wrapper.find('#inbox-create-address').exists()).toBe(false)
     expect(mocks.domains).not.toHaveBeenCalled()
@@ -184,7 +184,7 @@ describe('InboxView polling', () => {
       props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
     })
     await flushPromises()
-    await wrapper.get('[aria-controls="inbox-create-address"]').trigger('click')
+    await wrapper.get('#inbox-create-toggle').trigger('click')
     await flushPromises()
     await wrapper.get('#inbox-create-local-part').setValue('paper')
     await wrapper.get('#inbox-create-address form').trigger('submit')
@@ -206,7 +206,7 @@ describe('InboxView polling', () => {
       props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
     })
     await flushPromises()
-    await wrapper.get('[aria-controls="inbox-create-address"]').trigger('click')
+    await wrapper.get('#inbox-create-toggle').trigger('click')
     await flushPromises()
     await wrapper.get('#inbox-create-address .text-button').trigger('click')
     await flushPromises()
@@ -222,7 +222,7 @@ describe('InboxView polling', () => {
       props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
     })
     await flushPromises()
-    await wrapper.get('[aria-controls="inbox-create-address"]').trigger('click')
+    await wrapper.get('#inbox-create-toggle').trigger('click')
     await flushPromises()
 
     expect(wrapper.get('#inbox-create-address').text()).toContain('Domain list unavailable')
@@ -236,7 +236,7 @@ describe('InboxView polling', () => {
       props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
     })
     await flushPromises()
-    await wrapper.get('[aria-controls="inbox-create-address"]').trigger('click')
+    await wrapper.get('#inbox-create-toggle').trigger('click')
     await flushPromises()
     await wrapper.get('#inbox-create-local-part').setValue('paper')
     await wrapper.get('#inbox-create-address form').trigger('submit')
