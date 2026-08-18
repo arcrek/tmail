@@ -79,4 +79,27 @@ describe('BulkGenerateView', () => {
     await rows[0]!.get('.text-button').trigger('click')
     expect(mocks.copyText).toHaveBeenCalledWith(address)
   })
+
+  it('clears a generated batch when the access token changes', async () => {
+    let value = 0
+    vi.stubGlobal('crypto', {
+      getRandomValues: (values: Uint32Array) => {
+        values.fill(value++)
+        return values
+      },
+    })
+    const wrapper = mount(BulkGenerateView, { props: { accessToken: 'access-token' } })
+    await flushPromises()
+
+    await wrapper.get('.bulk-controls').trigger('submit')
+    expect(wrapper.findAll('.bulk-list li').length).toBeGreaterThan(0)
+
+    mocks.domains.mockResolvedValueOnce(domains(['example.com']))
+    await wrapper.setProps({ accessToken: '' })
+    await flushPromises()
+
+    expect(mocks.domains).toHaveBeenLastCalledWith(1, undefined)
+    expect(wrapper.find('.bulk-list').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Generate a batch to see addresses here.')
+  })
 })

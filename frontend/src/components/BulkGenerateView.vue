@@ -42,7 +42,12 @@ async function loadDomains(): Promise<void> {
 }
 
 onMounted(loadDomains)
-watch(() => props.accessToken, loadDomains)
+watch(() => props.accessToken, () => {
+  addresses.value = []
+  copiedAddress.value = ''
+  partialCount.value = null
+  void loadDomains()
+})
 
 function generate(): void {
   const requested = Math.min(50, Math.max(1, Number(count.value) || 1))
