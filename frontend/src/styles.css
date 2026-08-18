@@ -852,6 +852,10 @@ main {
   font-size: var(--text-xs);
 }
 
+.inbox-create-heading {
+  margin: 0;
+}
+
 .inbox-create {
   display: grid;
   gap: 0.8rem;
@@ -868,6 +872,13 @@ main {
 
 .inbox-create .at-sign {
   display: none;
+}
+
+/* The form's own children (fields, submit, randomize) are inline-flex buttons by
+   default and would sit flush against each other/the select above without this. */
+.inbox-create .address-form {
+  display: grid;
+  gap: 0.8rem;
 }
 
 .inbox-create-state {
