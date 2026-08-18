@@ -1,7 +1,7 @@
 ---
 title: "Trust CF-Connecting-IP and isolate elevated /token rate limit"
 description: "Read Cloudflare's CF-Connecting-IP header for the rate limiter's client-IP key, and give elevated (unlocked) /token requests their own quota bucket separate from the shared per-IP budget."
-status: pending
+status: done
 priority: P2
 effort: 2h
 issue: null
@@ -63,8 +63,8 @@ by it.
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | [Trust CF-Connecting-IP for rate-limit keys](./phase-01-cf-connecting-ip.md) | Pending |
-| 2 | [Elevated-access bucket for /token](./phase-02-elevated-token-bucket.md) | Pending |
+| 1 | [Trust CF-Connecting-IP for rate-limit keys](./phase-01-cf-connecting-ip.md) | Done |
+| 2 | [Elevated-access bucket for /token](./phase-02-elevated-token-bucket.md) | Done |
 
 ## Dependencies
 
