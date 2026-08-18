@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AddressPanel from './components/AddressPanel.vue'
 import AppHeader from './components/AppHeader.vue'
 import BulkGenerateView from './components/BulkGenerateView.vue'
+import BulkCodeView from './components/BulkCodeView.vue'
 import InboxView from './components/InboxView.vue'
 import SandboxFrame from './components/SandboxFrame.vue'
 import ToastStack from './components/ToastStack.vue'
@@ -15,7 +16,7 @@ import type { AddressSession, SiteResource } from './types'
 import { setSiteLocale, useI18n } from './i18n'
 import { useToast } from './toast'
 
-type View = 'address' | 'inbox' | 'admin' | 'bulk'
+type View = 'address' | 'inbox' | 'admin' | 'bulk' | 'bulkCode'
 
 const initialRoute = parseRoute(window.location.pathname)
 const view = ref<View>(initialRoute.name === 'admin' ? 'admin' : 'address')
@@ -147,6 +148,11 @@ function openBulk(): void {
   view.value = 'bulk'
 }
 
+function openBulkCode(): void {
+  navigationVersion += 1
+  view.value = 'bulkCode'
+}
+
 async function unlock(): Promise<void> {
   unlocking.value = true
   try {
@@ -222,12 +228,14 @@ onBeforeUnmount(() => {
       :access-token="accessToken"
       :unlocking="unlocking"
       :bulk-active="view === 'bulk'"
+      :bulk-code-active="view === 'bulkCode'"
       v-model:unlock-open="unlockOpen"
       v-model:unlock-value="unlockValue"
       @home="newAddress"
       @unlock="unlock"
       @lock="lock"
       @bulk="openBulk"
+      @bulk-code="openBulkCode"
     />
 
     <main id="main-content" tabindex="-1">
@@ -253,6 +261,12 @@ onBeforeUnmount(() => {
         <BulkGenerateView
           v-else-if="view === 'bulk'"
           :access-token="accessToken"
+        />
+
+        <BulkCodeView
+          v-else-if="view === 'bulkCode'"
+          :access-token="accessToken"
+          :fetch-seconds="site?.fetchSeconds ?? 20"
         />
 
         <section v-else-if="loading" class="handoff-loading" aria-live="polite">

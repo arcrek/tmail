@@ -18,6 +18,7 @@ const messages = (id = 'one') => ({ 'hydra:member': [{ id }] })
 const detail = { id: 'one', subject: 'Your code is 123456', text: '', html: [] }
 
 enableAutoUnmount(afterEach)
+afterEach(() => vi.useRealTimers())
 
 describe('BulkCodeView', () => {
   beforeEach(() => {
@@ -32,7 +33,7 @@ describe('BulkCodeView', () => {
     mocks.token.mockImplementation((address: string) => address === 'bad@example.com'
       ? Promise.reject(new ApiError(422, 'Domain not accepted'))
       : Promise.resolve({ token: `signed-${address}` }))
-    const wrapper = mount(BulkCodeView, { props: { accessToken: 'access-token' } })
+    const wrapper = mount(BulkCodeView, { props: { accessToken: 'access-token', fetchSeconds: 20 } })
     await wrapper.get('#bulk-code-addresses').setValue(' ONE@example.com, bad@example.com one@example.com ')
     await wrapper.get('.bulk-controls').trigger('submit')
     await flushPromises()
@@ -45,7 +46,7 @@ describe('BulkCodeView', () => {
 
   it('caps input at ten addresses and reuses a cached token when retrying a row', async () => {
     mocks.messages.mockRejectedValueOnce(new ApiError(401, 'Expired'))
-    const wrapper = mount(BulkCodeView)
+    const wrapper = mount(BulkCodeView, { props: { fetchSeconds: 20 } })
     await wrapper.get('#bulk-code-addresses').setValue(Array.from({ length: 11 }, (_, index) => `box${index}@example.com`).join('\n'))
     expect(wrapper.text()).toContain('Only the first 10 unique addresses will be read.')
     await wrapper.get('.bulk-controls').trigger('submit')
@@ -54,5 +55,18 @@ describe('BulkCodeView', () => {
     await flushPromises()
 
     expect(mocks.token).toHaveBeenCalledTimes(10)
+  })
+
+  it('reissues only an expired cached row token', async () => {
+    const wrapper = mount(BulkCodeView, { props: { fetchSeconds: 20 } })
+    await wrapper.get('#bulk-code-addresses').setValue('one@example.com two@example.com')
+    await wrapper.get('.bulk-controls').trigger('submit')
+    await flushPromises()
+    mocks.messages.mockRejectedValueOnce(new ApiError(401, 'Expired')).mockResolvedValue(messages())
+
+    await wrapper.get('[data-action="refresh"]').trigger('click')
+    await flushPromises()
+
+    expect(mocks.token).toHaveBeenCalledTimes(3)
   })
 })

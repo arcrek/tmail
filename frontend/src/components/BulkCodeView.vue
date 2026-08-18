@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError, api } from '../api'
 import { copyText } from '../clipboard'
 import { useI18n } from '../i18n'
@@ -7,7 +7,7 @@ import { useToast } from '../toast'
 import { extractVerificationCode } from '../verificationCode'
 import AppIcon from './AppIcon.vue'
 
-const props = withDefaults(defineProps<{ accessToken?: string }>(), { accessToken: '' })
+const props = withDefaults(defineProps<{ accessToken?: string; fetchSeconds: number }>(), { accessToken: '' })
 const { t } = useI18n()
 const toast = useToast()
 
@@ -22,7 +22,11 @@ type BulkCodeRow = {
 
 const input = ref('')
 const rows = ref<BulkCodeRow[]>([])
+const refreshing = ref(false)
 const tokenCache = new Map<string, string>()
+let interval: number | undefined
+let refreshVersion = 0
+let submitVersion = 0
 const parsedAddresses = computed(() => [...new Set(
   input.value.split(/[\s,]+/).map((address) => address.trim().toLowerCase()).filter(Boolean),
 )])
@@ -32,24 +36,38 @@ const partialCount = computed(() => parsedAddresses.value.length > 10 ? addresse
 const message = (value: unknown) =>
   value instanceof ApiError ? value.message : t('error.unavailable')
 
-async function resolveRow(row: BulkCodeRow): Promise<void> {
-  row.status = 'loading'
-  row.error = ''
-  row.subject = ''
-  row.code = ''
+async function fetchLatestMessage(row: BulkCodeRow, retryToken = true): Promise<void> {
+  let token = tokenCache.get(row.address)
+  const cached = Boolean(token)
+  if (!token) {
+    token = (await api.token(row.address, props.accessToken || undefined)).token
+    tokenCache.set(row.address, token)
+  }
+  row.token = token
   try {
-    let token = tokenCache.get(row.address)
-    if (!token) {
-      token = (await api.token(row.address, props.accessToken || undefined)).token
-      tokenCache.set(row.address, token)
-    }
-    row.token = token
     const latest = (await api.messages(token, 1))['hydra:member'][0]
     if (latest) {
       const current = await api.message(token, latest.id)
       row.subject = current.subject
       row.code = extractVerificationCode(current.subject, current.text, current.html)
     }
+  } catch (cause) {
+    if (cached && retryToken && cause instanceof ApiError && cause.status === 401) {
+      tokenCache.delete(row.address)
+      await fetchLatestMessage(row, false)
+      return
+    }
+    throw cause
+  }
+}
+
+async function resolveRow(row: BulkCodeRow): Promise<void> {
+  row.status = 'loading'
+  row.error = ''
+  row.subject = ''
+  row.code = ''
+  try {
+    await fetchLatestMessage(row)
     row.status = 'ready'
   } catch (cause) {
     row.status = 'error'
@@ -57,9 +75,51 @@ async function resolveRow(row: BulkCodeRow): Promise<void> {
   }
 }
 
+async function refresh(): Promise<void> {
+  if (refreshing.value || rows.value.length === 0) return
+  const version = ++refreshVersion
+  const currentRows = rows.value
+  refreshing.value = true
+  try {
+    await Promise.allSettled(currentRows.map(resolveRow))
+  } finally {
+    if (version === refreshVersion) refreshing.value = false
+  }
+}
+
+function stopPolling(): void {
+  if (interval !== undefined) window.clearInterval(interval)
+  interval = undefined
+}
+
+function startPolling(): void {
+  stopPolling()
+  if (rows.value.length && !document.hidden) {
+    interval = window.setInterval(() => void refresh(), Math.max(1, props.fetchSeconds) * 1000)
+  }
+}
+
+function handleVisibility(): void {
+  if (document.hidden) stopPolling()
+  else {
+    void refresh()
+    startPolling()
+  }
+}
+
 async function submit(): Promise<void> {
-  rows.value = addresses.value.map((address) => ({ address, status: 'loading' }))
-  await Promise.allSettled(rows.value.map(resolveRow))
+  stopPolling()
+  const version = ++submitVersion
+  ++refreshVersion
+  const submittedRows = addresses.value.map((address) => ({ address, status: 'loading' as const }))
+  rows.value = submittedRows
+  refreshing.value = true
+  try {
+    await Promise.allSettled(submittedRows.map(resolveRow))
+  } finally {
+    if (version === submitVersion) refreshing.value = false
+  }
+  if (version === submitVersion && rows.value === submittedRows) startPolling()
 }
 
 async function copy(value: string, notice: 'bulkCode.codeCopied' | 'bulkCode.emailCopied'): Promise<void> {
@@ -70,6 +130,15 @@ async function copy(value: string, notice: 'bulkCode.codeCopied' | 'bulkCode.ema
     toast.error(t('error.copy'))
   }
 }
+
+onMounted(() => document.addEventListener('visibilitychange', handleVisibility))
+watch(() => props.fetchSeconds, startPolling)
+onBeforeUnmount(() => {
+  ++refreshVersion
+  ++submitVersion
+  stopPolling()
+  document.removeEventListener('visibilitychange', handleVisibility)
+})
 </script>
 
 <template>
@@ -86,6 +155,10 @@ async function copy(value: string, notice: 'bulkCode.codeCopied' | 'bulkCode.ema
         <textarea id="bulk-code-addresses" v-model="input" rows="5" :placeholder="t('bulkCode.placeholder')" />
       </div>
       <button class="primary-button" type="submit" :disabled="addresses.length === 0">{{ t('bulkCode.submit') }}</button>
+      <button v-if="rows.length" class="secondary-button" type="button" data-action="refresh" :disabled="refreshing" @click="refresh">
+        <AppIcon name="refresh-cw" />
+        {{ refreshing ? t('bulkCode.refreshing') : t('bulkCode.refresh') }}
+      </button>
     </form>
     <p v-if="partialCount !== null" class="bulk-partial" role="status">{{ t('bulkCode.partial', { count: partialCount }) }}</p>
 
