@@ -50,7 +50,7 @@ watch(() => props.accessToken, () => {
 })
 
 function generate(): void {
-  const requested = Math.min(50, Math.max(1, Number(count.value) || 1))
+  const requested = Math.min(10, Math.max(1, Number(count.value) || 1))
   count.value = requested
   addresses.value = randomAddressBatch(domains.value.map((domain) => domain.domain), requested)
   copiedAddress.value = ''
@@ -105,7 +105,7 @@ async function copy(address: string): Promise<void> {
     <form class="bulk-controls" @submit.prevent="generate">
       <div class="field">
         <label for="bulk-count">{{ t('bulk.countLabel') }}</label>
-        <input id="bulk-count" v-model.number="count" type="number" min="1" max="50">
+        <input id="bulk-count" v-model.number="count" type="number" min="1" max="10">
       </div>
       <button class="primary-button" type="submit">{{ t('bulk.generate') }}</button>
     </form>
