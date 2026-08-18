@@ -11,11 +11,12 @@ const props = withDefaults(defineProps<{
   showUnlock?: boolean
   accessToken?: string
   unlocking?: boolean
+  bulkActive?: boolean
 }>(), {
-  appName: '', logoDataUrl: '', showLocalePicker: true, showUnlock: true, accessToken: '', unlocking: false,
+  appName: '', logoDataUrl: '', showLocalePicker: true, showUnlock: true, accessToken: '', unlocking: false, bulkActive: false,
 })
 
-const emit = defineEmits<{ home: []; unlock: []; lock: [] }>()
+const emit = defineEmits<{ home: []; unlock: []; lock: []; bulk: [] }>()
 const unlockOpen = defineModel<boolean>('unlockOpen', { required: true })
 const unlockValue = defineModel<string>('unlockValue', { required: true })
 const { locale, selectLocale, t } = useI18n()
@@ -43,6 +44,10 @@ function onLocaleChange(event: Event): void {
       <a href="/docs">
         <AppIcon name="external-link" />
         {{ t('nav.docs') }}
+      </a>
+      <a class="bulk-link" href="#" :aria-current="props.bulkActive ? 'page' : undefined" @click.prevent="emit('bulk')">
+        <AppIcon name="sparkles" />
+        {{ t('nav.bulk') }}
       </a>
       <a class="admin-link" href="/admin">
         <AppIcon name="shield" />
