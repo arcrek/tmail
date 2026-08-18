@@ -9,7 +9,7 @@
 ## Overview
 
 - Priority: P2
-- Status: Pending
+- Status: Done
 - Test coverage for the inline create flow, finalize i18n keys (reusing `address.create` for the section title; new keys only for anything genuinely new), accessibility pass on the collapsible region.
 
 ## Requirements
@@ -51,11 +51,11 @@
 
 ## Todo List
 
-- [ ] `InboxView.test.ts` covers collapsed-default, lazy-load, submit success/failure, random shortcut
-- [ ] App-level navigation test covers the new in-place `@create` switch
-- [ ] i18n key audit done — no missing/orphaned keys, both locales in sync
-- [ ] Toggle button has correct `aria-expanded`/`aria-controls`
-- [ ] `npm run build` and `npm run test` clean
+- [x] `InboxView.test.ts` covers collapsed-default, lazy-load, submit success/failure, random shortcut
+- [x] App-level navigation test covers the new in-place `@create` switch
+- [x] i18n key audit done — no missing/orphaned keys, both locales in sync
+- [x] Toggle button has correct `aria-expanded`/`aria-controls`
+- [x] `npm run build` and `npm run test` clean
 
 ## Success Criteria
 

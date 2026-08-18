@@ -10,7 +10,7 @@
 ## Overview
 
 - Priority: P2
-- Status: Pending
+- Status: Done
 - Add a collapsible "Create an address" section below the address hero in `InboxView.vue`: local-part input, domain select (lazy-loaded), submit, Random shortcut. Wire its success to `App.vue` so the current inbox is replaced in place.
 
 ## Key Insights
@@ -76,12 +76,12 @@ App.vue
 
 ## Todo List
 
-- [ ] `InboxView.vue` accepts `accessToken` prop, passed from `App.vue`
-- [ ] Collapsible "Create an address" section collapsed by default, expands on toggle
-- [ ] Domain list lazy-loads on first expand only (verified: no `/domains` request until the section is opened)
-- [ ] Submit creates the address and switches the current inbox in place (URL + message list both update, no navigation to `AddressPanel`)
-- [ ] Random shortcut works (fills + submits in one action, same as `AddressPanel.randomize()`)
-- [ ] Errors (bad domain, rate-limited) surface via toast, don't break the rest of the inbox view
+- [x] `InboxView.vue` accepts `accessToken` prop, passed from `App.vue`
+- [x] Collapsible "Create an address" section collapsed by default, expands on toggle
+- [x] Domain list lazy-loads on first expand only (verified: no `/domains` request until the section is opened)
+- [x] Submit creates the address and switches the current inbox in place (URL + message list both update, no navigation to `AddressPanel`)
+- [x] Random shortcut works (fills + submits in one action, same as `AddressPanel.randomize()`)
+- [x] Errors (bad domain, rate-limited) surface via toast, don't break the rest of the inbox view
 
 ## Success Criteria
 

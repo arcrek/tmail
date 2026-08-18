@@ -1,7 +1,7 @@
 ---
 title: "Inline quick-create address in inbox view"
 description: "Add a 'Create an address' shortcut below the address hero in InboxView so a visitor can spin up and switch to a new inbox without navigating back to the main page."
-status: pending
+status: done
 priority: P2
 effort: 4h
 issue: null
@@ -33,8 +33,8 @@ None. Scanned `plans/`: no unfinished plan touches `InboxView.vue`'s hero sectio
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | [Inline create form + App.vue in-place switch](./phase-01-inline-create.md) | Pending |
-| 2 | [Tests, i18n, accessibility](./phase-02-tests.md) | Pending |
+| 1 | [Inline create form + App.vue in-place switch](./phase-01-inline-create.md) | Done |
+| 2 | [Tests, i18n, accessibility](./phase-02-tests.md) | Done |
 
 ## Dependencies
 
