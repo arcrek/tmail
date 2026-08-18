@@ -10,7 +10,7 @@
 ## Overview
 
 - Priority: P2
-- Status: Pending
+- Status: Done
 - Close out i18n keys (EN + VI, both required — see `frontend/src/i18n.ts`'s two-locale pattern), add test coverage, and do an accessibility pass on the new table/form.
 
 ## Key Insights
@@ -59,11 +59,11 @@
 
 ## Todo List
 
-- [ ] `verificationCode.test.ts` passes, covers subject/text/HTML/no-match cases
-- [ ] `BulkCodeView.test.ts` passes, including the no-extra-token-on-poll assertion
-- [ ] Nav/view-switch test coverage added for the new tab
-- [ ] `i18n.test.ts` (or equivalent key-parity check) passes with new keys in both locales
-- [ ] `npm run build` and `npm run test` clean
+- [x] `verificationCode.test.ts` passes, covers subject/text/HTML/no-match cases
+- [x] `BulkCodeView.test.ts` passes, including the no-extra-token-on-poll assertion
+- [x] Nav/view-switch test coverage added for the new tab
+- [x] `i18n.test.ts` (or equivalent key-parity check) passes with new keys in both locales
+- [x] `npm run build` and `npm run test` clean
 
 ## Success Criteria
 

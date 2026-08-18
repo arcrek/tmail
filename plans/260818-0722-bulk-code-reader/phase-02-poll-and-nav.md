@@ -10,7 +10,7 @@
 ## Overview
 
 - Priority: P2
-- Status: Pending
+- Status: Done
 - Add interval-based auto-refresh of the results table (pausable when the tab is hidden), a manual "Refresh" button, and wire the new view into the header nav + `App.vue`'s view switch.
 
 ## Key Insights
@@ -75,11 +75,11 @@ BulkCodeView.vue (extends Phase 1)
 
 ## Todo List
 
-- [ ] Poll tick issues zero `/token` calls when all rows have cached tokens (manually verified)
-- [ ] Polling pauses when tab hidden, resumes on visible (mirrors `InboxView` behavior)
-- [ ] Manual Refresh button works independently of the interval, disabled while in flight
-- [ ] Resubmitting the address list restarts polling cleanly (no duplicate intervals — check via a second `setInterval` not firing after resubmit)
-- [ ] New "Bulk read" tab appears in header nav, navigates to the view, `aria-current` reflects active state like the existing "Bulk generate" tab
+- [x] Poll tick issues zero `/token` calls when all rows have cached tokens (manually verified)
+- [x] Polling pauses when tab hidden, resumes on visible (mirrors `InboxView` behavior)
+- [x] Manual Refresh button works independently of the interval, disabled while in flight
+- [x] Resubmitting the address list restarts polling cleanly (no duplicate intervals — check via a second `setInterval` not firing after resubmit)
+- [x] New "Bulk read" tab appears in header nav, navigates to the view, `aria-current` reflects active state like the existing "Bulk generate" tab
 
 ## Success Criteria
 

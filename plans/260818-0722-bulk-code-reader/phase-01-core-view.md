@@ -10,7 +10,7 @@
 ## Overview
 
 - Priority: P2 (core deliverable)
-- Status: Pending
+- Status: Done
 - Extract the verification-code regex into a standalone, testable module. Build the new `BulkCodeView.vue` component's input form, submit flow, and results table (no polling yet — that's Phase 2).
 
 ## Key Insights
@@ -86,11 +86,11 @@ export function extractVerificationCode(subject: string, text: string, html: str
 
 ## Todo List
 
-- [ ] `verificationCode.ts` created, `MessageReader.vue` refactored to use it, existing `MessageReader.test.ts` still green
-- [ ] `BulkCodeView.vue` parses/dedupes/caps pasted addresses at 10
-- [ ] Submit resolves all rows independently via `Promise.allSettled`, no row blocks another
-- [ ] Token cached per address, reused (not re-fetched) — verified by only one `api.token` call per address in this phase's manual testing
-- [ ] Copy code / Copy email buttons work, disabled appropriately when no code/address
+- [x] `verificationCode.ts` created, `MessageReader.vue` refactored to use it, existing `MessageReader.test.ts` still green
+- [x] `BulkCodeView.vue` parses/dedupes/caps pasted addresses at 10
+- [x] Submit resolves all rows independently via `Promise.allSettled`, no row blocks another
+- [x] Token cached per address, reused (not re-fetched) — verified by only one `api.token` call per address in this phase's manual testing
+- [x] Copy code / Copy email buttons work, disabled appropriately when no code/address
 
 ## Success Criteria
 

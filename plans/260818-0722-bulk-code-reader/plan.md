@@ -1,7 +1,7 @@
 ---
 title: "Bulk code reader"
 description: "Let a visitor paste a list of email addresses and see, in one table, the latest message's subject and extracted verification code for each — with per-row copy and auto-refresh."
-status: pending
+status: done
 priority: P2
 effort: 8h
 issue: null
@@ -44,9 +44,9 @@ Scanned `plans/`: all other unfinished plans (`260812-1455-domain-blacklist-patt
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | [Shared code-extraction util + BulkCodeView core](./phase-01-core-view.md) | Pending |
-| 2 | [Auto-poll, manual refresh, nav wiring](./phase-02-poll-and-nav.md) | Pending |
-| 3 | [Tests & accessibility polish](./phase-03-tests.md) | Pending |
+| 1 | [Shared code-extraction util + BulkCodeView core](./phase-01-core-view.md) | Done |
+| 2 | [Auto-poll, manual refresh, nav wiring](./phase-02-poll-and-nav.md) | Done |
+| 3 | [Tests & accessibility polish](./phase-03-tests.md) | Done |
 
 ## Dependencies
 
