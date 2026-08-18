@@ -683,6 +683,36 @@ def test_security_headers_and_token_rate_limit(client):
     assert client.post("/admin/login").status_code == 404
 
 
+def test_elevated_token_rate_limit_is_independent_from_anonymous(client):
+    credential, _ = _access_credential(client)
+    access_token = client.post("/unlock", json={"credential": credential["secret"]}).json()["accessToken"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    for _ in range(10):
+        assert client.post("/token", json={"address": "box@example.com"}).status_code == 200
+    assert client.post("/token", json={"address": "box@example.com"}).status_code == 429
+    assert client.post("/token", json={"address": "box@example.com"}, headers=headers).status_code == 200
+
+
+def test_anonymous_token_rate_limit_is_independent_from_elevated(client):
+    credential, _ = _access_credential(client)
+    access_token = client.post("/unlock", json={"credential": credential["secret"]}).json()["accessToken"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    for _ in range(10):
+        assert client.post("/token", json={"address": "box@example.com"}, headers=headers).status_code == 200
+    assert client.post("/token", json={"address": "box@example.com"}, headers=headers).status_code == 429
+    assert client.post("/token", json={"address": "box@example.com"}).status_code == 200
+
+
+def test_invalid_elevated_token_shares_anonymous_rate_limit_bucket(client):
+    for _ in range(10):
+        assert client.post("/token", json={"address": "box@example.com"}).status_code == 200
+    assert client.post(
+        "/token", json={"address": "box@example.com"}, headers={"Authorization": "Bearer invalid"},
+    ).status_code == 429
+
+
 def test_spa_csp_allows_data_images_and_sandbox_frames_without_inline_parent_code(client):
     csp = client.get("/").headers["content-security-policy"]
 

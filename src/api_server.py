@@ -17,6 +17,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security.utils import get_authorization_scheme_param
 from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -307,14 +308,23 @@ def bearer_elevated(
     return elevated
 
 
+def _elevated_token_hash(request: Request, token: str | None) -> str | None:
+    """Hash of `token` if it's a currently-valid elevated-access bearer token, else None."""
+    if not token:
+        return None
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    if request.app.state.state_store.get_access_session(token_hash, datetime.now(timezone.utc)):
+        return token_hash
+    return None
+
+
 def elevated_access(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_BEARER),
 ) -> bool:
     if credentials is None:
         return False
-    token_hash = hashlib.sha256(credentials.credentials.encode()).hexdigest()
-    return request.app.state.state_store.get_access_session(token_hash, datetime.now(timezone.utc))
+    return _elevated_token_hash(request, credentials.credentials) is not None
 
 
 def mail_runtime(request: Request) -> tuple[Config, JmapClient]:
@@ -796,7 +806,14 @@ def create_app(config_path: str) -> FastAPI:
     async def security(request: Request, call_next):
         if request.url.path in {"/accounts", "/token", "/unlock", "/admin/login", "/admin/api/login"}:
             client_ip = _client_ip(request)
-            if not limiter.allow((request.url.path, client_ip)):
+            key = (request.url.path, client_ip)
+            if request.url.path == "/token":
+                scheme, raw_token = get_authorization_scheme_param(request.headers.get("Authorization"))
+                if scheme.lower() == "bearer":
+                    token_hash = _elevated_token_hash(request, raw_token)
+                    if token_hash:
+                        key = (request.url.path, f"elevated:{token_hash}")
+            if not limiter.allow(key):
                 response = _error(429, "Too many requests", "Try again later")
                 _set_security_headers(request, response)
                 return response
