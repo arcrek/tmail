@@ -103,12 +103,22 @@ describe('address flow', () => {
     const wrapper = mount(App)
     await flushPromises()
 
-    expect(mocks.token).toHaveBeenCalledWith('box@example.com')
+    expect(mocks.token).toHaveBeenCalledWith('box@example.com', undefined)
     expect(wrapper.find('.inbox-view').exists()).toBe(true)
     expect(wrapper.text()).toContain('box@example.com')
     expect(JSON.parse(localStorage.getItem('tmail.addresses') ?? '[]')).toEqual([
       { address: 'box@example.com', token: 'signed-token' },
     ])
+  })
+
+  it('forwards a stored access token when a fresh tab lands on an address route', async () => {
+    localStorage.setItem('tmail.accessToken', 'saved-token')
+    history.replaceState({}, '', '/box@example.com')
+    const wrapper = mount(App)
+    await flushPromises()
+
+    expect(mocks.token).toHaveBeenCalledWith('box@example.com', 'saved-token')
+    expect(wrapper.find('.inbox-view').exists()).toBe(true)
   })
 
   it('lets visitors choose and persist Vietnamese from the header', async () => {
@@ -203,7 +213,7 @@ describe('address flow', () => {
     const wrapper = mount(App)
     await flushPromises()
 
-    expect(mocks.token).toHaveBeenCalledWith('bad..local@example.com')
+    expect(mocks.token).toHaveBeenCalledWith('bad..local@example.com', undefined)
     expect(wrapper.text()).toContain('Invalid address')
   })
 
@@ -216,7 +226,7 @@ describe('address flow', () => {
     const wrapper = mount(App)
     await flushPromises()
 
-    expect(mocks.token).toHaveBeenCalledWith('box@example.com')
+    expect(mocks.token).toHaveBeenCalledWith('box@example.com', undefined)
     expect(wrapper.find('.inbox-view').exists()).toBe(true)
     expect(wrapper.text()).toContain('box@example.com')
   })
@@ -422,6 +432,22 @@ describe('address flow', () => {
 
     expect(location.pathname).toBe('/')
     expect(wrapper.find('.inbox-view').exists()).toBe(false)
+    expect(wrapper.get('.home-hero').text()).toContain('Receive mail. Keep your address.')
+  })
+
+  it('shows bulk generation from the header and returns home from the brand link', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await wrapper.get('.bulk-link').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('#bulk-title').text()).toBe('Generate multiple addresses')
+    expect(wrapper.get('.bulk-link').attributes('aria-current')).toBe('page')
+
+    await wrapper.get('.app-header .brand').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('#bulk-title').exists()).toBe(false)
+    expect(wrapper.get('.address-form').exists()).toBe(true)
     expect(wrapper.get('.home-hero').text()).toContain('Receive mail. Keep your address.')
   })
 

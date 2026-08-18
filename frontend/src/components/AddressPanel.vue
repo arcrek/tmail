@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ApiError, api } from '../api'
 import { copyText } from '../clipboard'
+import { randomDomain, randomLocalPart } from '../randomAddress'
 import { loadSessions, removeSession } from '../session'
 import type { AddressSession, DomainResource } from '../types'
 import AppIcon from './AppIcon.vue'
@@ -70,14 +71,8 @@ async function submit(): Promise<void> {
 
 async function randomize(): Promise<void> {
   if (!domains.value.length || submitting.value) return
-  const consonants = 'bcdfghjkmnprstvwxz'
-  const vowels = 'aeiou'
-  const values = crypto.getRandomValues(new Uint32Array(6))
-  localPart.value = Array.from(values, (value, index) => {
-    const alphabet = index % 2 ? vowels : consonants
-    return alphabet[value % alphabet.length]!
-  }).join('')
-  selectedDomain.value = domains.value[values[0]! % domains.value.length]!.domain
+  localPart.value = randomLocalPart()
+  selectedDomain.value = randomDomain(domains.value.map((domain) => domain.domain))
   await submit()
 }
 

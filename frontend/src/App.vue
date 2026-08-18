@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AddressPanel from './components/AddressPanel.vue'
 import AppHeader from './components/AppHeader.vue'
+import BulkGenerateView from './components/BulkGenerateView.vue'
 import InboxView from './components/InboxView.vue'
 import SandboxFrame from './components/SandboxFrame.vue'
 import ToastStack from './components/ToastStack.vue'
@@ -14,7 +15,7 @@ import type { AddressSession, SiteResource } from './types'
 import { setSiteLocale, useI18n } from './i18n'
 import { useToast } from './toast'
 
-type View = 'address' | 'inbox' | 'admin'
+type View = 'address' | 'inbox' | 'admin' | 'bulk'
 
 const initialRoute = parseRoute(window.location.pathname)
 const view = ref<View>(initialRoute.name === 'admin' ? 'admin' : 'address')
@@ -122,7 +123,7 @@ async function reconcileRoute(): Promise<void> {
   view.value = 'address'
   loading.value = true
   try {
-    const response = await api.token(route.address)
+    const response = await api.token(route.address, accessToken.value || undefined)
     if (version === navigationVersion) openInbox({ address: route.address, token: response.token }, false)
   } catch (cause) {
     if (version === navigationVersion) {
@@ -139,6 +140,11 @@ function newAddress(): void {
   current.value = null
   view.value = 'address'
   if (location.pathname !== '/') history.pushState({}, '', '/')
+}
+
+function openBulk(): void {
+  navigationVersion += 1
+  view.value = 'bulk'
 }
 
 async function unlock(): Promise<void> {
@@ -215,11 +221,13 @@ onBeforeUnmount(() => {
       :show-unlock="view !== 'admin'"
       :access-token="accessToken"
       :unlocking="unlocking"
+      :bulk-active="view === 'bulk'"
       v-model:unlock-open="unlockOpen"
       v-model:unlock-value="unlockValue"
       @home="newAddress"
       @unlock="unlock"
       @lock="lock"
+      @bulk="openBulk"
     />
 
     <main id="main-content" tabindex="-1">
@@ -240,6 +248,11 @@ onBeforeUnmount(() => {
           :session="current"
           :fetch-seconds="site?.fetchSeconds ?? 20"
           @new-address="newAddress"
+        />
+
+        <BulkGenerateView
+          v-else-if="view === 'bulk'"
+          :access-token="accessToken"
         />
 
         <section v-else-if="loading" class="handoff-loading" aria-live="polite">

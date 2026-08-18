@@ -448,6 +448,14 @@ main {
   color: var(--ink);
 }
 
+.app-header-nav a[aria-current='page'] {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.35em;
+}
+
 .header-unlock {
   position: relative;
   display: flex;
@@ -590,6 +598,61 @@ main {
 
 .saved-inboxes li:last-child {
   border-bottom: 0;
+}
+
+.bulk-controls {
+  display: flex;
+  align-items: end;
+  gap: 1rem;
+}
+
+.bulk-controls .field {
+  min-width: 12rem;
+}
+
+.bulk-results {
+  margin-top: 1.5rem;
+}
+
+.bulk-partial {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.bulk-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bulk-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.bulk-list li:last-child {
+  border-bottom: 0;
+}
+
+.bulk-open-button {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+}
+
+.bulk-open-button:hover {
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--accent);
 }
 
 .saved-address {
@@ -1569,6 +1632,15 @@ main {
 
   .address-fields {
     grid-template-columns: 1fr;
+  }
+
+  .bulk-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .bulk-controls .field {
+    min-width: 0;
   }
 
   .at-sign {

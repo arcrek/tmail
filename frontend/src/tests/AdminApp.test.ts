@@ -114,7 +114,7 @@ const dashboard = {
     active: 2,
     domainsToday: 3,
     domainsSevenDays: 9,
-    recentDomains: [{ domain: 'fresh.example', created_at: '2026-07-22T07:30:00Z' }],
+    recentMxFailures: [],
   },
   autoSyncDomains: true,
   lastSync: { success: false, detail: 'ValueError', created_at: '2026-07-22T09:00:00Z' },
@@ -356,7 +356,7 @@ describe('administration frontend', () => {
     expect(wrapper.text()).toContain('Messages today')
     expect(wrapper.text()).toContain('Messages in seven days')
     expect(wrapper.find('canvas').exists()).toBe(false)
-    expect(wrapper.text()).not.toMatch(/CPU|memory|host uptime|active domains|provision|domain sync|auto-sync/i)
+    expect(wrapper.text()).not.toMatch(/CPU|memory|host uptime|provision|domain sync|auto-sync/i)
   })
 
   it('saves general settings with the in-memory CSRF token', async () => {
