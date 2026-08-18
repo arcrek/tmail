@@ -1,7 +1,7 @@
 ---
 title: "Toast notification system for frontend"
 description: "Add a global toast layer and replace the repeated inline form-status/form-error message pattern across the public and admin frontend with it."
-status: pending
+status: completed
 priority: P2
 effort: 6.5h
 issue: null
@@ -26,10 +26,10 @@ No new npm dependency — codebase has zero UI libraries today (`frontend/packag
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | [Toast core: composable, component, styles, mount](./phase-01-toast-core.md) | Pending |
-| 2 | [Migrate AddressPanel + App.vue route error](./phase-02-migrate-address-panel.md) | Pending |
-| 3 | [Migrate 5 admin tabs](./phase-03-migrate-admin-tabs.md) | Pending |
-| 4 | [i18n keys, tests, cleanup](./phase-04-tests-cleanup.md) | Pending |
+| 1 | [Toast core: composable, component, styles, mount](./phase-01-toast-core.md) | Completed |
+| 2 | [Migrate AddressPanel + App.vue route error](./phase-02-migrate-address-panel.md) | Completed |
+| 3 | [Migrate 5 admin tabs](./phase-03-migrate-admin-tabs.md) | Completed |
+| 4 | [i18n keys, tests, cleanup](./phase-04-tests-cleanup.md) | Completed |
 
 ## What moves to toast vs. what stays inline
 
@@ -46,3 +46,5 @@ No new npm dependency — codebase has zero UI libraries today (`frontend/packag
 
 - No cross-plan dependencies (scan found no unfinished plan touching these files; one unrelated blocked plan exists: `260812-1455-domain-blacklist-patterns`).
 - No new package dependency.
+
+**Post-completion note (2026-08-18):** merged via PR #1 (`0547b0b`). `frontend/src/toast.ts` / `ToastStack.vue` exist and are live. Frontmatter/phase statuses above were stale (still `pending`) until corrected during pre-creation scan for [[260818-0723-toast-copy-actions]], which extends this toast system with per-toast action buttons — see that plan for `blockedBy`.
