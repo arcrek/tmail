@@ -63,6 +63,50 @@ const collection = (
 })
 
 describe('InboxView polling', () => {
+  it('announces new mail with a copy-actions toast', async () => {
+    const wrapper = mount(InboxView, {
+      props: {
+        session: { address: 'box@example.com', token: 'signed' },
+        fetchSeconds: 1,
+      },
+    })
+
+    await flushPromises()
+
+    expect(mocks.message).not.toHaveBeenCalled()
+
+    mocks.messages.mockResolvedValue(collection(['one', 'two']))
+    mocks.message.mockResolvedValue({
+      ...summary('two'),
+      cc: [],
+      bcc: [],
+      flagged: false,
+      verifications: [],
+      retention: false,
+      retentionDate: null,
+      text: 'Your code is 482913',
+      html: [],
+      attachments: [],
+    })
+
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushPromises()
+
+    expect(mocks.message).toHaveBeenCalledWith('signed', 'two')
+
+    const { default: ToastStack } = await import('../components/ToastStack.vue')
+    const { useToast } = await import('../toast')
+    useToast()
+    const wrapper2 = mount(ToastStack)
+    await flushPromises()
+
+    expect(wrapper2.text()).toContain('Copy code')
+    expect(wrapper2.text()).toContain('Copy email')
+
+    wrapper.unmount()
+    wrapper2.unmount()
+  })
+
   let hidden = false
 
   beforeEach(() => {
