@@ -638,9 +638,20 @@ main {
   border-bottom: 0;
 }
 
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.85rem;
+}
+
 .bulk-partial {
   color: var(--muted);
   line-height: 1.5;
+}
+
+.bulk-copy-all {
+  margin-bottom: 0.85rem;
 }
 
 .bulk-list {
@@ -846,6 +857,17 @@ main {
   gap: 0.8rem;
   padding-top: 0.4rem;
   border-top: 1px solid var(--line);
+}
+
+/* The sidebar column stays narrow (17-22rem) at every viewport width, unlike the
+   full-width address form this markup is shared with — force the stacked layout
+   the wide form only gets under the 640px breakpoint. */
+.inbox-create .address-fields {
+  grid-template-columns: 1fr;
+}
+
+.inbox-create .at-sign {
+  display: none;
 }
 
 .inbox-create-state {

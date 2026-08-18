@@ -185,7 +185,7 @@ onBeforeUnmount(() => {
             <td v-else>{{ row.subject || t('bulkCode.noSubject') }}</td>
             <td v-if="row.status === 'loading'"><span class="skeleton skeleton-label" /></td>
             <td v-else>{{ row.code || t('bulkCode.noCode') }}</td>
-            <td><button class="text-button" type="button" :disabled="!row.code" :aria-label="t('bulkCode.copyCodeFor', { address: row.address })" @click="copy(row.code ?? '', 'bulkCode.codeCopied')">{{ t('bulkCode.copyCode') }}</button><button v-if="row.status === 'error'" class="text-button" type="button" @click="resolveRow(row)">{{ t('address.retry') }}</button></td>
+            <td><span class="row-actions"><button class="text-button" type="button" :disabled="!row.code" :aria-label="t('bulkCode.copyCodeFor', { address: row.address })" @click="copy(row.code ?? '', 'bulkCode.codeCopied')">{{ t('bulkCode.copyCode') }}</button><button v-if="row.status === 'error'" class="text-button" type="button" @click="resolveRow(row)">{{ t('address.retry') }}</button></span></td>
           </tr>
         </tbody>
       </table>

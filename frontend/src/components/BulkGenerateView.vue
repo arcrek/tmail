@@ -70,6 +70,15 @@ async function copy(address: string): Promise<void> {
     toast.error(t('error.copy'))
   }
 }
+
+async function copyAll(): Promise<void> {
+  try {
+    await copyText(addresses.value.join('\n'))
+    toast.success(t('bulk.copiedAllNotice'))
+  } catch {
+    toast.error(t('error.copy'))
+  }
+}
 </script>
 
 <template>
@@ -115,18 +124,24 @@ async function copy(address: string): Promise<void> {
         {{ t('bulk.partial', { count: partialCount }) }}
       </p>
       <p v-if="addresses.length === 0" class="empty-copy">{{ t('bulk.empty') }}</p>
-      <ul v-else class="bulk-list">
-        <li v-for="address in addresses" :key="address">
-          <span class="saved-address">{{ address }}</span>
-          <button class="text-button" type="button" @click="copy(address)">
-            <AppIcon :name="copiedAddress === address ? 'check' : 'copy'" />
-            {{ copiedAddress === address ? t('bulk.copied') : t('bulk.copy') }}
-          </button>
-          <button class="bulk-open-button" type="button" :aria-label="t('bulk.open')" @click="openInNewTab(address)">
-            <AppIcon name="external-link" />
-          </button>
-        </li>
-      </ul>
+      <template v-else>
+        <button class="secondary-button compact-button bulk-copy-all" type="button" @click="copyAll">
+          <AppIcon name="copy" />
+          {{ t('bulk.copyAll') }}
+        </button>
+        <ul class="bulk-list">
+          <li v-for="address in addresses" :key="address">
+            <span class="saved-address">{{ address }}</span>
+            <button class="text-button" type="button" @click="copy(address)">
+              <AppIcon :name="copiedAddress === address ? 'check' : 'copy'" />
+              {{ copiedAddress === address ? t('bulk.copied') : t('bulk.copy') }}
+            </button>
+            <button class="bulk-open-button" type="button" :aria-label="t('bulk.open')" @click="openInNewTab(address)">
+              <AppIcon name="external-link" />
+            </button>
+          </li>
+        </ul>
+      </template>
     </div>
   </section>
 </template>
