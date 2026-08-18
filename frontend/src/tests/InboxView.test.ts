@@ -4,21 +4,33 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiError } from '../api'
 import InboxView from '../components/InboxView.vue'
 import { setLocale } from '../i18n'
 
 const styles = readFileSync(resolve(process.cwd(), 'src/styles.css'), 'utf8')
 
 const mocks = vi.hoisted(() => ({
+  domains: vi.fn(),
+  token: vi.fn(),
   messages: vi.fn(),
   message: vi.fn(),
   setSeen: vi.fn(),
   streamMessages: vi.fn(),
+  toastError: vi.fn(),
 }))
 
 vi.mock('../api', async () => {
   const actual = await vi.importActual<typeof import('../api')>('../api')
   return { ...actual, api: { ...actual.api, ...mocks }, streamMessages: mocks.streamMessages }
+})
+
+vi.mock('../toast', async () => {
+  const actual = await vi.importActual<typeof import('../toast')>('../toast')
+  return {
+    ...actual,
+    useToast: () => ({ ...actual.useToast(), error: mocks.toastError }),
+  }
 })
 
 enableAutoUnmount(afterEach)
@@ -60,6 +72,14 @@ const collection = (
     ...(next ? { 'hydra:next': `/messages?page=${page + 1}` } : {}),
     ...(previous ? { 'hydra:previous': `/messages?page=${page - 1}` } : {}),
   },
+})
+
+const domains = (values: string[]) => ({
+  '@context': '/contexts/Domain',
+  '@id': '/domains',
+  '@type': 'hydra:Collection',
+  'hydra:totalItems': values.length,
+  'hydra:member': values.map((domain, index) => ({ id: String(index), domain })),
 })
 
 describe('InboxView polling', () => {
@@ -117,6 +137,9 @@ describe('InboxView polling', () => {
     mocks.message.mockReset().mockResolvedValue({ ...summary('one'), cc: [], bcc: [], flagged: false, verifications: [], retention: false, retentionDate: null, text: 'Body', html: [], attachments: [] })
     mocks.setSeen.mockReset().mockResolvedValue({ seen: true })
     mocks.streamMessages.mockReset().mockRejectedValue(new Error('Stream failed'))
+    mocks.domains.mockReset().mockResolvedValue(domains(['example.com']))
+    mocks.token.mockReset().mockResolvedValue({ id: 'account-id', token: 'created-token' })
+    mocks.toastError.mockReset()
   })
 
   afterEach(() => {
@@ -134,6 +157,94 @@ describe('InboxView polling', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('Làm mới')
     expect(wrapper.get('.message-list').attributes('aria-label')).toBe('Thư')
+  })
+
+  it('keeps inline creation collapsed until requested, then loads domains', async () => {
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
+    })
+    await flushPromises()
+
+    const toggle = wrapper.get('#inbox-create-toggle')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect(wrapper.find('#inbox-create-address').exists()).toBe(false)
+    expect(mocks.domains).not.toHaveBeenCalled()
+
+    await toggle.trigger('click')
+    await flushPromises()
+
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    expect(mocks.domains).toHaveBeenCalledWith(1, undefined)
+    expect(wrapper.get('label[for="inbox-create-local-part"]').exists()).toBe(true)
+    expect(wrapper.get('label[for="inbox-create-domain"]').exists()).toBe(true)
+  })
+
+  it('creates an address from the inline form', async () => {
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
+    })
+    await flushPromises()
+    await wrapper.get('#inbox-create-toggle').trigger('click')
+    await flushPromises()
+    await wrapper.get('#inbox-create-local-part').setValue('paper')
+    await wrapper.get('#inbox-create-address form').trigger('submit')
+    await flushPromises()
+
+    expect(mocks.token).toHaveBeenCalledWith('paper@example.com', undefined)
+    expect(wrapper.emitted('create')?.[0]).toEqual([
+      { address: 'paper@example.com', token: 'created-token' },
+    ])
+  })
+
+  it('creates a random address without a separate submit action', async () => {
+    vi.stubGlobal('crypto', { getRandomValues: (values: Uint32Array) => {
+      values.set([1, 2, 3, 4, 5, 6])
+      return values
+    } })
+    mocks.domains.mockResolvedValue(domains(['one.example', 'two.example']))
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
+    })
+    await flushPromises()
+    await wrapper.get('#inbox-create-toggle').trigger('click')
+    await flushPromises()
+    await wrapper.get('#inbox-create-address .text-button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.emitted('create')?.[0]).toEqual([
+      { address: 'cifuhe@two.example', token: 'created-token' },
+    ])
+  })
+
+  it('keeps domain-load failures inside the inline create section', async () => {
+    mocks.domains.mockRejectedValue(new ApiError(502, 'Domain list unavailable'))
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
+    })
+    await flushPromises()
+    await wrapper.get('#inbox-create-toggle').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('#inbox-create-address').text()).toContain('Domain list unavailable')
+    expect(wrapper.find('.message-list').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Message one')
+  })
+
+  it('keeps the inline form open and editable when creation fails', async () => {
+    mocks.token.mockRejectedValue(new ApiError(422, 'Invalid address'))
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
+    })
+    await flushPromises()
+    await wrapper.get('#inbox-create-toggle').trigger('click')
+    await flushPromises()
+    await wrapper.get('#inbox-create-local-part').setValue('paper')
+    await wrapper.get('#inbox-create-address form').trigger('submit')
+    await flushPromises()
+
+    expect(mocks.toastError).toHaveBeenCalledWith('Invalid address')
+    expect(wrapper.find('#inbox-create-address').exists()).toBe(true)
+    expect((wrapper.get('#inbox-create-local-part').element as HTMLInputElement).value).toBe('paper')
   })
 
   it('narrows rows by a case-insensitive subject fragment', async () => {

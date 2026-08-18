@@ -841,6 +841,25 @@ main {
   font-size: var(--text-xs);
 }
 
+.inbox-create {
+  display: grid;
+  gap: 0.8rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--line);
+}
+
+.inbox-create-state {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+}
+
+.inbox-create-state p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 .message-list {
   overflow: hidden;
   background: var(--surface);
