@@ -451,6 +451,21 @@ describe('address flow', () => {
     expect(wrapper.get('.home-hero').text()).toContain('Receive mail. Keep your address.')
   })
 
+  it('shows bulk code reading from the header and returns home from the brand link', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await wrapper.get('.bulk-code-link').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('#bulk-code-title').text()).toBe('Read verification codes')
+    expect(wrapper.get('.bulk-code-link').attributes('aria-current')).toBe('page')
+
+    await wrapper.get('.app-header .brand').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('#bulk-code-title').exists()).toBe(false)
+    expect(wrapper.get('.address-form').exists()).toBe(true)
+  })
+
   it('leaves a modifier-clicked header brand alone (no reset, no address change)', async () => {
     history.replaceState({}, '', '/box@example.com')
     const wrapper = mount(App)
