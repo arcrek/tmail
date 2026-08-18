@@ -2,18 +2,20 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError, api, streamMessages } from '../api'
 import { copyText } from '../clipboard'
+import { randomDomain, randomLocalPart } from '../randomAddress'
 import { useToast } from '../toast'
-import type { AddressSession, HydraCollection, MessageSummary } from '../types'
+import type { AddressSession, DomainResource, HydraCollection, MessageSummary } from '../types'
 import { extractVerificationCode } from '../verificationCode'
 import AppIcon from './AppIcon.vue'
 import MessageReader from './MessageReader.vue'
 import { useI18n } from '../i18n'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   session: AddressSession
   fetchSeconds: number
-}>()
-const emit = defineEmits<{ newAddress: [] }>()
+  accessToken?: string
+}>(), { accessToken: '' })
+const emit = defineEmits<{ newAddress: []; create: [session: AddressSession] }>()
 const { t, formatDate: localDate } = useI18n()
 const toast = useToast()
 
@@ -29,6 +31,14 @@ const notificationPermission = ref<NotificationPermission>(
   typeof Notification === 'undefined' ? 'denied' : Notification.permission,
 )
 const listHeading = ref<HTMLElement | null>(null)
+const createOpen = ref(false)
+const createDomains = ref<DomainResource[]>([])
+const createDomain = ref('')
+const createLocalPart = ref('')
+const createLoadingDomains = ref(false)
+const createDomainsLoaded = ref(false)
+const createDomainError = ref('')
+const createSubmitting = ref(false)
 let interval: number | undefined
 let streamController: AbortController | undefined
 let requestVersion = 0
@@ -54,9 +64,61 @@ const messages = computed(() => {
 })
 const canPrevious = computed(() => Boolean(collection.value?.['hydra:view']['hydra:previous']))
 const canNext = computed(() => Boolean(collection.value?.['hydra:view']['hydra:next']))
+const createAddress = computed(() =>
+  createLocalPart.value && createDomain.value
+    ? `${createLocalPart.value.trim().toLowerCase()}@${createDomain.value}`
+    : '',
+)
 
 function failure(cause: unknown): string {
   return cause instanceof ApiError ? cause.message : t('error.inbox')
+}
+
+const createFailure = (cause: unknown) =>
+  cause instanceof ApiError ? cause.message : t('error.unavailable')
+
+async function loadCreateDomains(): Promise<void> {
+  if (createLoadingDomains.value) return
+  createLoadingDomains.value = true
+  createDomainError.value = ''
+  try {
+    const response = await api.domains(1, props.accessToken || undefined)
+    createDomains.value = response['hydra:member'].filter((domain) => domain.isActive !== false)
+    createDomain.value = createDomains.value[0]?.domain ?? ''
+    createDomainsLoaded.value = true
+  } catch (cause) {
+    createDomainError.value = createFailure(cause)
+  } finally {
+    createLoadingDomains.value = false
+  }
+}
+
+function toggleCreate(): void {
+  createOpen.value = !createOpen.value
+  if (createOpen.value && !createDomainsLoaded.value) void loadCreateDomains()
+}
+
+async function submitCreate(): Promise<void> {
+  if (!createAddress.value) return
+  createSubmitting.value = true
+  try {
+    const response = await api.token(createAddress.value, props.accessToken || undefined)
+    emit('create', { address: createAddress.value, token: response.token })
+    createOpen.value = false
+    createLocalPart.value = ''
+    createDomain.value = ''
+  } catch (cause) {
+    toast.error(createFailure(cause))
+  } finally {
+    createSubmitting.value = false
+  }
+}
+
+async function randomizeCreate(): Promise<void> {
+  if (!createDomains.value.length || createSubmitting.value) return
+  createLocalPart.value = randomLocalPart()
+  createDomain.value = randomDomain(createDomains.value.map((domain) => domain.domain))
+  await submitCreate()
 }
 
 function formatDate(value: string): string {
@@ -238,6 +300,11 @@ watch([() => props.session.address, () => props.session.token], resetSession)
 watch(() => props.fetchSeconds, () => {
   if (!streamController) startPolling()
 })
+watch(() => props.accessToken, () => {
+  if (!createDomainsLoaded.value) return
+  createDomainsLoaded.value = false
+  void loadCreateDomains()
+})
 
 onMounted(() => {
   document.addEventListener('visibilitychange', handleVisibility)
@@ -295,6 +362,70 @@ onBeforeUnmount(() => {
 
       <p v-if="notice" class="toolbar-notice" aria-live="polite">{{ notice }}</p>
       <p class="auto-refresh-hint">{{ t('inbox.autoRefresh', { seconds: fetchSeconds }) }}</p>
+
+      <button
+        class="text-button"
+        type="button"
+        aria-controls="inbox-create-address"
+        :aria-expanded="createOpen"
+        @click="toggleCreate"
+      >
+        {{ t('address.create') }}
+      </button>
+
+      <section v-if="createOpen" id="inbox-create-address" :aria-label="t('address.create')">
+        <div v-if="createLoadingDomains" class="message-list-state" aria-live="polite">
+          <span class="skeleton skeleton-field" />
+          <span class="sr-only">{{ t('address.loading') }}</span>
+        </div>
+
+        <div v-else-if="createDomainError" class="message-list-state" role="alert">
+          <p>{{ createDomainError }}</p>
+          <button class="secondary-button compact-button" type="button" @click="loadCreateDomains">
+            {{ t('address.retry') }}
+          </button>
+        </div>
+
+        <div v-else-if="!createDomains.length" class="message-list-state">
+          <p>{{ t('address.noneHelp') }}</p>
+        </div>
+
+        <form v-else class="address-form" @submit.prevent="submitCreate">
+          <div class="address-fields">
+            <div class="field local-field">
+              <label for="inbox-create-local-part">{{ t('address.name') }}</label>
+              <input
+                id="inbox-create-local-part"
+                v-model="createLocalPart"
+                name="inbox-create-local-part"
+                autocomplete="off"
+                autocapitalize="none"
+                minlength="1"
+                maxlength="64"
+                pattern="[A-Za-z0-9](?:[A-Za-z0-9._+\-]*[A-Za-z0-9])?"
+                required
+              >
+            </div>
+            <span class="at-sign" aria-hidden="true">@</span>
+            <div class="field domain-field">
+              <label for="inbox-create-domain">{{ t('address.domain') }}</label>
+              <select id="inbox-create-domain" v-model="createDomain" name="inbox-create-domain" required>
+                <option v-for="domain in createDomains" :key="domain.id" :value="domain.domain">
+                  {{ domain.domain }}
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <button class="primary-button" type="submit" :disabled="createSubmitting || !createAddress">
+            {{ createSubmitting ? t('address.opening') : t('address.open') }}
+          </button>
+          <button class="text-button" type="button" :disabled="createSubmitting" @click="randomizeCreate">
+            <AppIcon name="sparkles" />
+            {{ t('address.random') }}
+          </button>
+        </form>
+      </section>
     </div>
 
     <MessageReader
