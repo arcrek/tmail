@@ -146,23 +146,45 @@ function notifyNew(values: MessageSummary[]): void {
   initialized = true
 }
 
-async function copyAction(text: string, notice: 'address.copied' | 'inbox.codeCopied' = 'address.copied'): Promise<void> {
+async function copyAction(text: string, noticeKey: 'address.copied' | 'inbox.codeCopied' = 'address.copied'): Promise<void> {
   try {
     await copyText(text)
-    toast.success(t(notice))
+    toast.success(t(noticeKey))
   } catch {
     toast.error(t('error.copy'))
   }
 }
 
+// Shared by resolveCodes() (row chips) and announceToast() (new-mail toast) so a
+// message that arrives while the list is open only triggers one api.message()
+// call, not two independent fetches racing each other. Cached/in-flight per id
+// (codeCache/codeFetches); the write is gated on the session that started the
+// fetch still being current — a poll-triggered requestVersion bump alone must
+// not discard an otherwise-valid same-session result.
+async function fetchCode(item: MessageSummary): Promise<string> {
+  const cached = codeCache.value.get(item.id)
+  if (cached !== undefined) return cached
+  const session = props.session
+  let fetch = codeFetches.get(item.id)
+  if (!fetch) {
+    fetch = api.message(session.token, item.id)
+      .then((full) => extractVerificationCode(full.subject, full.text, full.html))
+    codeFetches.set(item.id, fetch)
+    const clearFetch = () => {
+      if (codeFetches.get(item.id) === fetch) codeFetches.delete(item.id)
+    }
+    void fetch.then(clearFetch, clearFetch)
+  }
+  const code = await fetch
+  if (props.session.token === session.token) codeCache.value.set(item.id, code)
+  return code
+}
+
 async function announceToast(item: MessageSummary): Promise<void> {
-  // Snapshot the session that received this message — props.session can change
-  // (user switches address) while the api.message() fetch below is in flight.
-  const { token, address } = props.session
+  const address = props.session.address
   let code = ''
   try {
-    const full = await api.message(token, item.id)
-    code = extractVerificationCode(full.subject, full.text, full.html)
+    code = await fetchCode(item)
   } catch {
     // best-effort — still show the toast with just the copy-email action
   }
@@ -173,22 +195,9 @@ async function announceToast(item: MessageSummary): Promise<void> {
   toast.success(item.subject || t('inbox.noSubject'), actions)
 }
 
-async function resolveCodes(items: MessageSummary[], version: number): Promise<void> {
+async function resolveCodes(items: MessageSummary[]): Promise<void> {
   const targets = items.filter((item) => !codeCache.value.has(item.id))
-  await Promise.allSettled(targets.map(async (item) => {
-    let fetch = codeFetches.get(item.id)
-    if (!fetch) {
-      fetch = api.message(props.session.token, item.id)
-        .then((full) => extractVerificationCode(full.subject, full.text, full.html))
-      codeFetches.set(item.id, fetch)
-      const clearFetch = () => {
-        if (codeFetches.get(item.id) === fetch) codeFetches.delete(item.id)
-      }
-      void fetch.then(clearFetch, clearFetch)
-    }
-    const code = await fetch
-    if (version === requestVersion) codeCache.value.set(item.id, code)
-  }))
+  await Promise.allSettled(targets.map((item) => fetchCode(item)))
 }
 
 async function refresh(): Promise<void> {
@@ -201,7 +210,7 @@ async function refresh(): Promise<void> {
     const value = await api.messages(props.session.token, requestedPage)
     if (version !== requestVersion) return
     collection.value = value
-    void resolveCodes(value['hydra:member'], version)
+    void resolveCodes(value['hydra:member'])
     if (requestedPage === 1) notifyNew(value['hydra:member'])
   } catch (cause) {
     if (version === requestVersion) error.value = failure(cause)

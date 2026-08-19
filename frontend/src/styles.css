@@ -997,6 +997,7 @@ main {
 
 .message-row-code {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   align-self: center;
   gap: 0.35rem;
@@ -1006,11 +1007,15 @@ main {
   background: var(--surface-2);
   color: var(--ink);
   font-size: var(--text-xs);
+  white-space: nowrap;
 }
 
 .message-row-code:hover { border-color: var(--primary); }
 
 .code-value {
+  overflow: hidden;
+  max-width: 8rem;
+  text-overflow: ellipsis;
   font-family: var(--font-mono);
   font-weight: 700;
 }
