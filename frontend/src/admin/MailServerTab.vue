@@ -67,7 +67,7 @@ async function testConnection(): Promise<void> {
     <form class="settings-form" @submit.prevent="save">
       <fieldset class="settings-fields" :disabled="pending || testing">
         <div class="settings-card panel">
-          <h2 class="card-title">JMAP Endpoint Configuration</h2>
+          <h2 class="card-title">{{ t('mail.jmapConfig') }}</h2>
           <div class="field">
             <label for="jmap-url">{{ t('mail.url') }}</label>
             <input id="jmap-url" v-model.trim="draft.jmapUrl" name="jmapUrl" type="url" class="font-mono" required>
@@ -80,7 +80,7 @@ async function testConnection(): Promise<void> {
         </div>
 
         <div class="settings-card panel">
-          <h2 class="card-title">Account & Data Retention</h2>
+          <h2 class="card-title">{{ t('mail.accountRetention') }}</h2>
           <div class="settings-grid">
             <div class="field">
               <label for="catchall-address">{{ t('mail.catchall') }}</label>

@@ -103,7 +103,7 @@ async function save(): Promise<void> {
         </div>
 
         <div class="settings-card panel">
-          <h2 class="card-title">Branding & Assets</h2>
+          <h2 class="card-title">{{ t('general.brandingAssets') }}</h2>
           <div class="settings-grid">
             <div class="field image-upload-field">
               <label for="logo">{{ t('general.logo') }}</label>
@@ -147,7 +147,7 @@ async function save(): Promise<void> {
         </div>
 
         <div class="settings-card panel">
-          <h2 class="card-title">Cookie Consent</h2>
+          <h2 class="card-title">{{ t('general.cookieConsent') }}</h2>
           <label class="check-field">
             <input v-model="draft.cookieEnabled" name="cookieEnabled" type="checkbox">
             <span>{{ t('general.cookieEnabled') }}</span>

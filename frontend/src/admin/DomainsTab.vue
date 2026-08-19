@@ -269,7 +269,7 @@ async function syncNow(): Promise<void> {
     <form class="settings-form" @submit.prevent="addManualDomain">
       <fieldset class="settings-fields" :disabled="pending || syncing">
         <div class="settings-card panel">
-          <h2 class="card-title">Add Whitelist Domain</h2>
+          <h2 class="card-title">{{ t('domains.addWhitelist') }}</h2>
           <div class="field">
             <label for="manual-domain">{{ t('address.domain') }}</label>
             <div class="form-actions inline-add-row">
@@ -285,7 +285,7 @@ async function syncNow(): Promise<void> {
     <form class="settings-form" @submit.prevent="save">
       <fieldset class="settings-fields" :disabled="pending || syncing">
         <div class="settings-card panel">
-          <h2 class="card-title">Domain Sync & Policy Configuration</h2>
+          <h2 class="card-title">{{ t('domains.syncPolicy') }}</h2>
           <label class="check-field margin-bottom-md">
             <input :checked="draft.autoSyncDomains" name="autoSyncDomains" type="checkbox" @change="changeAutoSync">
             <span>{{ t('domains.auto') }}</span>

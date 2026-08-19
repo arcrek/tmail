@@ -11,8 +11,9 @@ import DomainsTab from './DomainsTab.vue'
 import GeneralTab from './GeneralTab.vue'
 import MailServerTab from './MailServerTab.vue'
 import { useI18n } from '../i18n'
+import type { MessageKey } from '../i18n'
 
-const tabs: Array<{ id: Tab; key: string; icon: IconName }> = [
+const tabs: Array<{ id: Tab; key: MessageKey; icon: IconName }> = [
   { id: 'dashboard', key: 'admin.dashboard', icon: 'layout-dashboard' },
   { id: 'general', key: 'admin.general', icon: 'sliders' },
   { id: 'mail', key: 'admin.mail', icon: 'server' },

@@ -89,7 +89,7 @@ async function save(): Promise<void> {
     <form class="settings-form" @submit.prevent="save">
       <fieldset class="settings-fields" :disabled="pending">
         <div class="settings-card panel">
-          <h2 class="card-title">Header HTML</h2>
+          <h2 class="card-title">{{ t('content.headerTitle') }}</h2>
           <div class="content-editor-grid">
             <div class="field">
               <div class="label-row-with-counter">
@@ -108,7 +108,7 @@ async function save(): Promise<void> {
         </div>
 
         <div class="settings-card panel">
-          <h2 class="card-title">Footer HTML</h2>
+          <h2 class="card-title">{{ t('content.footerTitle') }}</h2>
           <div class="content-editor-grid">
             <div class="field">
               <div class="label-row-with-counter">
@@ -127,7 +127,7 @@ async function save(): Promise<void> {
         </div>
 
         <div class="settings-card panel">
-          <h2 class="card-title">Custom CSS Sandbox</h2>
+          <h2 class="card-title">{{ t('content.cssTitle') }}</h2>
           <div class="field">
             <div class="label-row-with-counter">
               <label for="content-css">{{ t('content.css') }}</label>

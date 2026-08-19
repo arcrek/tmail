@@ -922,6 +922,15 @@ main {
   50% { opacity: 0.4; transform: scale(0.85); }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
 .inbox-create-heading {
   margin: 0;
 }
@@ -1549,11 +1558,11 @@ main {
   min-width: 0;
   border-right: 1px solid var(--line);
   background: var(--surface);
-}
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   padding-bottom: 1rem;
+}
 
 .admin-sidebar nav {
   display: grid;
