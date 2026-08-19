@@ -20,6 +20,7 @@ const { t, formatDate: localDate } = useI18n()
 const toast = useToast()
 
 const collection = ref<HydraCollection<MessageSummary> | null>(null)
+const codeCache = ref(new Map<string, string>())
 const selectedId = ref<string | null>(null)
 const page = ref(1)
 const loading = ref(true)
@@ -43,6 +44,7 @@ let streamController: AbortController | undefined
 let requestVersion = 0
 let initialized = false
 let knownIds = new Set<string>()
+let codeFetches = new Map<string, Promise<string>>()
 
 // The reader replaces the message list in-place (v-if), so closing it unmounts the reader's
 // own focused element; move focus back to the list region instead of dropping to <body>.
@@ -144,10 +146,10 @@ function notifyNew(values: MessageSummary[]): void {
   initialized = true
 }
 
-async function copyAction(text: string): Promise<void> {
+async function copyAction(text: string, notice: 'address.copied' | 'inbox.codeCopied' = 'address.copied'): Promise<void> {
   try {
     await copyText(text)
-    toast.success(t('address.copied'))
+    toast.success(t(notice))
   } catch {
     toast.error(t('error.copy'))
   }
@@ -166,9 +168,27 @@ async function announceToast(item: MessageSummary): Promise<void> {
   }
   const actions = [
     { label: t('inbox.copyEmailAction'), onClick: () => void copyAction(address) },
-    ...(code ? [{ label: t('inbox.copyCodeAction'), onClick: () => void copyAction(code) }] : []),
+    ...(code ? [{ label: t('inbox.copyCodeAction'), onClick: () => void copyAction(code, 'inbox.codeCopied') }] : []),
   ]
   toast.success(item.subject || t('inbox.noSubject'), actions)
+}
+
+async function resolveCodes(items: MessageSummary[], version: number): Promise<void> {
+  const targets = items.filter((item) => !codeCache.value.has(item.id))
+  await Promise.allSettled(targets.map(async (item) => {
+    let fetch = codeFetches.get(item.id)
+    if (!fetch) {
+      fetch = api.message(props.session.token, item.id)
+        .then((full) => extractVerificationCode(full.subject, full.text, full.html))
+      codeFetches.set(item.id, fetch)
+      const clearFetch = () => {
+        if (codeFetches.get(item.id) === fetch) codeFetches.delete(item.id)
+      }
+      void fetch.then(clearFetch, clearFetch)
+    }
+    const code = await fetch
+    if (version === requestVersion) codeCache.value.set(item.id, code)
+  }))
 }
 
 async function refresh(): Promise<void> {
@@ -181,6 +201,7 @@ async function refresh(): Promise<void> {
     const value = await api.messages(props.session.token, requestedPage)
     if (version !== requestVersion) return
     collection.value = value
+    void resolveCodes(value['hydra:member'], version)
     if (requestedPage === 1) notifyNew(value['hydra:member'])
   } catch (cause) {
     if (version === requestVersion) error.value = failure(cause)
@@ -291,6 +312,8 @@ function resetSession(): void {
   notice.value = ''
   initialized = false
   knownIds = new Set<string>()
+  codeCache.value = new Map()
+  codeFetches = new Map()
   streamController?.abort()
   streamController = undefined
   void refresh()
@@ -472,26 +495,42 @@ onBeforeUnmount(() => {
 
       <template v-else>
         <p v-if="error" class="list-error" role="alert">{{ error }}</p>
-        <button
+        <ul class="message-rows">
+          <li
           v-for="item in messages"
           :key="item.id"
-          class="message-row"
-          :class="{ unread: !item.seen }"
-          type="button"
-          @click="selectedId = item.id"
-        >
-          <span class="message-row-top">
-            <strong>{{ item.from.name || item.from.address }}</strong>
-            <time :datetime="item.createdAt">{{ formatDate(item.createdAt) }}</time>
-          </span>
-          <span v-if="!item.seen" class="sr-only">{{ t('inbox.unread') }}</span>
-          <span class="message-subject">{{ item.subject || t('inbox.noSubject') }}</span>
-          <span class="message-intro">{{ item.intro || t('inbox.noPreview') }}</span>
-          <span v-if="item.hasAttachments" class="attachment-flag">
-            <AppIcon name="paperclip" />
-            <span class="sr-only">{{ t('inbox.attachment') }}</span>
-          </span>
-        </button>
+          class="message-row-item"
+          >
+            <button
+              class="message-row"
+              :class="{ unread: !item.seen }"
+              type="button"
+              @click="selectedId = item.id"
+            >
+              <span class="message-row-top">
+                <strong>{{ item.from.name || item.from.address }}</strong>
+                <time :datetime="item.createdAt">{{ formatDate(item.createdAt) }}</time>
+              </span>
+              <span v-if="!item.seen" class="sr-only">{{ t('inbox.unread') }}</span>
+              <span class="message-subject">{{ item.subject || t('inbox.noSubject') }}</span>
+              <span class="message-intro">{{ item.intro || t('inbox.noPreview') }}</span>
+              <span v-if="item.hasAttachments" class="attachment-flag">
+                <AppIcon name="paperclip" />
+                <span class="sr-only">{{ t('inbox.attachment') }}</span>
+              </span>
+            </button>
+            <button
+              v-if="codeCache.get(item.id)"
+              class="message-row-code"
+              type="button"
+              :aria-label="t('inbox.copyCodeFor', { address: item.from.address })"
+              @click="copyAction(codeCache.get(item.id) ?? '', 'inbox.codeCopied')"
+            >
+              <span class="code-value">{{ codeCache.get(item.id) }}</span>
+              <AppIcon name="copy" />
+            </button>
+          </li>
+        </ul>
       </template>
 
       <nav v-if="canPrevious || canNext" class="pagination" :aria-label="t('inbox.pages')">
