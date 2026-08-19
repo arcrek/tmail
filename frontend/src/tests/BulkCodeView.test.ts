@@ -67,6 +67,17 @@ describe('BulkCodeView', () => {
     expect(wrapper.text()).toContain('123456')
     expect(wrapper.get('[role="alert"]').text()).toContain('Domain not accepted')
   })
+  it('exports code rows as CSV', async () => {
+    const wrapper = mount(BulkCodeView, { props: { fetchSeconds: 20 } })
+    await wrapper.get('#bulk-code-addresses').setValue('one@example.com')
+    await wrapper.get('.bulk-controls').trigger('submit')
+    await flushPromises()
+
+    const exportBtn = wrapper.find('.bulk-export-csv')
+    expect(exportBtn.exists()).toBe(true)
+    expect(exportBtn.text()).toContain('Export CSV')
+  })
+
 
   it('shows no-message placeholders instead of an error', async () => {
     mocks.messages.mockResolvedValue(messages(''))

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted, ref } from 'vue'
 import AppIcon from './AppIcon.vue'
 import ThemeToggle from './ThemeToggle.vue'
 import UnlockControl from './UnlockControl.vue'
@@ -21,12 +22,41 @@ const emit = defineEmits<{ home: []; unlock: []; lock: []; bulk: []; bulkCode: [
 const unlockOpen = defineModel<boolean>('unlockOpen', { required: true })
 const unlockValue = defineModel<string>('unlockValue', { required: true })
 const { locale, selectLocale, t } = useI18n()
+const mobileOpen = ref(false)
+
+function closeMobileMenu(): void {
+  mobileOpen.value = false
+}
+
+function toggleMobileMenu(): void {
+  mobileOpen.value = !mobileOpen.value
+}
+
+function onKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape' && mobileOpen.value) {
+    closeMobileMenu()
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 function onBrandClick(event: MouseEvent): void {
+  closeMobileMenu()
   if (event.defaultPrevented || event.button !== 0) return
   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
   event.preventDefault()
   emit('home')
+}
+
+function onBulkClick(): void {
+  closeMobileMenu()
+  emit('bulk')
+}
+
+function onBulkCodeClick(): void {
+  closeMobileMenu()
+  emit('bulkCode')
 }
 
 function onLocaleChange(event: Event): void {
@@ -41,20 +71,40 @@ function onLocaleChange(event: Event): void {
       <span class="brand-name">{{ appName || t('app.defaultName') }}</span>
     </a>
 
-    <nav class="app-header-nav" :aria-label="t('nav.site')">
-      <a href="/docs">
+    <div class="header-right-actions">
+      <ThemeToggle />
+      <button
+        class="mobile-menu-button"
+        type="button"
+        :aria-expanded="mobileOpen"
+        :aria-label="t('nav.toggleMenu')"
+        aria-controls="app-header-nav"
+        @click="toggleMobileMenu"
+      >
+        <AppIcon :name="mobileOpen ? 'x' : 'menu'" />
+        <span class="sr-only">{{ t('nav.menu') }}</span>
+      </button>
+    </div>
+
+    <nav
+      id="app-header-nav"
+      class="app-header-nav"
+      :class="{ 'mobile-open': mobileOpen }"
+      :aria-label="t('nav.site')"
+    >
+      <a href="/docs" @click="closeMobileMenu">
         <AppIcon name="external-link" />
         {{ t('nav.docs') }}
       </a>
-      <a class="bulk-link" href="#" :aria-current="props.bulkActive ? 'page' : undefined" @click.prevent="emit('bulk')">
+      <a class="bulk-link" href="#" :aria-current="props.bulkActive ? 'page' : undefined" @click.prevent="onBulkClick">
         <AppIcon name="sparkles" />
         {{ t('nav.bulk') }}
       </a>
-      <a class="bulk-code-link" href="#" :aria-current="props.bulkCodeActive ? 'page' : undefined" @click.prevent="emit('bulkCode')">
+      <a class="bulk-code-link" href="#" :aria-current="props.bulkCodeActive ? 'page' : undefined" @click.prevent="onBulkCodeClick">
         <AppIcon name="file-text" />
         {{ t('nav.bulkCode') }}
       </a>
-      <a class="admin-link" href="/admin">
+      <a class="admin-link" href="/admin" @click="closeMobileMenu">
         <AppIcon name="shield" />
         {{ t('nav.admin') }}
       </a>
@@ -76,7 +126,9 @@ function onLocaleChange(event: Event): void {
           <option value="vi">{{ t('locale.vietnamese') }}</option>
         </select>
       </label>
-      <ThemeToggle />
+      <div class="desktop-theme-toggle">
+        <ThemeToggle />
+      </div>
     </nav>
   </header>
 </template>

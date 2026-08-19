@@ -706,4 +706,51 @@ describe('InboxView polling', () => {
     expect(toastStack.text()).toContain('Address copied.')
     toastStack.unmount()
   })
+  it('renders countdown indicator and ticks down during polling', async () => {
+    vi.useFakeTimers()
+    mocks.streamMessages.mockImplementation(() => Promise.reject(new Error('stream closed')))
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 15 },
+    })
+    await flushPromises()
+
+    const pill = wrapper.find('.refresh-countdown-pill')
+    expect(pill.exists()).toBe(true)
+    expect(pill.text()).toContain('Auto-refresh in 15s')
+
+    vi.advanceTimersByTime(2000)
+    await wrapper.vm.$nextTick()
+    expect(pill.text()).toContain('Auto-refresh in 13s')
+    vi.useRealTimers()
+  })
+
+  it('toggles the collapsible create section', async () => {
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
+    })
+    await flushPromises()
+
+    const toggleBtn = wrapper.get('.inbox-create-toggle-button')
+    expect(toggleBtn.attributes('aria-expanded')).toBe('false')
+    expect(wrapper.get('#inbox-create-address').attributes('style')).toContain('display: none')
+
+    await toggleBtn.trigger('click')
+    expect(toggleBtn.attributes('aria-expanded')).toBe('true')
+    expect(wrapper.get('#inbox-create-address').attributes('style') || '').not.toContain('display: none')
+  })
+
+  it('opens and closes the QR code modal', async () => {
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
+    })
+    await flushPromises()
+
+    expect(wrapper.find('.qr-modal-backdrop').exists()).toBe(false)
+    await wrapper.get('[data-action="qr-code"]').trigger('click')
+    expect(wrapper.find('.qr-modal-backdrop').exists()).toBe(true)
+    expect(wrapper.find('.qr-address-text').text()).toBe('box@example.com')
+
+    await wrapper.get('.qr-close-button').trigger('click')
+    expect(wrapper.find('.qr-modal-backdrop').exists()).toBe(false)
+  })
 })
