@@ -16,7 +16,7 @@ const props = withDefaults(defineProps<{
   fetchSeconds: number
   accessToken?: string
 }>(), { accessToken: '' })
-const emit = defineEmits<{ newAddress: []; create: [session: AddressSession] }>()
+const emit = defineEmits<{ create: [session: AddressSession] }>()
 const { t, formatDate: localDate } = useI18n()
 const toast = useToast()
 
@@ -405,8 +405,15 @@ onBeforeUnmount(() => {
           <AppIcon name="refresh-cw" />
           {{ refreshing ? t('inbox.refreshing') : t('inbox.refresh') }}
         </button>
-        <button class="secondary-button" type="button" data-action="new-address" @click="emit('newAddress')">
-          <AppIcon name="plus" />
+        <button
+          class="secondary-button"
+          type="button"
+          data-action="new-address"
+          :aria-expanded="createExpanded"
+          aria-controls="inbox-create-address"
+          @click="createExpanded = !createExpanded"
+        >
+          <AppIcon :name="createExpanded ? 'x' : 'plus'" />
           {{ t('inbox.new') }}
         </button>
         <button
@@ -448,20 +455,6 @@ onBeforeUnmount(() => {
           {{ refreshing ? t('inbox.refreshing') : t('inbox.refreshIn', { seconds: remainingSeconds }) }}
         </span>
       </div>
-
-      <div class="inbox-create-header">
-        <button
-          class="secondary-button compact-button inbox-create-toggle-button"
-          type="button"
-          :aria-expanded="createExpanded"
-          aria-controls="inbox-create-address"
-          @click="createExpanded = !createExpanded"
-        >
-          <AppIcon :name="createExpanded ? 'x' : 'plus'" />
-          {{ t('inbox.createToggle') }}
-        </button>
-      </div>
-
       <section
         v-show="createExpanded"
         id="inbox-create-address"

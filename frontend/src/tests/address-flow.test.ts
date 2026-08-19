@@ -414,7 +414,7 @@ describe('address flow', () => {
     await flushPromises()
     expect(location.pathname).toBe('/alpha%40example.com')
 
-    await wrapper.get('[data-action="new-address"]').trigger('click')
+    await wrapper.get('.app-header .home-link').trigger('click')
     await flushPromises()
     await wrapper.get('#local-part').setValue('beta')
     await wrapper.get('form').trigger('submit')
