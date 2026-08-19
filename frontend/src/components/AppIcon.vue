@@ -28,6 +28,15 @@ export type IconName =
   | 'volume-2'
   | 'volume-x'
   | 'qr'
+  | 'layout-dashboard'
+  | 'sliders'
+  | 'server'
+  | 'globe'
+  | 'key'
+  | 'code-2'
+  | 'alert-triangle'
+  | 'mail'
+  | 'clock'
 type Shape = { tag: 'path' | 'circle' | 'rect' | 'line' | 'polyline'; attrs: Record<string, string> }
 
 const props = defineProps<{ name: IconName }>()
@@ -174,6 +183,57 @@ const ICONS: Record<IconName, Shape[]> = {
     { tag: 'path', attrs: { d: 'M16 12h1' } },
     { tag: 'path', attrs: { d: 'M21 12v.01' } },
     { tag: 'path', attrs: { d: 'M12 21v-1' } },
+  ],
+  'layout-dashboard': [
+    { tag: 'rect', attrs: { width: '7', height: '9', x: '3', y: '3', rx: '1' } },
+    { tag: 'rect', attrs: { width: '7', height: '5', x: '14', y: '3', rx: '1' } },
+    { tag: 'rect', attrs: { width: '7', height: '9', x: '14', y: '12', rx: '1' } },
+    { tag: 'rect', attrs: { width: '7', height: '5', x: '3', y: '16', rx: '1' } },
+  ],
+  sliders: [
+    { tag: 'line', attrs: { x1: '4', x2: '4', y1: '21', y2: '14' } },
+    { tag: 'line', attrs: { x1: '4', x2: '4', y1: '10', y2: '3' } },
+    { tag: 'line', attrs: { x1: '12', x2: '12', y1: '21', y2: '12' } },
+    { tag: 'line', attrs: { x1: '12', x2: '12', y1: '8', y2: '3' } },
+    { tag: 'line', attrs: { x1: '20', x2: '20', y1: '21', y2: '16' } },
+    { tag: 'line', attrs: { x1: '20', x2: '20', y1: '12', y2: '3' } },
+    { tag: 'line', attrs: { x1: '2', x2: '6', y1: '14', y2: '14' } },
+    { tag: 'line', attrs: { x1: '10', x2: '14', y1: '8', y2: '8' } },
+    { tag: 'line', attrs: { x1: '18', x2: '22', y1: '16', y2: '16' } },
+  ],
+  server: [
+    { tag: 'rect', attrs: { width: '20', height: '8', x: '2', y: '2', rx: '2', ry: '2' } },
+    { tag: 'rect', attrs: { width: '20', height: '8', x: '2', y: '14', rx: '2', ry: '2' } },
+    { tag: 'line', attrs: { x1: '6', x2: '6.01', y1: '6', y2: '6' } },
+    { tag: 'line', attrs: { x1: '6', x2: '6.01', y1: '18', y2: '18' } },
+  ],
+  globe: [
+    { tag: 'circle', attrs: { cx: '12', cy: '12', r: '10' } },
+    { tag: 'path', attrs: { d: 'M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20' } },
+    { tag: 'path', attrs: { d: 'M2 12h20' } },
+  ],
+  key: [
+    { tag: 'circle', attrs: { cx: '7.5', cy: '7.5', r: '4.5' } },
+    { tag: 'path', attrs: { d: 'm21 2-9.6 9.6' } },
+    { tag: 'path', attrs: { d: 'm15.5 7.5 3 3' } },
+  ],
+  'code-2': [
+    { tag: 'path', attrs: { d: 'm18 16 4-4-4-4' } },
+    { tag: 'path', attrs: { d: 'm6 8-4 4 4 4' } },
+    { tag: 'path', attrs: { d: 'm14.5 4-5 16' } },
+  ],
+  'alert-triangle': [
+    { tag: 'path', attrs: { d: 'm21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z' } },
+    { tag: 'line', attrs: { x1: '12', x2: '12', y1: '9', y2: '13' } },
+    { tag: 'line', attrs: { x1: '12', x2: '12.01', y1: '17', y2: '17' } },
+  ],
+  mail: [
+    { tag: 'rect', attrs: { width: '20', height: '16', x: '2', y: '4', rx: '2' } },
+    { tag: 'path', attrs: { d: 'm22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7' } },
+  ],
+  clock: [
+    { tag: 'circle', attrs: { cx: '12', cy: '12', r: '10' } },
+    { tag: 'polyline', attrs: { points: '12 6 12 12 16 14' } },
   ],
 }
 

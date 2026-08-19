@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { api } from '../api'
+import AppIcon from '../components/AppIcon.vue'
+import type { IconName } from '../components/AppIcon.vue'
 import type { AdminSettings } from '../types'
 import AccessTab from './AccessTab.vue'
 import ContentTab from './ContentTab.vue'
@@ -10,8 +12,15 @@ import GeneralTab from './GeneralTab.vue'
 import MailServerTab from './MailServerTab.vue'
 import { useI18n } from '../i18n'
 
-const tabs = [{ id: 'dashboard', key: 'admin.dashboard' }, { id: 'general', key: 'admin.general' }, { id: 'mail', key: 'admin.mail' }, { id: 'domains', key: 'admin.domains' }, { id: 'access', key: 'admin.access' }, { id: 'content', key: 'admin.content' }] as const
-type Tab = typeof tabs[number]['id']
+const tabs: Array<{ id: Tab; key: string; icon: IconName }> = [
+  { id: 'dashboard', key: 'admin.dashboard', icon: 'layout-dashboard' },
+  { id: 'general', key: 'admin.general', icon: 'sliders' },
+  { id: 'mail', key: 'admin.mail', icon: 'server' },
+  { id: 'domains', key: 'admin.domains', icon: 'globe' },
+  { id: 'access', key: 'admin.access', icon: 'key' },
+  { id: 'content', key: 'admin.content', icon: 'code-2' },
+]
+type Tab = 'dashboard' | 'general' | 'mail' | 'domains' | 'access' | 'content'
 const { t } = useI18n()
 
 const password = ref('')
@@ -149,7 +158,7 @@ async function logout(): Promise<void> {
   <div v-else class="admin-shell three-pane">
     <a class="skip-link" href="#admin-main-content">{{ t('a11y.skipToContent') }}</a>
     <aside class="admin-account-rail account-rail">
-      <div class="api-status"><i aria-hidden="true" /> {{ t('admin.apiStatus') }} <strong>{{ t('admin.healthy') }}</strong></div>
+      <div class="api-status"><span class="pulse-dot" aria-hidden="true" /> {{ t('admin.apiStatus') }} <strong>{{ t('admin.healthy') }}</strong></div>
       <button class="rail-signout" type="button" :disabled="pending || childBusy" @click="logout">
         {{ pending ? t('admin.loggingOut') : t('admin.logout') }}
       </button>
@@ -170,7 +179,10 @@ async function logout(): Promise<void> {
           :tabindex="activeTab === tab.id ? 0 : -1"
           @click="selectTab(tab.id)"
           @keydown="moveTab($event, index)"
-        >{{ t(tab.key) }}</button>
+        >
+          <AppIcon :name="tab.icon" />
+          <span>{{ t(tab.key) }}</span>
+        </button>
       </nav>
     </aside>
 

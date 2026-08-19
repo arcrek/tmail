@@ -66,16 +66,52 @@ async function testConnection(): Promise<void> {
     <h1 id="mail-server-title">{{ t('admin.mail') }}</h1>
     <form class="settings-form" @submit.prevent="save">
       <fieldset class="settings-fields" :disabled="pending || testing">
-        <div class="field"><label for="jmap-url">{{ t('mail.url') }}</label><input id="jmap-url" v-model.trim="draft.jmapUrl" name="jmapUrl" type="url" required></div>
-        <div class="field"><label for="jmap-token">{{ t('mail.token') }}</label><input id="jmap-token" v-model="draft.jmapToken" name="jmapToken" type="password" autocomplete="new-password" required><small>{{ t('mail.tokenHelp') }}</small></div>
-        <div class="settings-grid">
-          <div class="field"><label for="catchall-address">{{ t('mail.catchall') }}</label><input id="catchall-address" v-model.trim="draft.catchallAddress" name="catchallAddress" type="email" required></div>
-          <div class="field"><label for="mail-account-id">{{ t('mail.account') }}</label><input id="mail-account-id" v-model.trim="draft.mailAccountId" name="mailAccountId"><small>{{ t('mail.accountHelp') }}</small></div>
-          <div class="field"><label for="retention-days">{{ t('mail.retention') }}</label><input id="retention-days" v-model.number="draft.retentionDays" name="retentionDays" type="number" min="1" max="3650" required></div>
+        <div class="settings-card panel">
+          <h2 class="card-title">JMAP Endpoint Configuration</h2>
+          <div class="field">
+            <label for="jmap-url">{{ t('mail.url') }}</label>
+            <input id="jmap-url" v-model.trim="draft.jmapUrl" name="jmapUrl" type="url" class="font-mono" required>
+          </div>
+          <div class="field">
+            <label for="jmap-token">{{ t('mail.token') }}</label>
+            <input id="jmap-token" v-model="draft.jmapToken" name="jmapToken" type="password" autocomplete="new-password" class="font-mono" required>
+            <small>{{ t('mail.tokenHelp') }}</small>
+          </div>
         </div>
+
+        <div class="settings-card panel">
+          <h2 class="card-title">Account & Data Retention</h2>
+          <div class="settings-grid">
+            <div class="field">
+              <label for="catchall-address">{{ t('mail.catchall') }}</label>
+              <input id="catchall-address" v-model.trim="draft.catchallAddress" name="catchallAddress" type="email" required>
+            </div>
+            <div class="field">
+              <label for="mail-account-id">{{ t('mail.account') }}</label>
+              <input id="mail-account-id" v-model.trim="draft.mailAccountId" name="mailAccountId">
+              <small>{{ t('mail.accountHelp') }}</small>
+            </div>
+            <div class="field">
+              <label for="retention-days">{{ t('mail.retention') }}</label>
+              <div class="retention-input-row">
+                <input id="retention-days" v-model.number="draft.retentionDays" name="retentionDays" type="number" min="1" max="3650" required>
+                <div class="preset-chips">
+                  <span v-for="days in [7, 30, 90, 365]" :key="days" role="button" tabindex="0" class="chip-button" :class="{ active: draft.retentionDays === days }" @click="draft.retentionDays = days" @keydown.enter.prevent="draft.retentionDays = days" @keydown.space.prevent="draft.retentionDays = days">
+                    {{ days }}d
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="form-actions">
-          <button class="secondary-button" type="button" :disabled="testing || pending" @click="testConnection">{{ testing ? t('mail.testing') : t('mail.test') }}</button>
-          <button class="primary-button" type="submit" :disabled="pending || testing">{{ pending ? t('reader.saving') : t('mail.save') }}</button>
+          <button class="secondary-button" type="button" :disabled="testing || pending" @click="testConnection">
+            {{ testing ? t('mail.testing') : t('mail.test') }}
+          </button>
+          <button class="primary-button" type="submit" :disabled="pending || testing">
+            {{ pending ? t('reader.saving') : t('mail.save') }}
+          </button>
         </div>
       </fieldset>
     </form>
