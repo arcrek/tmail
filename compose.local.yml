@@ -1,6 +1,8 @@
 services:
   api:
-    image: ghcr.io/arcrek/tmail-api:${TMAIL_IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.api
     environment:
       TMAIL_CONFIG: /var/lib/tmail-policy/config.json
       TMAIL_CONFIG_SEED: /run/tmail/config.json
@@ -15,7 +17,9 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ghcr.io/arcrek/tmail-frontend:${TMAIL_IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
     environment:
       TMAIL_TRUST_FORWARD_HEADERS: ${TMAIL_TRUST_FORWARD_HEADERS:-off}
       NGINX_ENVSUBST_FILTER: "^TMAIL_TRUST_FORWARD_HEADERS$$"
