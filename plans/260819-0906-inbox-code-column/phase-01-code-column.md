@@ -14,7 +14,7 @@
 ## Overview
 
 - Priority: P2
-- Status: Planned
+- Status: Completed
 - Fetch and cache the extracted code for each visible message row (full-body fetch, not the list preview), and render a copy chip on rows where a code was found — without opening the message.
 
 ## Key Insights
@@ -90,12 +90,12 @@ Outer list container changes from a bare `<template v-else>` list of `<button>`s
 
 ## Todo List
 
-- [ ] `codeCache` populated via `resolveCodes()`, guarded by `requestVersion`, cleared on `resetSession()`
-- [ ] Row markup split into wrapper + open-button + conditional copy button, no nested `<button>`
-- [ ] Copy button copies the right value, shows success/error toast, doesn't trigger row open
-- [ ] CSS: chip readable at desktop and 640px mobile breakpoint, doesn't visually clutter rows with no code
-- [ ] i18n keys added in both `en` and `vi`
-- [ ] New tests green, full existing `InboxView.test.ts` suite still green (`npx vitest run frontend/src/tests/InboxView.test.ts`)
+- [x] `codeCache` populated via `resolveCodes()`, guarded by `requestVersion`, cleared on `resetSession()`
+- [x] Row markup split into wrapper + open-button + conditional copy button, no nested `<button>`
+- [x] Copy button copies the right value, shows success/error toast, doesn't trigger row open
+- [x] CSS: chip readable at desktop and 640px mobile breakpoint, doesn't visually clutter rows with no code
+- [x] i18n keys added in both `en` and `vi`
+- [x] New tests green, full existing `InboxView.test.ts` suite still green (`npx vitest run frontend/src/tests/InboxView.test.ts`)
 
 ## Success Criteria
 

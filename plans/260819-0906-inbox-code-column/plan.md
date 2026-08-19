@@ -1,7 +1,7 @@
 ---
 title: "Inbox code column"
 description: "Show each inbox message row's extracted verification code inline with a one-click copy button, so a visitor never has to open the message just to grab the code."
-status: planned
+status: completed
 priority: P2
 effort: 3h
 issue: null
@@ -36,7 +36,7 @@ Scanned `plans/`: all existing plans are `completed`/`done`. No unfinished plan 
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | [Code column: fetch/cache + row UI](./phase-01-code-column.md) | Planned |
+| 1 | [Code column: fetch/cache + row UI](./phase-01-code-column.md) | Completed |
 
 ## Dependencies
 
