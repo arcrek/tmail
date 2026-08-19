@@ -4,6 +4,7 @@ import { ApiError, api } from '../api'
 import { copyText } from '../clipboard'
 import { useI18n } from '../i18n'
 import { randomAddressBatch } from '../randomAddress'
+import { downloadCsv } from '../csv'
 import { useToast } from '../toast'
 import type { DomainResource } from '../types'
 import AppIcon from './AppIcon.vue'
@@ -79,6 +80,12 @@ async function copyAll(): Promise<void> {
     toast.error(t('error.copy'))
   }
 }
+function exportCsv(): void {
+  if (!addresses.value.length) return
+  const header = 'address\n'
+  const rows = addresses.value.map((addr) => `"${addr.replace(/"/g, '""')}"`).join('\n')
+  downloadCsv('tmail-addresses.csv', header + rows + '\n')
+}
 </script>
 
 <template>
@@ -106,11 +113,7 @@ async function copyAll(): Promise<void> {
     <button type="button" disabled>{{ t('bulk.generate') }}</button>
   </div>
 
-  <section v-else class="panel saved-inboxes" aria-labelledby="bulk-controls-title">
-    <div class="panel-heading">
-      <h2 id="bulk-controls-title">{{ t('bulk.title') }}</h2>
-    </div>
-
+  <section v-else class="panel saved-inboxes" aria-labelledby="bulk-title">
     <form class="bulk-controls" @submit.prevent="generate">
       <div class="field">
         <label for="bulk-count">{{ t('bulk.countLabel') }}</label>
@@ -125,10 +128,16 @@ async function copyAll(): Promise<void> {
       </p>
       <p v-if="addresses.length === 0" class="empty-copy">{{ t('bulk.empty') }}</p>
       <template v-else>
-        <button class="secondary-button compact-button bulk-copy-all" type="button" @click="copyAll">
-          <AppIcon name="copy" />
-          {{ t('bulk.copyAll') }}
-        </button>
+        <div class="bulk-actions-bar">
+          <button class="secondary-button compact-button bulk-copy-all" type="button" @click="copyAll">
+            <AppIcon name="copy" />
+            {{ t('bulk.copyAll') }}
+          </button>
+          <button class="secondary-button compact-button bulk-export-csv" type="button" @click="exportCsv">
+            <AppIcon name="download" />
+            {{ t('bulk.exportCsv') }}
+          </button>
+        </div>
         <ul class="bulk-list">
           <li v-for="address in addresses" :key="address">
             <span class="saved-address">{{ address }}</span>

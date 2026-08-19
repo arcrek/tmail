@@ -79,6 +79,23 @@ describe('BulkGenerateView', () => {
     await rows[0]!.get('.text-button').trigger('click')
     expect(mocks.copyText).toHaveBeenCalledWith(address)
   })
+  it('exports generated addresses as CSV', async () => {
+    let value = 0
+    vi.stubGlobal('crypto', {
+      getRandomValues: (values: Uint32Array) => {
+        values.fill(value++)
+        return values
+      },
+    })
+    const wrapper = mount(BulkGenerateView)
+    await flushPromises()
+    await wrapper.get('#bulk-count').setValue(2)
+    await wrapper.get('.bulk-controls').trigger('submit')
+
+    const exportBtn = wrapper.find('.bulk-export-csv')
+    expect(exportBtn.exists()).toBe(true)
+    expect(exportBtn.text()).toContain('Export CSV')
+  })
 
   it('clears a generated batch when the access token changes', async () => {
     let value = 0

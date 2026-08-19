@@ -22,7 +22,11 @@ export type IconName =
   | 'file-text'
   | 'sparkles'
   | 'shield'
-
+  | 'menu'
+  | 'x'
+  | 'volume-2'
+  | 'volume-x'
+  | 'qr'
 type Shape = { tag: 'path' | 'circle' | 'rect' | 'line' | 'polyline'; attrs: Record<string, string> }
 
 const props = defineProps<{ name: IconName }>()
@@ -132,6 +136,39 @@ const ICONS: Record<IconName, Shape[]> = {
         d: 'M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z',
       },
     },
+  ],
+  menu: [
+    { tag: 'line', attrs: { x1: '4', x2: '20', y1: '12', y2: '12' } },
+    { tag: 'line', attrs: { x1: '4', x2: '20', y1: '6', y2: '6' } },
+    { tag: 'line', attrs: { x1: '4', x2: '20', y1: '18', y2: '18' } },
+  ],
+  x: [
+    { tag: 'path', attrs: { d: 'M18 6 6 18' } },
+    { tag: 'path', attrs: { d: 'm6 6 12 12' } },
+  ],
+  'volume-2': [
+    { tag: 'path', attrs: { d: 'M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z' } },
+    { tag: 'path', attrs: { d: 'M16 9a5 5 0 0 1 0 6' } },
+    { tag: 'path', attrs: { d: 'M19.364 5.636a9 9 0 0 1 0 12.728' } },
+  ],
+  'volume-x': [
+    { tag: 'path', attrs: { d: 'M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z' } },
+    { tag: 'line', attrs: { x1: '22', x2: '16', y1: '9', y2: '15' } },
+    { tag: 'line', attrs: { x1: '16', x2: '22', y1: '9', y2: '15' } },
+  ],
+  qr: [
+    { tag: 'rect', attrs: { width: '5', height: '5', x: '3', y: '3', rx: '1' } },
+    { tag: 'rect', attrs: { width: '5', height: '5', x: '16', y: '3', rx: '1' } },
+    { tag: 'rect', attrs: { width: '5', height: '5', x: '3', y: '16', rx: '1' } },
+    { tag: 'path', attrs: { d: 'M21 16h-3a2 2 0 0 0-2 2v3' } },
+    { tag: 'path', attrs: { d: 'M21 21v.01' } },
+    { tag: 'path', attrs: { d: 'M12 7v3a2 2 0 0 1-2 2H7' } },
+    { tag: 'path', attrs: { d: 'M3 12h.01' } },
+    { tag: 'path', attrs: { d: 'M12 3h.01' } },
+    { tag: 'path', attrs: { d: 'M12 16v.01' } },
+    { tag: 'path', attrs: { d: 'M16 12h1' } },
+    { tag: 'path', attrs: { d: 'M21 12v.01' } },
+    { tag: 'path', attrs: { d: 'M12 21v-1' } },
   ],
 }
 

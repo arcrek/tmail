@@ -6,6 +6,7 @@ import { useI18n } from '../i18n'
 import { useToast } from '../toast'
 import { extractVerificationCode } from '../verificationCode'
 import AppIcon from './AppIcon.vue'
+import { downloadCsv } from '../csv'
 
 const props = withDefaults(defineProps<{ accessToken?: string; fetchSeconds: number }>(), { accessToken: '' })
 const { t } = useI18n()
@@ -142,6 +143,15 @@ async function copy(value: string, notice: 'bulkCode.codeCopied' | 'bulkCode.ema
     toast.error(t('error.copy'))
   }
 }
+function exportCsv(): void {
+  if (!rows.value.length) return
+  const header = 'address,subject,code,status,error\n'
+  const csvRows = rows.value.map((r) => {
+    const safe = (str: string | undefined) => `"${(str ?? '').replace(/"/g, '""')}"`
+    return `${safe(r.address)},${safe(r.subject)},${safe(r.code)},${safe(r.status)},${safe(r.error)}`
+  }).join('\n')
+  downloadCsv('tmail-codes.csv', header + csvRows + '\n')
+}
 
 onMounted(() => document.addEventListener('visibilitychange', handleVisibility))
 watch(() => props.fetchSeconds, startPolling)
@@ -159,8 +169,7 @@ onBeforeUnmount(() => {
     <p class="lede">{{ t('bulkCode.lede') }}</p>
   </section>
 
-  <section class="panel saved-inboxes" aria-labelledby="bulk-code-controls-title">
-    <div class="panel-heading"><h2 id="bulk-code-controls-title">{{ t('bulkCode.title') }}</h2></div>
+  <section class="panel saved-inboxes" aria-labelledby="bulk-code-title">
     <form class="bulk-controls" @submit.prevent="submit">
       <div class="field">
         <label for="bulk-code-addresses">{{ t('bulkCode.addresses') }}</label>
@@ -170,6 +179,10 @@ onBeforeUnmount(() => {
       <button v-if="rows.length" class="secondary-button" type="button" data-action="refresh" :disabled="refreshing" @click="manualRefresh">
         <AppIcon name="refresh-cw" />
         {{ refreshing ? t('bulkCode.refreshing') : t('bulkCode.refresh') }}
+      </button>
+      <button v-if="rows.length" class="secondary-button bulk-export-csv" type="button" @click="exportCsv">
+        <AppIcon name="download" />
+        {{ t('bulkCode.exportCsv') }}
       </button>
     </form>
     <p v-if="partialCount !== null" class="bulk-partial" role="status">{{ t('bulkCode.partial', { count: partialCount }) }}</p>

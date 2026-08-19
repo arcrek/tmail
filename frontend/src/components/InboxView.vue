@@ -8,8 +8,9 @@ import type { AddressSession, DomainResource, HydraCollection, MessageSummary } 
 import { extractVerificationCode } from '../verificationCode'
 import AppIcon from './AppIcon.vue'
 import MessageReader from './MessageReader.vue'
+import QrCodeModal from './QrCodeModal.vue'
+import { playNewMailChime, setSoundEnabled, soundEnabled } from '../sound'
 import { useI18n } from '../i18n'
-
 const props = withDefaults(defineProps<{
   session: AddressSession
   fetchSeconds: number
@@ -40,11 +41,15 @@ const createDomainsLoaded = ref(false)
 const createDomainError = ref('')
 const createSubmitting = ref(false)
 let interval: number | undefined
+let countdownInterval: number | undefined
 let streamController: AbortController | undefined
 let requestVersion = 0
 let initialized = false
 let knownIds = new Set<string>()
 let codeFetches = new Map<string, Promise<string>>()
+const remainingSeconds = ref(props.fetchSeconds)
+const createExpanded = ref(false)
+const showQrModal = ref(false)
 
 // The reader replaces the message list in-place (v-if), so closing it unmounts the reader's
 // own focused element; move focus back to the list region instead of dropping to <body>.
@@ -132,18 +137,30 @@ function formatDate(value: string): string {
   })
 }
 
-function notifyNew(values: MessageSummary[]): void {
-  if (initialized) {
-    const freshIds = values.filter(({ id }) => !knownIds.has(id))
-    for (const item of freshIds) {
+function notifyNew(items: MessageSummary[]): void {
+  if (!initialized) {
+    initialized = true
+    for (const item of items) knownIds.add(item.id)
+    return
+  }
+  let hasNew = false
+  for (const item of items) {
+    if (!knownIds.has(item.id)) {
+      knownIds.add(item.id)
+      hasNew = true
       if (notificationPermission.value === 'granted' && typeof Notification !== 'undefined') {
         new Notification(t('inbox.newMessage'), { body: t('inbox.newMessageBody') })
       }
       void announceToast(item)
     }
   }
-  for (const { id } of values) knownIds.add(id)
-  initialized = true
+  if (hasNew) {
+    playNewMailChime()
+  }
+}
+
+function toggleSound(): void {
+  setSoundEnabled(!soundEnabled.value)
 }
 
 async function copyAction(text: string, noticeKey: 'address.copied' | 'inbox.codeCopied' = 'address.copied'): Promise<void> {
@@ -218,22 +235,33 @@ async function refresh(): Promise<void> {
     if (version === requestVersion) {
       loading.value = false
       refreshing.value = false
+      remainingSeconds.value = Math.max(1, props.fetchSeconds)
     }
   }
 }
 
 function stopPolling(): void {
   if (interval !== undefined) window.clearInterval(interval)
+  if (countdownInterval !== undefined) window.clearInterval(countdownInterval)
   interval = undefined
+  countdownInterval = undefined
 }
 
 function startPolling(): void {
   stopPolling()
   if (!document.hidden) {
-    interval = window.setInterval(() => void refresh(), Math.max(1, props.fetchSeconds) * 1000)
+    remainingSeconds.value = Math.max(1, props.fetchSeconds)
+    countdownInterval = window.setInterval(() => {
+      if (remainingSeconds.value > 1) {
+        remainingSeconds.value -= 1
+      }
+    }, 1000)
+    interval = window.setInterval(() => {
+      remainingSeconds.value = Math.max(1, props.fetchSeconds)
+      void refresh()
+    }, Math.max(1, props.fetchSeconds) * 1000)
   }
 }
-
 function startStream(): void {
   stopPolling()
   streamController?.abort()
@@ -384,6 +412,26 @@ onBeforeUnmount(() => {
         <button
           class="secondary-button"
           type="button"
+          data-action="qr-code"
+          :aria-label="t('inbox.showQr')"
+          @click="showQrModal = true"
+        >
+          <AppIcon name="qr" />
+          <span>QR</span>
+        </button>
+        <button
+          class="secondary-button"
+          type="button"
+          data-action="sound"
+          :aria-label="soundEnabled ? t('inbox.soundOff') : t('inbox.soundOn')"
+          @click="toggleSound"
+        >
+          <AppIcon :name="soundEnabled ? 'volume-2' : 'volume-x'" />
+          <span>{{ soundEnabled ? t('inbox.soundOn') : t('inbox.soundOff') }}</span>
+        </button>
+        <button
+          class="secondary-button"
+          type="button"
           data-action="notifications"
           :disabled="notificationPermission === 'granted'"
           @click="enableNotifications"
@@ -394,11 +442,33 @@ onBeforeUnmount(() => {
       </div>
 
       <p v-if="notice" class="toolbar-notice" aria-live="polite">{{ notice }}</p>
-      <p class="auto-refresh-hint">{{ t('inbox.autoRefresh', { seconds: fetchSeconds }) }}</p>
+      <div class="auto-refresh-indicator">
+        <span class="refresh-countdown-pill" aria-live="polite">
+          <span class="countdown-dot" aria-hidden="true" />
+          {{ refreshing ? t('inbox.refreshing') : t('inbox.refreshIn', { seconds: remainingSeconds }) }}
+        </span>
+      </div>
 
-      <h2 id="inbox-create-heading" class="inbox-create-heading">{{ t('address.create') }}</h2>
+      <div class="inbox-create-header">
+        <button
+          class="secondary-button compact-button inbox-create-toggle-button"
+          type="button"
+          :aria-expanded="createExpanded"
+          aria-controls="inbox-create-address"
+          @click="createExpanded = !createExpanded"
+        >
+          <AppIcon :name="createExpanded ? 'x' : 'plus'" />
+          {{ t('inbox.createToggle') }}
+        </button>
+      </div>
 
-      <section id="inbox-create-address" class="inbox-create" aria-labelledby="inbox-create-heading">
+      <section
+        v-show="createExpanded"
+        id="inbox-create-address"
+        class="inbox-create"
+        aria-labelledby="inbox-create-heading"
+      >
+        <h2 id="inbox-create-heading" class="sr-only">{{ t('address.create') }}</h2>
         <div v-if="createLoadingDomains" class="inbox-create-state" aria-live="polite">
           <span class="skeleton skeleton-field" />
           <span class="sr-only">{{ t('address.loading') }}</span>
@@ -542,6 +612,11 @@ onBeforeUnmount(() => {
         </ul>
       </template>
 
+    <QrCodeModal
+      v-if="showQrModal"
+      :address="session.address"
+      @close="showQrModal = false"
+    />
       <nav v-if="canPrevious || canNext" class="pagination" :aria-label="t('inbox.pages')">
         <button type="button" :disabled="!canPrevious" @click="changePage(page - 1)">{{ t('inbox.previous') }}</button>
         <span>{{ t('inbox.page', { page }) }}</span>

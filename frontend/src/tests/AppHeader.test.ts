@@ -19,4 +19,25 @@ describe('AppHeader', () => {
     await link.trigger('click')
     expect(wrapper.emitted('bulkCode')).toHaveLength(1)
   })
+
+  it('toggles mobile menu and closes on escape', async () => {
+    initLocale()
+    const wrapper = mount(AppHeader, {
+      props: { unlockOpen: false, unlockValue: '', showLocalePicker: true, showUnlock: true },
+      global: { stubs: { ThemeToggle: true, UnlockControl: true } },
+    })
+
+    const toggleBtn = wrapper.get('.mobile-menu-button')
+    expect(toggleBtn.attributes('aria-expanded')).toBe('false')
+    expect(wrapper.get('.app-header-nav').classes()).not.toContain('mobile-open')
+
+    await toggleBtn.trigger('click')
+    expect(toggleBtn.attributes('aria-expanded')).toBe('true')
+    expect(wrapper.get('.app-header-nav').classes()).toContain('mobile-open')
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await wrapper.vm.$nextTick()
+    expect(toggleBtn.attributes('aria-expanded')).toBe('false')
+    expect(wrapper.get('.app-header-nav').classes()).not.toContain('mobile-open')
+  })
 })
