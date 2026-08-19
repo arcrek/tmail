@@ -87,17 +87,82 @@ async function save(): Promise<void> {
     <h1 id="general-title">{{ t('admin.general') }}</h1>
     <form class="settings-form" @submit.prevent="save">
       <fieldset class="settings-fields" :disabled="pending || filePending > 0">
-        <div class="settings-grid">
-          <div class="field"><label for="app-name">{{ t('general.appName') }}</label><input id="app-name" v-model.trim="draft.appName" name="appName" required></div>
-          <div class="field"><label for="language">{{ t('general.language') }}</label><input id="language" v-model.trim="draft.language" name="language" required><small>{{ t('general.languageHelp') }}</small></div>
-          <div class="field"><label for="primary-color">{{ t('general.primary') }}</label><input id="primary-color" v-model="draft.primaryColor" name="primaryColor" type="color"><small>{{ t('general.colorHelp') }}</small></div>
-          <div class="field"><label for="accent-color">{{ t('general.accent') }}</label><input id="accent-color" v-model="draft.accentColor" name="accentColor" type="color"><small>{{ t('general.colorHelp') }}</small></div>
-          <div class="field"><label for="logo">{{ t('general.logo') }}</label><input id="logo" name="logo" type="file" accept="image/*" @change="chooseImage($event, 'logoDataUrl')"><small>{{ t('general.imageHelp') }}</small></div>
-          <div class="field"><label for="favicon">{{ t('general.favicon') }}</label><input id="favicon" name="favicon" type="file" accept="image/*" @change="chooseImage($event, 'faviconDataUrl')"><small>{{ t('general.imageHelp') }}</small></div>
+        <div class="settings-card panel">
+          <h2 class="card-title">{{ t('admin.general') }}</h2>
+          <div class="settings-grid">
+            <div class="field">
+              <label for="app-name">{{ t('general.appName') }}</label>
+              <input id="app-name" v-model.trim="draft.appName" name="appName" required>
+            </div>
+            <div class="field">
+              <label for="language">{{ t('general.language') }}</label>
+              <input id="language" v-model.trim="draft.language" name="language" required>
+              <small>{{ t('general.languageHelp') }}</small>
+            </div>
+          </div>
         </div>
-        <label class="check-field"><input v-model="draft.cookieEnabled" name="cookieEnabled" type="checkbox"> {{ t('general.cookieEnabled') }}</label>
-        <div class="field"><label for="cookie-text">{{ t('general.cookieText') }}</label><textarea id="cookie-text" v-model="draft.cookieText" name="cookieText" rows="4" :disabled="!draft.cookieEnabled" /></div>
-        <div class="form-actions"><button class="primary-button" type="submit" :disabled="pending || filePending > 0">{{ pending ? t('reader.saving') : t('general.save') }}</button></div>
+
+        <div class="settings-card panel">
+          <h2 class="card-title">{{ t('general.brandingAssets') }}</h2>
+          <div class="settings-grid">
+            <div class="field image-upload-field">
+              <label for="logo">{{ t('general.logo') }}</label>
+              <div class="image-preview-container">
+                <img v-if="draft.logoDataUrl" :src="draft.logoDataUrl" alt="Logo preview" class="brand-preview-thumb">
+                <div v-else class="image-preview-placeholder">No logo</div>
+                <input id="logo" name="logo" type="file" accept="image/*" class="file-input-custom" @change="chooseImage($event, 'logoDataUrl')">
+              </div>
+              <small>{{ t('general.imageHelp') }}</small>
+            </div>
+
+            <div class="field image-upload-field">
+              <label for="favicon">{{ t('general.favicon') }}</label>
+              <div class="image-preview-container">
+                <img v-if="draft.faviconDataUrl" :src="draft.faviconDataUrl" alt="Favicon preview" class="brand-preview-thumb favicon-thumb">
+                <div v-else class="image-preview-placeholder">No favicon</div>
+                <input id="favicon" name="favicon" type="file" accept="image/*" class="file-input-custom" @change="chooseImage($event, 'faviconDataUrl')">
+              </div>
+              <small>{{ t('general.imageHelp') }}</small>
+            </div>
+          </div>
+
+          <div class="settings-grid margin-top-md">
+            <div class="field color-picker-field">
+              <label for="primary-color">{{ t('general.primary') }}</label>
+              <div class="color-input-wrapper">
+                <span class="color-swatch-preview" :style="{ backgroundColor: draft.primaryColor }" />
+                <input id="primary-color" v-model="draft.primaryColor" name="primaryColor" type="color">
+              </div>
+              <small>{{ t('general.colorHelp') }}</small>
+            </div>
+            <div class="field color-picker-field">
+              <label for="accent-color">{{ t('general.accent') }}</label>
+              <div class="color-input-wrapper">
+                <span class="color-swatch-preview" :style="{ backgroundColor: draft.accentColor }" />
+                <input id="accent-color" v-model="draft.accentColor" name="accentColor" type="color">
+              </div>
+              <small>{{ t('general.colorHelp') }}</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-card panel">
+          <h2 class="card-title">{{ t('general.cookieConsent') }}</h2>
+          <label class="check-field">
+            <input v-model="draft.cookieEnabled" name="cookieEnabled" type="checkbox">
+            <span>{{ t('general.cookieEnabled') }}</span>
+          </label>
+          <div class="field margin-top-sm">
+            <label for="cookie-text">{{ t('general.cookieText') }}</label>
+            <textarea id="cookie-text" v-model="draft.cookieText" name="cookieText" rows="4" :disabled="!draft.cookieEnabled" />
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="primary-button" type="submit" :disabled="pending || filePending > 0">
+            {{ pending ? t('reader.saving') : t('general.save') }}
+          </button>
+        </div>
       </fieldset>
     </form>
   </section>

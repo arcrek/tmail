@@ -326,6 +326,7 @@ def test_disabling_sync_freezes_current_whitelist(admin_client):
 
 def test_disabling_sync_freezes_latest_policy_cache(admin_client, cache_file):
     cache_file.write_text('["policy-added.example"]')
+    admin_client.app.state.domain_cache.load()
     response = admin_client.put("/admin/api/settings", json={"site": {
         "autoSyncDomains": False,
     }}, headers=admin_client.csrf)
@@ -451,7 +452,7 @@ def test_disable_and_sync_commit_in_one_order(admin_client, fake_jmap, monkeypat
 
     def paused_active_domains(request, settings=None):
         domains = real_active_domains(request, settings)
-        if settings and settings["auto_sync_domains"]:
+        if settings and "auto_sync_domains" in settings:
             snapshot_read.set()
             release_disable.wait(2)
         return domains

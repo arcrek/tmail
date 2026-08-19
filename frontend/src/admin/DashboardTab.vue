@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { api } from '../api'
+import AppIcon from '../components/AppIcon.vue'
 import type { DashboardResource } from '../types'
 import { useI18n } from '../i18n'
 
@@ -36,7 +37,8 @@ onMounted(refresh)
         <h1 id="dashboard-title">{{ t('admin.dashboard') }}</h1>
       </div>
       <button class="secondary-button compact-button" type="button" :disabled="loading" @click="refresh">
-        {{ loading ? t('inbox.refreshing') : t('inbox.refresh') }}
+        <AppIcon name="refresh-cw" :class="{ spinning: loading }" />
+        <span>{{ loading ? t('inbox.refreshing') : t('inbox.refresh') }}</span>
       </button>
     </div>
 
@@ -46,25 +48,79 @@ onMounted(refresh)
     </div>
 
     <template v-else-if="dashboard">
-      <dl class="metric-grid">
-        <div><dt>{{ t('dashboard.stored') }}</dt><dd>{{ formatNumber(dashboard.messages.stored) }}</dd></div>
-        <div><dt>{{ t('dashboard.today') }}</dt><dd>{{ formatNumber(dashboard.messages.today) }}</dd></div>
-        <div><dt>{{ t('dashboard.week') }}</dt><dd>{{ formatNumber(dashboard.messages.sevenDays) }}</dd></div>
-      </dl>
+      <div class="dashboard-kpi-container">
+        <h2 class="sr-only">Key Performance Indicators</h2>
+        <dl class="metric-grid">
+          <div class="metric-card">
+            <div class="metric-header">
+              <dt>{{ t('dashboard.stored') }}</dt>
+              <AppIcon name="mail" class="metric-icon" />
+            </div>
+            <dd class="metric-value">{{ formatNumber(dashboard.messages.stored) }}</dd>
+          </div>
+          <div class="metric-card">
+            <div class="metric-header">
+              <dt>{{ t('dashboard.today') }}</dt>
+              <AppIcon name="clock" class="metric-icon" />
+            </div>
+            <dd class="metric-value">{{ formatNumber(dashboard.messages.today) }}</dd>
+          </div>
+          <div class="metric-card">
+            <div class="metric-header">
+              <dt>{{ t('dashboard.week') }}</dt>
+              <AppIcon name="sparkles" class="metric-icon" />
+            </div>
+            <dd class="metric-value">{{ formatNumber(dashboard.messages.sevenDays) }}</dd>
+          </div>
+        </dl>
 
-      <dl class="metric-grid">
-        <div><dt>{{ t('dashboard.domainsActive') }}</dt><dd>{{ formatNumber(dashboard.domains.active) }}</dd></div>
-        <div><dt>{{ t('dashboard.domainsToday') }}</dt><dd>{{ formatNumber(dashboard.domains.domainsToday) }}</dd></div>
-        <div><dt>{{ t('dashboard.domainsWeek') }}</dt><dd>{{ formatNumber(dashboard.domains.domainsSevenDays) }}</dd></div>
-      </dl>
+        <dl class="metric-grid">
+          <div class="metric-card">
+            <div class="metric-header">
+              <dt>{{ t('dashboard.domainsActive') }}</dt>
+              <AppIcon name="globe" class="metric-icon" />
+            </div>
+            <dd class="metric-value">{{ formatNumber(dashboard.domains.active) }}</dd>
+          </div>
+          <div class="metric-card">
+            <div class="metric-header">
+              <dt>{{ t('dashboard.domainsToday') }}</dt>
+              <AppIcon name="plus" class="metric-icon" />
+            </div>
+            <dd class="metric-value">{{ formatNumber(dashboard.domains.domainsToday) }}</dd>
+          </div>
+          <div class="metric-card">
+            <div class="metric-header">
+              <dt>{{ t('dashboard.domainsWeek') }}</dt>
+              <AppIcon name="shield" class="metric-icon" />
+            </div>
+            <dd class="metric-value">{{ formatNumber(dashboard.domains.domainsSevenDays) }}</dd>
+          </div>
+        </dl>
+      </div>
 
-      <section aria-labelledby="mx-failures-title">
-        <h2 id="mx-failures-title">{{ t('dashboard.mxFailures') }}</h2>
-        <ul class="domain-list">
-          <li v-for="failure in dashboard.domains.recentMxFailures" :key="`${failure.created_at}-${failure.domain}-${failure.kind}`">
-            <span>{{ failure.domain }} — {{ failureKind(failure.kind) }}</span><time :datetime="failure.created_at">{{ formatDate(failure.created_at, { dateStyle: 'medium', timeStyle: 'short' }) }}</time>
+      <section aria-labelledby="mx-failures-title" class="mx-failures-panel panel">
+        <div class="mx-failures-header">
+          <h2 id="mx-failures-title">{{ t('dashboard.mxFailures') }}</h2>
+          <span v-if="dashboard.domains.recentMxFailures.length" class="mx-count-badge">
+            {{ dashboard.domains.recentMxFailures.length }}
+          </span>
+        </div>
+        <ul class="domain-list mx-failures-list">
+          <li v-for="failure in dashboard.domains.recentMxFailures" :key="`${failure.created_at}-${failure.domain}-${failure.kind}`" class="mx-failure-item">
+            <div class="mx-failure-info">
+              <span class="mx-failure-domain">{{ failure.domain }}</span>
+              <span class="mx-failure-badge" :class="failure.kind === 'mx_mismatch' ? 'badge-amber' : 'badge-red'">
+                <AppIcon name="alert-triangle" />
+                {{ failureKind(failure.kind) }}
+              </span>
+            </div>
+            <time :datetime="failure.created_at" class="mx-failure-time">{{ formatDate(failure.created_at, { dateStyle: 'medium', timeStyle: 'short' }) }}</time>
           </li>
-          <li v-if="!dashboard.domains.recentMxFailures.length">{{ t('dashboard.mxFailuresEmpty') }}</li>
+          <li v-if="!dashboard.domains.recentMxFailures.length" class="mx-empty-state">
+            <AppIcon name="check" class="empty-check-icon" />
+            <span>{{ t('dashboard.mxFailuresEmpty') }}</span>
+          </li>
         </ul>
       </section>
     </template>

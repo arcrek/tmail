@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
 import { api } from '../api'
+import AppIcon from '../components/AppIcon.vue'
 import type { AdminSettings, AdminSiteSettings, SyncStatus } from '../types'
 import { useI18n } from '../i18n'
 import { useToast } from '../toast'
@@ -207,51 +208,131 @@ async function syncNow(): Promise<void> {
 <template>
   <section class="admin-section" aria-labelledby="domains-title">
     <div class="admin-section-heading">
-      <div><p class="eyebrow">{{ t('domains.eyebrow') }}</p><h1 id="domains-title">{{ t('admin.domains') }}</h1></div>
-      <button class="secondary-button compact-button" type="button" :disabled="syncing || pending" @click="syncNow">{{ syncing ? t('domains.syncing') : t('domains.sync') }}</button>
+      <div>
+        <p class="eyebrow">{{ t('domains.eyebrow') }}</p>
+        <h1 id="domains-title">{{ t('admin.domains') }}</h1>
+      </div>
+      <button class="secondary-button compact-button" type="button" :disabled="syncing || pending" @click="syncNow">
+        <AppIcon name="refresh-cw" :class="{ spinning: syncing }" />
+        <span>{{ syncing ? t('domains.syncing') : t('domains.sync') }}</span>
+      </button>
     </div>
 
     <div class="admin-data-grid domains-overview">
-      <section aria-labelledby="whitelist-title">
-        <h2 id="whitelist-title">{{ t('domains.whitelist') }}</h2>
+      <section aria-labelledby="whitelist-title" class="settings-card panel">
+        <div class="card-header-with-badge">
+          <h2 id="whitelist-title" class="card-title">{{ t('domains.whitelist') }}</h2>
+          <span class="count-badge">{{ displayedDomains.length }}</span>
+        </div>
         <ul class="domain-list">
-          <li v-for="domain in displayedDomains" :key="domain"><span>{{ domain }}</span><button class="secondary-button compact-button" type="button" :disabled="pending || syncing" :aria-label="t('domains.remove', { domain })" @click="removeDomain(domain)">{{ t('domains.removeText') }}</button></li>
-          <li v-if="!displayedDomains.length">{{ t('domains.none') }}</li>
+          <li v-for="domain in displayedDomains" :key="domain" class="domain-list-item">
+            <span class="domain-name font-mono">{{ domain }}</span>
+            <button class="secondary-button compact-button" type="button" :disabled="pending || syncing" :aria-label="t('domains.remove', { domain })" @click="removeDomain(domain)">
+              {{ t('domains.removeText') }}
+            </button>
+          </li>
+          <li v-if="!displayedDomains.length" class="empty-domain-message">{{ t('domains.none') }}</li>
         </ul>
       </section>
-      <section class="sync-summary" aria-labelledby="last-sync-title">
-        <h2 id="last-sync-title">{{ t('domains.lastSync') }}</h2>
-        <dl>
-          <div><dt>{{ t('domains.time') }}</dt><dd>{{ dateTime(displayedSync.created_at) }}</dd></div>
-          <div><dt>{{ t('domains.result') }}</dt><dd :class="{ 'status-error': displayedSync.success === false }">{{ displayedSync.success === undefined ? t('domains.notYet') : displayedSync.success ? t('domains.success') : t('domains.failed') }}</dd></div>
-          <div><dt>{{ t('domains.detail') }}</dt><dd>{{ displayedSync.detail || t('domains.noDetail') }}</dd></div>
-          <div><dt>{{ t('domains.lastSuccess') }}</dt><dd>{{ syncText(displayedSuccessfulSync, t('domains.notYet')) }}</dd></div>
-          <div><dt>{{ t('domains.lastError') }}</dt><dd :class="{ 'status-error': displayedSyncError.created_at }">{{ syncText(displayedSyncError, t('domains.noDetail')) }}</dd></div>
+
+      <section class="sync-summary settings-card panel" aria-labelledby="last-sync-title">
+        <h2 id="last-sync-title" class="card-title">{{ t('domains.lastSync') }}</h2>
+        <dl class="sync-details-list">
+          <div class="sync-detail-row">
+            <dt>{{ t('domains.time') }}</dt>
+            <dd class="font-mono">{{ dateTime(displayedSync.created_at) }}</dd>
+          </div>
+          <div class="sync-detail-row">
+            <dt>{{ t('domains.result') }}</dt>
+            <dd>
+              <span class="status-pill" :class="displayedSync.success === true ? 'pill-success' : displayedSync.success === false ? 'pill-error' : 'pill-neutral'">
+                {{ displayedSync.success === undefined ? t('domains.notYet') : displayedSync.success ? t('domains.success') : t('domains.failed') }}
+              </span>
+            </dd>
+          </div>
+          <div class="sync-detail-row">
+            <dt>{{ t('domains.detail') }}</dt>
+            <dd>{{ displayedSync.detail || t('domains.noDetail') }}</dd>
+          </div>
+          <div class="sync-detail-row">
+            <dt>{{ t('domains.lastSuccess') }}</dt>
+            <dd class="font-mono">{{ syncText(displayedSuccessfulSync, t('domains.notYet')) }}</dd>
+          </div>
+          <div class="sync-detail-row">
+            <dt>{{ t('domains.lastError') }}</dt>
+            <dd :class="{ 'status-error': displayedSyncError.created_at }" class="font-mono">{{ syncText(displayedSyncError, t('domains.noDetail')) }}</dd>
+          </div>
         </dl>
       </section>
     </div>
 
     <form class="settings-form" @submit.prevent="addManualDomain">
       <fieldset class="settings-fields" :disabled="pending || syncing">
-        <div class="field"><label for="manual-domain">{{ t('address.domain') }}</label><div class="form-actions"><input id="manual-domain" v-model="manualDomain" name="manualDomain" type="text" inputmode="url" autocomplete="off" autocapitalize="none" required><button class="secondary-button compact-button" type="submit">{{ t('domains.add') }}</button></div><small>{{ t('domains.addHelp') }}</small></div>
+        <div class="settings-card panel">
+          <h2 class="card-title">{{ t('domains.addWhitelist') }}</h2>
+          <div class="field">
+            <label for="manual-domain">{{ t('address.domain') }}</label>
+            <div class="form-actions inline-add-row">
+              <input id="manual-domain" v-model="manualDomain" name="manualDomain" type="text" inputmode="url" autocomplete="off" autocapitalize="none" class="font-mono" required>
+              <button class="secondary-button compact-button" type="submit">{{ t('domains.add') }}</button>
+            </div>
+            <small>{{ t('domains.addHelp') }}</small>
+          </div>
+        </div>
       </fieldset>
     </form>
 
     <form class="settings-form" @submit.prevent="save">
       <fieldset class="settings-fields" :disabled="pending || syncing">
-        <label class="check-field"><input :checked="draft.autoSyncDomains" name="autoSyncDomains" type="checkbox" @change="changeAutoSync"> {{ t('domains.auto') }}</label>
-        <div class="settings-grid">
-          <div class="field"><label for="fetch-seconds">{{ t('domains.poll') }}</label><input id="fetch-seconds" v-model.number="draft.fetchSeconds" name="fetchSeconds" type="number" min="10" max="300" required></div>
-          <div class="field"><label for="message-limit">{{ t('domains.limit') }}</label><input id="message-limit" v-model.number="draft.messageLimit" name="messageLimit" type="number" min="1" max="100" required></div>
-          <div class="field"><label for="local-min">{{ t('domains.min') }}</label><input id="local-min" v-model.number="draft.localPartMin" name="localPartMin" type="number" min="1" max="64" required></div>
-          <div class="field"><label for="local-max">{{ t('domains.max') }}</label><input id="local-max" v-model.number="draft.localPartMax" name="localPartMax" type="number" min="1" max="64" required></div>
+        <div class="settings-card panel">
+          <h2 class="card-title">{{ t('domains.syncPolicy') }}</h2>
+          <label class="check-field margin-bottom-md">
+            <input :checked="draft.autoSyncDomains" name="autoSyncDomains" type="checkbox" @change="changeAutoSync">
+            <span>{{ t('domains.auto') }}</span>
+          </label>
+          <div class="settings-grid">
+            <div class="field">
+              <label for="fetch-seconds">{{ t('domains.poll') }}</label>
+              <input id="fetch-seconds" v-model.number="draft.fetchSeconds" name="fetchSeconds" type="number" min="10" max="300" required>
+            </div>
+            <div class="field">
+              <label for="message-limit">{{ t('domains.limit') }}</label>
+              <input id="message-limit" v-model.number="draft.messageLimit" name="messageLimit" type="number" min="1" max="100" required>
+            </div>
+            <div class="field">
+              <label for="local-min">{{ t('domains.min') }}</label>
+              <input id="local-min" v-model.number="draft.localPartMin" name="localPartMin" type="number" min="1" max="64" required>
+            </div>
+            <div class="field">
+              <label for="local-max">{{ t('domains.max') }}</label>
+              <input id="local-max" v-model.number="draft.localPartMax" name="localPartMax" type="number" min="1" max="64" required>
+            </div>
+          </div>
+
+          <div class="settings-grid settings-grid-three margin-top-md">
+            <div class="field">
+              <label for="forbidden-ids">{{ t('domains.forbidden') }}</label>
+              <textarea id="forbidden-ids" v-model="draft.forbiddenIds" name="forbiddenIds" rows="7" class="font-mono" />
+              <small>{{ t('domains.listHelp') }}</small>
+            </div>
+            <div class="field">
+              <label for="blocked-senders">{{ t('domains.blocked') }}</label>
+              <textarea id="blocked-senders" v-model="draft.blockedSenderDomains" name="blockedSenderDomains" rows="7" class="font-mono" />
+              <small>{{ t('domains.listHelp') }}</small>
+            </div>
+            <div class="field">
+              <label for="blacklisted-domains">{{ t('domains.blacklisted') }}</label>
+              <textarea id="blacklisted-domains" v-model="draft.blacklistedDomains" name="blacklistedDomains" rows="7" class="font-mono" />
+              <small>{{ t('domains.blacklistHelp') }}</small>
+            </div>
+          </div>
         </div>
-        <div class="settings-grid settings-grid-three">
-          <div class="field"><label for="forbidden-ids">{{ t('domains.forbidden') }}</label><textarea id="forbidden-ids" v-model="draft.forbiddenIds" name="forbiddenIds" rows="7" /><small>{{ t('domains.listHelp') }}</small></div>
-          <div class="field"><label for="blocked-senders">{{ t('domains.blocked') }}</label><textarea id="blocked-senders" v-model="draft.blockedSenderDomains" name="blockedSenderDomains" rows="7" /><small>{{ t('domains.listHelp') }}</small></div>
-          <div class="field"><label for="blacklisted-domains">{{ t('domains.blacklisted') }}</label><textarea id="blacklisted-domains" v-model="draft.blacklistedDomains" name="blacklistedDomains" rows="7" /><small>{{ t('domains.blacklistHelp') }}</small></div>
+
+        <div class="form-actions">
+          <button class="primary-button" type="submit" :disabled="pending || syncing">
+            {{ pending ? t('reader.saving') : t('domains.save') }}
+          </button>
         </div>
-        <div class="form-actions"><button class="primary-button" type="submit" :disabled="pending || syncing">{{ pending ? t('reader.saving') : t('domains.save') }}</button></div>
       </fieldset>
     </form>
   </section>
