@@ -724,13 +724,13 @@ describe('InboxView polling', () => {
     vi.useRealTimers()
   })
 
-  it('toggles the collapsible create section', async () => {
+  it('toggles the collapsible create section with the new address button', async () => {
     const wrapper = mount(InboxView, {
       props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
     })
     await flushPromises()
 
-    const toggleBtn = wrapper.get('.inbox-create-toggle-button')
+    const toggleBtn = wrapper.get('[data-action="new-address"]')
     expect(toggleBtn.attributes('aria-expanded')).toBe('false')
     expect(wrapper.get('#inbox-create-address').attributes('style')).toContain('display: none')
 

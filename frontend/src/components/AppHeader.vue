@@ -59,6 +59,11 @@ function onBulkCodeClick(): void {
   emit('bulkCode')
 }
 
+function onHomeClick(): void {
+  closeMobileMenu()
+  emit('home')
+}
+
 function onLocaleChange(event: Event): void {
   selectLocale((event.target as HTMLSelectElement).value)
 }
@@ -92,6 +97,10 @@ function onLocaleChange(event: Event): void {
       :class="{ 'mobile-open': mobileOpen }"
       :aria-label="t('nav.site')"
     >
+      <a class="home-link" href="/" @click.prevent="onHomeClick">
+        <AppIcon name="home" />
+        {{ t('nav.home') }}
+      </a>
       <a href="/docs" @click="closeMobileMenu">
         <AppIcon name="external-link" />
         {{ t('nav.docs') }}

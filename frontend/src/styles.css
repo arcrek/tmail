@@ -922,15 +922,6 @@ main {
   50% { opacity: 0.4; transform: scale(0.85); }
 }
 
-.inbox-create-header {
-  border-top: 1px solid var(--line);
-  padding-top: 0.75rem;
-}
-
-.inbox-create-toggle-button {
-  width: 100%;
-}
-
 .inbox-create-heading {
   margin: 0;
 }

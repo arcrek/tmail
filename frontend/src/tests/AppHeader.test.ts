@@ -20,6 +20,19 @@ describe('AppHeader', () => {
     expect(wrapper.emitted('bulkCode')).toHaveLength(1)
   })
 
+  it('renders the home link and emits home when clicked', async () => {
+    initLocale()
+    const wrapper = mount(AppHeader, {
+      props: { unlockOpen: false, unlockValue: '', showLocalePicker: false, showUnlock: false },
+      global: { stubs: { ThemeToggle: true } },
+    })
+
+    const link = wrapper.get('.home-link')
+    expect(link.text()).toContain('Home')
+    await link.trigger('click')
+    expect(wrapper.emitted('home')).toHaveLength(1)
+  })
+
   it('toggles mobile menu and closes on escape', async () => {
     initLocale()
     const wrapper = mount(AppHeader, {

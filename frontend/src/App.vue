@@ -256,7 +256,6 @@ onBeforeUnmount(() => {
           :session="current"
           :access-token="accessToken"
           :fetch-seconds="site?.fetchSeconds ?? 20"
-          @new-address="newAddress"
           @create="openCreatedInbox"
         />
 

@@ -7,6 +7,7 @@
 import { computed } from 'vue'
 
 export type IconName =
+  | 'home'
   | 'copy'
   | 'check'
   | 'refresh-cw'
@@ -32,6 +33,10 @@ type Shape = { tag: 'path' | 'circle' | 'rect' | 'line' | 'polyline'; attrs: Rec
 const props = defineProps<{ name: IconName }>()
 
 const ICONS: Record<IconName, Shape[]> = {
+  home: [
+    { tag: 'path', attrs: { d: 'm3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' } },
+    { tag: 'polyline', attrs: { points: '9 22 9 12 15 12 15 22' } },
+  ],
   copy: [
     { tag: 'rect', attrs: { width: '14', height: '14', x: '8', y: '8', rx: '2', ry: '2' } },
     { tag: 'path', attrs: { d: 'M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2' } },
