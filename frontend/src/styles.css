@@ -945,12 +945,25 @@ main {
   color: var(--red);
 }
 
+.message-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.message-row-item {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
 .message-row {
   display: grid;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   gap: 0.45rem;
   border: 0;
-  border-bottom: 1px solid var(--line);
   border-radius: 0;
   padding: 1rem;
   background: var(--surface);
@@ -959,6 +972,10 @@ main {
 }
 
 .message-row:hover {
+  background: var(--surface-selected);
+}
+
+.message-row-item:has(.message-row:hover) {
   background: var(--surface-selected);
 }
 
@@ -975,6 +992,31 @@ main {
 }
 
 .message-row.unread .message-subject {
+  font-weight: 700;
+}
+
+.message-row-code {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  align-self: center;
+  gap: 0.35rem;
+  margin-right: 1rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.message-row-code:hover { border-color: var(--primary); }
+
+.code-value {
+  overflow: hidden;
+  max-width: 8rem;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
   font-weight: 700;
 }
 
@@ -1744,6 +1786,10 @@ main {
 
   .reader-actions {
     flex-wrap: wrap;
+  }
+
+  .message-row-code {
+    margin-right: 0.65rem;
   }
 
   .attachments li {

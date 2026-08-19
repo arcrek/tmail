@@ -93,7 +93,7 @@ describe('InboxView polling', () => {
 
     await flushPromises()
 
-    expect(mocks.message).not.toHaveBeenCalled()
+    expect(mocks.message).toHaveBeenCalledWith('signed', 'one')
 
     mocks.messages.mockResolvedValue(collection(['one', 'two']))
     mocks.message.mockResolvedValue({
@@ -605,6 +605,84 @@ describe('InboxView polling', () => {
     expect(writeText).toHaveBeenCalledWith('box@example.com')
     expect(toastStack.text()).toContain('Address copied.')
     toastStack.unmount()
+  })
+
+  it('shows and copies a resolved row code without opening the reader', async () => {
+    mocks.message.mockResolvedValue({ ...summary('one'), cc: [], bcc: [], flagged: false, verifications: [], retention: false, retentionDate: null, text: 'Your code is 482913', html: [], attachments: [] })
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
+    })
+    const { default: ToastStack } = await import('../components/ToastStack.vue')
+    const toastStack = mount(ToastStack)
+    await flushPromises()
+
+    expect(wrapper.get('.message-row-code').text()).toContain('482913')
+    await wrapper.get('.message-row-code').trigger('click')
+    await flushPromises()
+
+    expect(writeText).toHaveBeenCalledWith('482913')
+    expect(toastStack.text()).toContain('Verification code copied.')
+    expect(wrapper.find('.message-reader').exists()).toBe(false)
+    toastStack.unmount()
+  })
+
+  it('does not show a code chip when extraction finds no code', async () => {
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
+    })
+    await flushPromises()
+
+    expect(wrapper.find('.message-row-code').exists()).toBe(false)
+  })
+
+  it('does not re-fetch an already resolved row code on polling', async () => {
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 1 },
+    })
+    await flushPromises()
+    expect(mocks.message).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushPromises()
+    expect(mocks.message).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('reuses an in-flight code lookup across a poll tick', async () => {
+    let resolveMessage: ((value: ReturnType<typeof summary> & { cc: []; bcc: []; flagged: boolean; verifications: []; retention: boolean; retentionDate: null; text: string; html: []; attachments: [] }) => void) | undefined
+    mocks.message.mockImplementation(() => new Promise((resolve) => { resolveMessage = resolve }))
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 1 },
+    })
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushPromises()
+
+    expect(mocks.message).toHaveBeenCalledTimes(1)
+    resolveMessage?.({ ...summary('one'), cc: [], bcc: [], flagged: false, verifications: [], retention: false, retentionDate: null, text: 'Your code is 482913', html: [], attachments: [] })
+    await flushPromises()
+    expect(wrapper.get('.message-row-code').text()).toContain('482913')
+    wrapper.unmount()
+  })
+
+  it('clears old row codes when the address session changes', async () => {
+    mocks.message
+      .mockResolvedValueOnce({ ...summary('old'), cc: [], bcc: [], flagged: false, verifications: [], retention: false, retentionDate: null, text: 'Your code is 482913', html: [], attachments: [] })
+      .mockResolvedValueOnce({ ...summary('new'), cc: [], bcc: [], flagged: false, verifications: [], retention: false, retentionDate: null, text: 'No code here', html: [], attachments: [] })
+    mocks.messages
+      .mockResolvedValueOnce(collection(['old']))
+      .mockResolvedValueOnce(collection(['new']))
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'old@example.com', token: 'old-token' }, fetchSeconds: 20 },
+    })
+    await flushPromises()
+    expect(wrapper.find('.message-row-code').exists()).toBe(true)
+
+    await wrapper.setProps({ session: { address: 'new@example.com', token: 'new-token' } })
+    await flushPromises()
+    expect(wrapper.find('.message-row-code').exists()).toBe(false)
   })
 
   it('uses fallback copy feedback when Clipboard API is unavailable', async () => {
