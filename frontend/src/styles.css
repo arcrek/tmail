@@ -1560,12 +1560,13 @@ main {
   background: var(--surface);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   padding-bottom: 1rem;
 }
 
 .admin-sidebar nav {
   display: grid;
+  gap: 0.25rem;
+  margin-top: 1rem;
 }
 
 .admin-sidebar [role="tab"] {
