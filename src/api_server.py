@@ -232,10 +232,13 @@ def _client_ip(request: Request) -> str:
     """Client IP for rate-limit bucketing.
 
     Trusts Cloudflare's CF-Connecting-IP header unconditionally (no allowlist/config
-    gate) — see plan.md "Design decisions" for the accepted trade-off. Safe only when
-    this app has no ingress other than a Cloudflare Tunnel/proxy that sets this header;
-    otherwise a client can spoof a fresh value per request and bypass rate limiting
-    entirely on every limited path.
+    gate) — see plan.md "Design decisions" for the accepted trade-off. This app is
+    published through Cloudflare's DNS proxy (orange-clouded record), not Cloudflare
+    Tunnel, so the origin still has a public listening port; safe only when the origin
+    firewall accepts inbound traffic solely from Cloudflare's published IP ranges (see
+    README "Running behind Cloudflare"). Without that firewall, a client can reach the
+    origin directly, spoof an arbitrary CF-Connecting-IP value per request, and bypass
+    rate limiting entirely on every limited path.
     """
     cf_ip = request.headers.get("CF-Connecting-IP")
     if cf_ip and cf_ip.strip():
@@ -799,7 +802,8 @@ def create_app(config_path: str) -> FastAPI:
     limiter = _FixedWindowLimiter(limit=10, seconds=60)
     logging.getLogger(__name__).warning(
         "Rate limiter trusts the CF-Connecting-IP header unconditionally for client-IP "
-        "bucketing; ensure this app has no ingress other than a trusted Cloudflare Tunnel/proxy."
+        "bucketing; ensure the origin firewall accepts inbound traffic only from Cloudflare's "
+        "published IP ranges (published through Cloudflare DNS proxy, not Tunnel)."
     )
 
     @app.middleware("http")
