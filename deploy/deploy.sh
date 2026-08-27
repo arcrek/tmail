@@ -23,7 +23,7 @@ trap cleanup EXIT
 echo "==> Creating secure remote stage"
 STAGE_DIR=$(ssh "$SERVER" "mktemp -d /opt/.tmail-policy.stage.XXXXXX")
 [[ "$STAGE_DIR" =~ ^/opt/\.tmail-policy\.stage\.[A-Za-z0-9]+$ ]] || { echo "ERROR: invalid remote stage path"; exit 1; }
-ssh "$SERVER" "mkdir -p '$STAGE_DIR/src' '$STAGE_DIR/frontend/dist' '$STAGE_DIR/deploy'"
+ssh "$SERVER" "mkdir -p '$STAGE_DIR/src' '$STAGE_DIR/deploy'"
 
 echo "==> Preparing service runtime directory"
 ssh "$SERVER" "id tmail-policy &>/dev/null || useradd -r -s /sbin/nologin tmail-policy"
@@ -32,7 +32,6 @@ ssh "$SERVER" "mkdir -p '$CONFIG_DIR' && chown tmail-policy:tmail-policy '$CONFI
 echo "==> Uploading staged release"
 scp requirements.txt "$SERVER:$STAGE_DIR/requirements.txt"
 scp src/*.py "$SERVER:$STAGE_DIR/src/"
-scp -r frontend/dist/. "$SERVER:$STAGE_DIR/frontend/dist/"
 scp deploy/tmail-policy.service deploy/tmail-api.service deploy/tmail-janitor.service \
     deploy/tmail-janitor.timer deploy/release.sh "$SERVER:$STAGE_DIR/deploy/"
 

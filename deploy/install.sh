@@ -28,15 +28,9 @@ trap cleanup EXIT
 [ -f "$POLICY_SERVICE_FILE" ] || { echo "ERROR: run from project root (deploy/tmail-policy.service not found)"; exit 1; }
 [ -f "$API_SERVICE_FILE" ] || { echo "ERROR: deploy/tmail-api.service not found"; exit 1; }
 
-echo "==> Building frontend"
-export NVM_DIR="${NVM_DIR:-$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")}"
-[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-npm --prefix frontend ci
-npm --prefix frontend run build
-
 echo "==> Creating secure release stage"
 STAGE_DIR=$(mktemp -d /opt/.tmail-policy.stage.XXXXXX)
-mkdir -p "$STAGE_DIR/src" "$STAGE_DIR/frontend/dist" "$STAGE_DIR/deploy"
+mkdir -p "$STAGE_DIR/src" "$STAGE_DIR/deploy"
 
 echo "==> Preparing service runtime directory"
 id tmail-policy &>/dev/null || useradd -r -s /sbin/nologin tmail-policy
@@ -60,7 +54,6 @@ chmod 600 "$STAGE_DIR/config.json"
 echo "==> Copying staged release"
 cp requirements.txt "$STAGE_DIR/requirements.txt"
 cp src/*.py "$STAGE_DIR/src/"
-cp -r frontend/dist/. "$STAGE_DIR/frontend/dist/"
 cp "$POLICY_SERVICE_FILE" "$API_SERVICE_FILE" deploy/tmail-janitor.service \
     deploy/tmail-janitor.timer deploy/accepted_domains deploy/release.sh "$STAGE_DIR/deploy/"
 
