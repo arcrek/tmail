@@ -281,7 +281,7 @@ def test_public_mail_request_waits_for_atomic_config_client_publication(
     def publish():
         try:
             admin_api.update_settings(
-                request, {"mailServer": {"mailAccountId": "new-account"}}, {}
+                request, {"mailServer": {"jmapToken": "new-token"}}, {}
             )
         except Exception as exc:
             errors.append(exc)
@@ -309,7 +309,7 @@ def test_public_mail_request_waits_for_atomic_config_client_publication(
     assert responses[0].status_code == 200
     fake_jmap.list_messages.assert_not_called()
     new_jmap.list_messages.assert_called_once_with(
-        "new-account", "box@example.com", 15, 0
+        "mail-account", "box@example.com", 15, 0
     )
 
 

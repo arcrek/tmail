@@ -14,6 +14,7 @@ from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request, Re
 from fastapi.responses import JSONResponse
 
 from src.api_auth import AddressValidationError, _LOCAL_PART, _domain, _domain_rule, active_domains
+from src.config import Config
 from src.jmap_client import JmapClient
 
 
@@ -31,6 +32,23 @@ MAX_CONTENT_LENGTH = 100_000
 MAX_SETTINGS_PAYLOAD_BYTES = 3_750_000
 
 router = APIRouter(prefix="/admin/api", tags=["admin"])
+
+
+def _rebuild_jmap_if_stale(request: Request) -> tuple[Config, JmapClient]:
+    """Return current config and a JmapClient, rebuilding it if the connection fields changed.
+
+    ConfigStore hot-reloads config.json on every read, but the JmapClient instance held in
+    app.state does not track that on its own — mirrors policy_daemon._runtime()'s fingerprint
+    check so a config.json edit (not just a PUT /admin/api/settings save) takes effect without
+    a process restart. Caller must hold request.app.state.admin_lock.
+    """
+    state = request.app.state
+    config = state.config_store.get()
+    fingerprint = (config.jmap_url, config.jmap_token, config.catchall_address)
+    if state.jmap_fingerprint != fingerprint:
+        state.jmap = JmapClient(*fingerprint)
+        state.jmap_fingerprint = fingerprint
+    return config, state.jmap
 
 
 def _camel(key: str) -> str:
@@ -280,8 +298,8 @@ def update_settings(
         validated_mail = _validate_mail(current_mail | mail_updates)
 
         if mail_updates:
-            saved = request.app.state.config_store.update({key: validated_mail[key] for key in mail_updates})
-            request.app.state.jmap = JmapClient(saved.jmap_url, saved.jmap_token, saved.catchall_address)
+            request.app.state.config_store.update({key: validated_mail[key] for key in mail_updates})
+            _rebuild_jmap_if_stale(request)
         if site_updates:
             if current_site["auto_sync_domains"] and not validated_site["auto_sync_domains"]:
                 state.replace_frozen_domains(request.app.state.domain_cache.domains())
@@ -295,7 +313,7 @@ def refresh_domains(request: Request, *, require_auto: bool = False) -> list[str
         return _active_domains(request)
     if not require_auto:
         with request.app.state.admin_lock:
-            jmap = request.app.state.jmap
+            _config, jmap = _rebuild_jmap_if_stale(request)
     try:
         for _attempt in range(3):
             generation = request.app.state.domain_cache.generation()
@@ -303,7 +321,7 @@ def refresh_domains(request: Request, *, require_auto: bool = False) -> list[str
                 with request.app.state.admin_lock:
                     if not state.get_settings()["auto_sync_domains"]:
                         return _active_domains(request)
-                    jmap = request.app.state.jmap
+                    _config, jmap = _rebuild_jmap_if_stale(request)
                     values = jmap.list_domains()
             else:
                 values = jmap.list_domains()
@@ -343,8 +361,7 @@ def sync_domains(request: Request, _session_value: dict[str, object] = Depends(_
 @router.post("/test-mail")
 def test_mail(request: Request, _session_value: dict[str, object] = Depends(_csrf)):
     with request.app.state.admin_lock:
-        config = request.app.state.config_store.get()
-        jmap = request.app.state.jmap
+        config, jmap = _rebuild_jmap_if_stale(request)
     try:
         domains = jmap.list_domains()
         if domains is None:
@@ -397,8 +414,7 @@ def delete_access_credential(
 @router.get("/dashboard")
 def dashboard(request: Request, _session_value: dict[str, object] = Depends(_session)):
     with request.app.state.admin_lock:
-        config = request.app.state.config_store.get()
-        jmap = request.app.state.jmap
+        config, jmap = _rebuild_jmap_if_stale(request)
     account_id = config.mail_account_id or jmap.discover_mail_account_id()
     site = request.app.state.state_store.get_settings()
     domains = {

@@ -82,6 +82,25 @@ The deployed services use `/var/lib/tmail-policy/config.json` as mutable runtime
 
 Postfix must own port 25 and consult `inet:127.0.0.1:10030`, as shown in `deploy/postfix_main_snippet.cf`. Stalwart receives accepted relay mail on port 2525.
 
+### Hybrid: `tmail-api` via Docker Compose, policy daemon via systemd
+
+`deploy/install.sh`/`deploy/release.sh` install and enable **both** `tmail-policy.service` and
+`tmail-api.service`. If you instead serve the web API/frontend from the [Docker Compose](#run-with-docker-compose)
+stack on the same host (e.g. so `ghcr.io/arcrek/tmail-api` image releases don't require a
+checkout-based redeploy), disable the systemd copy after install — otherwise you have two
+independent `tmail-api` processes with two independent `config.json` files (one at
+`/var/lib/tmail-policy/config.json`, one inside the `tmail-data` Docker volume), and only
+whichever nginx actually proxies to receives real traffic. Editing one config later — via the
+admin console or by hand — silently does nothing for the other:
+
+```bash
+sudo systemctl disable --now tmail-api.service
+```
+
+`tmail-policy.service` has no Docker Compose equivalent in this repo (`compose.yaml` only defines
+`api` and `frontend`) — Postfix still needs it running via systemd regardless of how you serve the
+web API.
+
 ### Running behind Cloudflare
 
 This site is published through Cloudflare's **DNS proxy** (the orange-clouded record) —

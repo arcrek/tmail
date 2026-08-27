@@ -24,7 +24,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
 from src.api_auth import AddressToken, AddressValidationError, _domain, _domain_matches_rule, active_domains, normalize_address
-from src.admin_api import refresh_domains, router as admin_router
+from src.admin_api import _rebuild_jmap_if_stale, refresh_domains, router as admin_router
 from src.api_models import (
     AccountResource,
     AddressRequest,
@@ -332,7 +332,7 @@ def elevated_access(
 
 def mail_runtime(request: Request) -> tuple[Config, JmapClient]:
     with request.app.state.admin_lock:
-        return request.app.state.config_store.get(), request.app.state.jmap
+        return _rebuild_jmap_if_stale(request)
 
 
 def mail_account_id(config: Config, jmap: JmapClient) -> str:
@@ -794,7 +794,9 @@ def create_app(config_path: str) -> FastAPI:
     app.state.config_store = config_store
     app.state.state_store = state
     app.state.signer = signer
-    app.state.jmap = JmapClient(cfg.jmap_url, cfg.jmap_token, cfg.catchall_address)
+    jmap_fingerprint = (cfg.jmap_url, cfg.jmap_token, cfg.catchall_address)
+    app.state.jmap = JmapClient(*jmap_fingerprint)
+    app.state.jmap_fingerprint = jmap_fingerprint
     app.state.domain_cache = DomainCache(cfg.cache_file)
     app.state.domain_cache.load()
     app.state.admin_lock = threading.Lock()
