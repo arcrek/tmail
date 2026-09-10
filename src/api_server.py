@@ -559,9 +559,9 @@ def register_public_routes(app: FastAPI) -> None:
                 updated_at=_EPOCH,
             ))
         total = len(members)
-        view, search = _collection_metadata("/domains", page, total, 30)
-        start = (page - 1) * 30
-        return HydraDomains(total_items=total, member=members[start:start + 30], view=view, search=search)
+        view, search = _collection_metadata("/domains", page, total, 100)
+        start = (page - 1) * 100
+        return HydraDomains(total_items=total, member=members[start:start + 100], view=view, search=search)
 
     @app.get("/domains/{domain_id}", response_model=DomainResource, responses=_ERROR_RESPONSES)
     def domain(request: Request, domain_id: str, elevated: bool = Depends(elevated_access)):

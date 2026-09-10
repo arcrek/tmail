@@ -81,8 +81,33 @@ const json = (body: unknown): Pick<RequestInit, 'body'> => ({ body: JSON.stringi
 
 export const api = {
   site: () => request<SiteResource>('/site'),
-  domains: (page = 1, accessToken?: string) =>
-    request<HydraCollection<DomainResource>>(`/domains?page=${page}`, { token: accessToken }),
+  domains: async (page = 1, accessToken?: string): Promise<HydraCollection<DomainResource>> => {
+    const first = await request<HydraCollection<DomainResource>>(`/domains?page=${page}`, { token: accessToken })
+    if (page !== 1 || !first?.['hydra:view']?.['hydra:next']) return first
+
+    const seen = new Set<string>((first['hydra:member'] ?? []).map((d) => d.domain))
+    const all = [...(first['hydra:member'] ?? [])]
+    let current = first
+    let nextPage = page + 1
+    const total = first['hydra:totalItems'] ?? all.length
+
+    while (current?.['hydra:view']?.['hydra:next'] && all.length < total) {
+      current = await request<HydraCollection<DomainResource>>(`/domains?page=${nextPage}`, { token: accessToken })
+      const members = current?.['hydra:member'] ?? []
+      if (members.length === 0) break
+      for (const item of members) {
+        if (!seen.has(item.domain)) {
+          seen.add(item.domain)
+          all.push(item)
+        }
+      }
+      nextPage += 1
+    }
+    return {
+      ...first,
+      'hydra:member': all,
+    }
+  },
   domain: (id: string) => request<DomainResource>(`/domains/${encodeURIComponent(id)}`),
   account: (address: string, accessToken?: string) =>
     request<AccountResource>('/accounts', { method: 'POST', token: accessToken, ...json({ address }) }),
