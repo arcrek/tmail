@@ -2068,7 +2068,7 @@ main {
 }
 
 .badge-amber {
-  background: color-mix(in srgb, var(--amber) 4%, transparent);
+  background: color-mix(in srgb, var(--amber) 15%, transparent);
   color: var(--amber);
 }
 
