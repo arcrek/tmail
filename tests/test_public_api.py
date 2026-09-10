@@ -546,6 +546,25 @@ def test_elevated_session_outlives_deleted_credential(client):
     ).json()["hydra:member"]] == ["example.com"]
 
 
+def test_elevated_access_returns_all_blacklisted_domains_when_many_exist(client):
+    credential, _ = _access_credential(client)
+    access_token = client.post("/unlock", json={"credential": credential["secret"]}).json()["accessToken"]
+    many_domains = [f"domain{i:02d}.example" for i in range(35)] + ["extra.example.vn"]
+    client.app.state.state_store.update_settings({
+        "auto_sync_domains": False,
+        "blacklisted_domains": ["*.vn", "*.example"],
+    })
+    client.app.state.state_store.replace_frozen_domains(many_domains)
+
+    # Anonymous client sees nothing because of blacklisted rules
+    assert client.get("/domains").json()["hydra:member"] == []
+
+    # Elevated client sees all domains including the blacklisted .vn domain
+    elevated = client.get("/domains", headers={"Authorization": f"Bearer {access_token}"}).json()
+    returned_domains = [item["domain"] for item in elevated["hydra:member"]]
+    assert len(returned_domains) == 36
+    assert "extra.example.vn" in returned_domains
+
 def test_lock_invalidates_session_and_is_idempotent(client):
     credential, _ = _access_credential(client)
     access_token = client.post("/unlock", json={"credential": credential["secret"]}).json()["accessToken"]
