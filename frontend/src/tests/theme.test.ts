@@ -80,7 +80,7 @@ function addThemeColorMetas(): void {
     const meta = document.createElement('meta')
     meta.name = 'theme-color'
     meta.dataset.themeColor = mode
-    meta.content = mode === 'light' ? '#f6f7fb' : '#0e1015'
+    meta.content = mode === 'light' ? '#f6f4ef' : '#1a1611'
     meta.media = `(prefers-color-scheme: ${mode})`
     document.head.append(meta)
   }

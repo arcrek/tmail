@@ -10,8 +10,8 @@ DEFAULT_SETTINGS = {
     "app_name": "Temporary Inbox",
     "logo_data_url": "",
     "favicon_data_url": "",
-    "primary_color": "#3454e0",
-    "accent_color": "#4a4fce",
+    "primary_color": "#b8501b",
+    "accent_color": "#8f3e15",
     "language": "en",
     "cookie_enabled": False,
     "cookie_text": "",
@@ -28,6 +28,18 @@ DEFAULT_SETTINGS = {
     "footer_html": "",
     "content_css": "",
     "ad_slots": {},
+}
+
+# Brand colors from before the "Ember on Bone" redesign. `INSERT OR IGNORE`
+# below never overwrites a row that already exists, so an existing
+# state.db keeps these forever unless explicitly migrated. On startup we
+# upgrade a database still sitting on both legacy values (i.e. an admin
+# never customized either color) to the new defaults; a site that set its
+# own colors — including one that happens to match only one legacy value —
+# is left untouched.
+_LEGACY_BRAND_COLORS = {
+    "primary_color": "#3454e0",
+    "accent_color": "#4a4fce",
 }
 
 
@@ -66,6 +78,21 @@ class StateStore:
             conn.executemany(
                 "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
                 ((key, json.dumps(value)) for key, value in DEFAULT_SETTINGS.items()),
+            )
+            self._migrate_legacy_brand_colors(conn)
+
+    def _migrate_legacy_brand_colors(self, conn: sqlite3.Connection) -> None:
+        rows = conn.execute(
+            "SELECT key, value FROM settings WHERE key IN ('primary_color', 'accent_color')"
+        ).fetchall()
+        current = {row["key"]: json.loads(row["value"]) for row in rows}
+        if current == _LEGACY_BRAND_COLORS:
+            conn.executemany(
+                "UPDATE settings SET value = ? WHERE key = ?",
+                (
+                    (json.dumps(DEFAULT_SETTINGS[key]), key)
+                    for key in _LEGACY_BRAND_COLORS
+                ),
             )
 
     def _connect(self) -> sqlite3.Connection:

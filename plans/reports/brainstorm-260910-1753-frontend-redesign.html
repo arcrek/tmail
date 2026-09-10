@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TMail Frontend Redesign Brief</title>
+<style>
+  :root {
+    color-scheme: light;
+    --canvas: #F6F4EF;
+    --surface: #FCFBF9;
+    --surface-2: #EDEAE3;
+    --ink: #1E1A15;
+    --muted: #6B6156;
+    --line: #DAD5CB;
+    --ember: #B8501B;
+    --ember-hover: #8F3E15;
+    --ember-soft: #F3E1D4;
+    --green: #2F7D4F;
+    --red: #C13327;
+    --shadow-float: 0 12px 32px rgba(30, 26, 21, 0.16);
+    --radius-sm: 6px;
+    --radius: 8px;
+    --radius-lg: 10px;
+    --font-display: 'Schibsted Grotesk', 'Segoe UI Semibold', -apple-system, sans-serif;
+    --font-body: 'Libre Franklin', 'Segoe UI', -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+    background: var(--canvas);
+    color: var(--ink);
+  }
+  [data-theme='dark'] {
+    color-scheme: dark;
+    --canvas: #1A1611;
+    --surface: #231E17;
+    --surface-2: #2D2620;
+    --ink: #EDE8DF;
+    --muted: #A79A88;
+    --line: #3A3126;
+    --ember: #E08347;
+    --ember-hover: #F0A06B;
+    --ember-soft: #3B2A1C;
+    --green: #5FAE7F;
+    --red: #E85D46;
+    --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.45);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.02em; margin: 0; }
+  p { margin: 0; }
+  .wrap { max-width: 78rem; margin-inline: auto; padding: 0 1.5rem; }
+  code, .mono { font-family: var(--font-mono); }
+
+  /* ---- top bar ---- */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; padding: 0.9rem 1.5rem;
+    background: var(--surface); border-bottom: 1px solid var(--line);
+  }
+  .topbar .brand { display: flex; align-items: center; gap: 0.6rem; font-weight: 700; }
+  .brand-mark { width: 1.6rem; height: 1.6rem; border-radius: var(--radius-sm); background: var(--ember); display: grid; place-items: center; color: #fff; font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
+  .topbar-meta { display: flex; align-items: center; gap: 1.25rem; font-size: 0.8rem; color: var(--muted); }
+  .theme-flip {
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+    padding: 0.45rem 0.8rem; border-radius: var(--radius); font: inherit; font-size: 0.8rem; font-weight: 600;
+    cursor: pointer;
+  }
+  .theme-flip:hover { border-color: var(--ember); color: var(--ember); }
+
+  /* ---- hero ---- */
+  .doc-hero { padding: clamp(2.5rem, 6vw, 4.5rem) 0 2.5rem; border-bottom: 1px solid var(--line); }
+  .doc-kicker { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ember); margin-bottom: 0.9rem; }
+  .doc-hero h1 { font-size: clamp(2.2rem, 4.2vw, 3.4rem); font-weight: 700; max-width: 22ch; line-height: 1.08; }
+  .doc-hero .lede { margin-top: 1rem; max-width: 58ch; color: var(--muted); font-size: 1.05rem; }
+  .thesis-line {
+    margin-top: 1.5rem; padding: 1rem 1.25rem; border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--surface); font-size: 0.92rem; color: var(--ink);
+  }
+  .thesis-line b { color: var(--ember); }
+
+  /* ---- section shell ---- */
+  section.block { padding: clamp(2.25rem, 5vw, 3.5rem) 0; border-bottom: 1px solid var(--line); }
+  section.block:last-of-type { border-bottom: 0; }
+  .block-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 1.75rem; flex-wrap: wrap; }
+  .block-head h2 { font-size: 1.6rem; font-weight: 700; }
+  .block-head .idx { font-family: var(--font-mono); color: var(--muted); font-size: 0.8rem; }
+
+  /* ---- contract grid ---- */
+  .contract-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .contract-cell { background: var(--surface); padding: 1.35rem 1.5rem; }
+  .contract-cell h3 { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.7rem; }
+  .contract-cell p, .contract-cell ul { font-size: 0.92rem; }
+  .contract-cell ul { margin: 0; padding-left: 1.1rem; display: grid; gap: 0.4rem; }
+
+  /* ---- approach cards ---- */
+  .approach-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+  .approach-card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 1.4rem; display: grid; gap: 0.9rem; align-content: start; }
+  .approach-card.picked { border-color: var(--ember); background: var(--ember-soft); }
+  .approach-tag { display: inline-flex; width: max-content; align-items: center; gap: 0.35rem; padding: 0.2rem 0.6rem; border-radius: 999px; background: var(--ember); color: #fff; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+  .approach-card h3 { font-size: 1.05rem; }
+  .approach-card .swatch-row { display: flex; gap: 0.4rem; }
+  .swatch { width: 1.6rem; height: 1.6rem; border-radius: 50%; border: 1px solid var(--line); }
+  .approach-card dl { display: grid; gap: 0.55rem; margin: 0; font-size: 0.84rem; }
+  .approach-card dt { color: var(--muted); font-weight: 700; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .approach-card dd { margin: 0.15rem 0 0; }
+
+  .recommend-note { margin-top: 1.5rem; padding: 1.1rem 1.4rem; border: 1px solid var(--ember); border-radius: var(--radius); background: var(--ember-soft); font-size: 0.92rem; }
+  .recommend-note b { color: var(--ember-hover); }
+
+  /* ---- token specimen ---- */
+  .token-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 2rem; align-items: start; }
+  .swatch-strip { display: grid; grid-template-columns: repeat(6, 1fr); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .swatch-strip div { height: 4.5rem; position: relative; }
+  .swatch-strip span { position: absolute; left: 0.5rem; bottom: 0.4rem; font-family: var(--font-mono); font-size: 0.62rem; color: rgba(255,255,255,0.9); text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+  .type-specimen { display: grid; gap: 0.6rem; }
+  .type-specimen .disp { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.025em; }
+  .spec-96 { font-size: 2.6rem; line-height: 1.05; }
+  .spec-64 { font-size: 1.8rem; }
+  .spec-40 { font-size: 1.25rem; font-weight: 700; }
+  .spec-body { font-family: var(--font-body); font-size: 1rem; color: var(--muted); max-width: 46ch; }
+  .token-note { margin-top: 1rem; font-size: 0.82rem; color: var(--muted); }
+
+  /* ---- diagram ---- */
+  .diagram-shell { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 1.5rem; overflow-x: auto; }
+  .diagram-shell svg { display: block; min-width: 62rem; width: 100%; height: auto; }
+
+  /* ---- mockup tabs ---- */
+  .mock-tabs { display: flex; gap: 0.4rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+  .mock-tabs button {
+    border: 1px solid var(--line); background: var(--surface); color: var(--muted);
+    padding: 0.55rem 1rem; border-radius: var(--radius); font: inherit; font-size: 0.84rem; font-weight: 650; cursor: pointer;
+  }
+  .mock-tabs button[aria-selected="true"] { border-color: var(--ember); color: var(--ember); background: var(--ember-soft); }
+  .mock-panel { display: none; }
+  .mock-panel.active { display: block; }
+  .mock-frame { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; }
+
+  .callout-list { margin-top: 1.25rem; display: grid; gap: 0.65rem; }
+  .callout {
+    display: grid; grid-template-columns: 1.6rem minmax(0,1fr); gap: 0.7rem;
+    padding: 0.65rem 0.85rem; border: 1px solid var(--line); border-radius: var(--radius); font-size: 0.84rem;
+  }
+  .callout b { font-family: var(--font-mono); color: var(--ember); font-size: 0.78rem; }
+  .callout span.evidence { display: block; margin-top: 0.25rem; color: var(--muted); font-size: 0.78rem; }
+
+  /* ---- fake app chrome (public hero mock) ---- */
+  .fake-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .fake-brand { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.9rem; }
+  .fake-nav { display: flex; align-items: center; gap: 1rem; font-size: 0.78rem; color: var(--muted); flex-wrap: wrap; }
+  .fake-nav a { color: inherit; }
+  .fake-nav a[aria-current] { color: var(--ink); text-decoration: underline; text-decoration-color: var(--ember); text-underline-offset: 0.3em; }
+  .fake-nav select { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: var(--radius-sm); padding: 0.3rem 0.4rem; font: inherit; font-size: 0.75rem; }
+  .fake-icon-btn { display: grid; place-items: center; width: 2rem; height: 2rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--muted); font-size: 0.8rem; }
+  .fake-hero { padding: clamp(1.75rem, 5vw, 3rem) 1.5rem 0.5rem; text-align: center; display: grid; justify-items: center; gap: 0.6rem; }
+  .fake-eyebrow { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ember); }
+  .fake-hero h2 { font-size: clamp(1.9rem, 4.5vw, 3rem); font-weight: 700; max-width: 18ch; line-height: 1.05; }
+  .fake-hero .sub { max-width: 36ch; color: var(--muted); font-size: 0.95rem; }
+  .fake-public-body { padding: 1.5rem; display: grid; gap: 1.25rem; }
+  .fake-form-panel { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 1.25rem 1.4rem; display: grid; gap: 1rem; }
+  .fake-panel-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+  .fake-panel-heading h3 { font-size: 1rem; }
+  .fake-btn-text { border: 0; background: transparent; color: var(--ember); font: inherit; font-size: 0.8rem; font-weight: 700; text-decoration: underline; text-underline-offset: 0.22em; cursor: pointer; padding: 0; }
+  .fake-form-fields { display: grid; grid-template-columns: minmax(0,5fr) auto minmax(0,7fr); align-items: end; gap: 0.5rem; }
+  .fake-field label { display: block; margin-bottom: 0.35rem; font-size: 0.72rem; font-weight: 700; color: var(--muted); }
+  .fake-field input, .fake-field select { width: 100%; border: 1px solid var(--line); border-radius: var(--radius); padding: 0.65rem 0.75rem; background: var(--surface); color: var(--ink); font: inherit; font-family: var(--font-mono); font-size: 0.82rem; }
+  .fake-at { display: grid; place-items: center; height: 2.6rem; color: var(--muted); }
+  .fake-address-preview { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.6rem 0; border-bottom: 1px solid var(--line); font-family: var(--font-mono); font-size: 0.9rem; font-weight: 700; }
+  .fake-btn { border: 1px solid var(--ember); background: var(--ember); color: #fff; border-radius: var(--radius); padding: 0.7rem 1.2rem; font-weight: 700; font-size: 0.85rem; cursor: pointer; white-space: nowrap; width: 100%; }
+  .fake-saved-list { display: grid; }
+  .fake-saved-row { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 1rem; padding: 0.55rem 0; border-bottom: 1px solid var(--line); font-size: 0.85rem; }
+  .fake-saved-row:last-child { border-bottom: 0; }
+  .fake-saved-row span { font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fake-trash { border: 0; background: transparent; color: var(--muted); font-size: 0.85rem; cursor: pointer; }
+
+  /* ---- inbox mock ---- */
+  .fake-inbox { display: grid; grid-template-columns: 15rem minmax(0,1fr); min-height: 22rem; }
+  .fake-sidebar { border-right: 1px solid var(--line); padding: 1.1rem; display: grid; gap: 0.85rem; align-content: start; }
+  .fake-addr-pill { font-family: var(--font-mono); font-size: 0.82rem; padding: 0.55rem 0.7rem; border: 1px solid var(--line); border-radius: var(--radius); word-break: break-all; }
+  .fake-action-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .fake-action-row button { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: var(--radius); padding: 0.45rem 0.65rem; font: inherit; font-size: 0.74rem; font-weight: 650; cursor: pointer; }
+  .fake-action-row button.primary { grid-column: 1/-1; width: 100%; border-color: var(--ember); background: var(--ember); color: #fff; }
+  .fake-countdown { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.72rem; color: var(--muted); }
+  .ember-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 0 3px var(--ember-soft); }
+  .fake-list { display: grid; }
+  .fake-row { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 0.75rem; padding: 0.9rem 1.1rem; border-bottom: 1px solid var(--line); font-size: 0.82rem; }
+  .fake-row.unread { border-left: 2px solid var(--ember); background: var(--ember-soft); }
+  .fake-row .code { font-family: var(--font-mono); font-weight: 700; color: var(--ember); }
+  .fake-row .subj { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fake-row .subj strong { display: block; }
+  .fake-row .subj span { color: var(--muted); font-size: 0.75rem; }
+  .fake-row time { color: var(--muted); font-size: 0.72rem; }
+
+  /* ---- admin mock ---- */
+  .fake-admin { display: grid; grid-template-columns: 11rem minmax(0,1fr); min-height: 24rem; }
+  .fake-admin-rail { border-right: 1px solid var(--line); padding: 1rem 0.6rem; display: grid; gap: 0.2rem; align-content: start; }
+  .fake-admin-rail div { padding: 0.6rem 0.7rem; border-radius: var(--radius-sm); font-size: 0.8rem; color: var(--muted); }
+  .fake-admin-rail div.on { background: var(--ember-soft); color: var(--ember); font-weight: 700; border-left: 2px solid var(--ember); }
+  .fake-admin-main { padding: 1.4rem; }
+  .fake-metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); margin-bottom: 1.4rem; }
+  .fake-metric-grid div { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 0.9rem; }
+  .fake-metric-grid dt { font-size: 0.68rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+  .fake-metric-grid dd { margin: 0.6rem 0 0; font-family: var(--font-mono); font-weight: 700; font-size: 1.5rem; }
+  .fake-domain-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 0.7rem; padding: 0.65rem 0; border-bottom: 1px solid var(--line); font-size: 0.8rem; align-items: center; }
+  .fake-domain-row .dom { font-family: var(--font-mono); }
+  .pill { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.68rem; font-weight: 700; }
+  .pill-ok { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
+  .pill-warn { background: var(--ember-soft); color: var(--ember); }
+
+  /* ---- risks ---- */
+  .risk-list { display: grid; gap: 0.75rem; }
+  .risk-item { display: grid; grid-template-columns: 1.75rem minmax(0,1fr); gap: 0.75rem; padding: 0.9rem 1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 0.88rem; }
+  .risk-item .n { font-family: var(--font-mono); color: var(--ember); font-weight: 700; }
+
+  footer.doc-footer { padding: 2rem 0 3rem; color: var(--muted); font-size: 0.82rem; }
+
+  @media (max-width: 860px) {
+    .contract-grid, .approach-grid, .token-grid { grid-template-columns: 1fr; }
+    .fake-inbox, .fake-admin { grid-template-columns: 1fr; }
+    .fake-sidebar, .fake-admin-rail { border-right: 0; border-bottom: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="brand-mark">TM</span> Frontend Redesign Brief</div>
+  <div class="topbar-meta">
+    <span>2026-09-10</span>
+    <span class="mono">brainstorm · --html</span>
+    <button class="theme-flip" id="themeFlip" type="button">Xem bản tối</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="doc-hero">
+    <div class="doc-kicker">Brainstorm brief · chưa implement</div>
+    <h1>Thiết kế lại toàn bộ frontend TMail: editorial-minimal nâng cấp, palette mới.</h1>
+    <p class="lede">Bản brief này chốt phạm vi, ràng buộc, các hướng đã cân nhắc và hướng được chọn cho việc redesign toàn bộ giao diện TMail (public site + admin console), trước khi chuyển sang <code>ak-plan</code> rồi <code>/ak:cook</code> để implement thật.</p>
+    <div class="thesis-line">
+      <b>Luận điểm thẩm mỹ:</b> Swiss/editorial cho sản phẩm email tạm thời &mdash; nền ngà ấm + mực gần đen, một accent "ember" (cam-đỏ cháy) duy nhất, kiểu chữ Schibsted Grotesk/Libre Franklin, bố cục hairline-grid flush-left kế thừa tinh thần hiện có. Chi tiết đáng nhớ: <b>"ember motif"</b> &mdash; chấm/đường viền cháy dùng lại xuyên suốt cho trạng thái "sống" (tin mới, đếm ngược tự làm mới, MX health) &mdash; ẩn dụ trực tiếp cho hộp thư tự huỷ.
+    </div>
+  </div>
+
+  <!-- 1. CONTRACT -->
+  <section class="block">
+    <div class="block-head"><h2>1. Bốn điều khoản brief</h2><span class="idx">contract</span></div>
+    <div class="contract-grid">
+      <div class="contract-cell">
+        <h3>Outcome</h3>
+        <p>Toàn bộ frontend (public: trang địa chỉ, inbox, message reader, bulk views; admin: dashboard, domains, mail server, content, access, general) có một design system mới &mdash; token màu/chữ/radius/depth mới, layout hairline-grid nâng cấp &mdash; áp cho cả light/dark. Bước này chỉ giao brief + mockup HTML, chưa sửa code Vue/CSS thật.</p>
+      </div>
+      <div class="contract-cell">
+        <h3>Constraints</h3>
+        <ul>
+          <li>Giữ nguyên cơ chế 2-biến brand indirection (<code>--brand-primary</code>/<code>--brand-accent</code> + <code>color-mix</code> derive) để admin site settings vẫn override màu được &mdash; chỉ đổi giá trị mặc định.</li>
+          <li>Không phá SPA reserved routes, sandbox iframe (XSS boundary), breakpoint 640px/952px, contrast ≥ 4.5:1, focus-visible.</li>
+          <li>Không đổi logic component/test hiện có &mdash; đây là lớp CSS/token + markup bố cục, không phải rewrite kiến trúc.</li>
+        </ul>
+      </div>
+      <div class="contract-cell">
+        <h3>Non-goals</h3>
+        <ul>
+          <li>Không thêm tính năng mới, không đổi backend/API, không đổi i18n string, không đổi routing.</li>
+          <li>Không đổi bộ icon (<code>AppIcon.vue</code> đã là 1 family riêng, giữ nguyên).</li>
+          <li>Chưa implement CSS/Vue thật &mdash; đó là phase kế tiếp (plan/cook).</li>
+        </ul>
+      </div>
+      <div class="contract-cell">
+        <h3>Acceptance criteria</h3>
+        <ul>
+          <li><code>brainstorm.html</code> chứa đủ 4 điều khoản, 3 hướng so sánh có trade-off, hướng được chọn + lý do.</li>
+          <li>Mockup có annotation cho public hero, inbox split-view, admin dashboard &mdash; gắn với token/interaction state.</li>
+          <li>Có sơ đồ luồng implementation; câu hỏi/rủi ro còn mở liệt kê cuối bài.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. APPROACHES -->
+  <section class="block">
+    <div class="block-head"><h2>2. Ba hướng token/layout đã so sánh</h2><span class="idx">options</span></div>
+    <p style="color:var(--muted); font-size:0.9rem; max-width:60ch; margin-bottom:1.5rem;">Phạm vi (cả 2 mặt), hướng thẩm mỹ (editorial-minimal nâng cấp) và việc đổi hẳn palette gốc đã được chốt. Phần còn mở là: chọn đúng hue accent + mức độ leo thang layout nào.</p>
+    <div class="approach-grid">
+      <div class="approach-card">
+        <h3>B. Ink Ledger</h3>
+        <div class="swatch-row">
+          <div class="swatch" style="background:#2B2E33"></div>
+          <div class="swatch" style="background:#E8E4DC"></div>
+          <div class="swatch" style="background:#B8860B"></div>
+        </div>
+        <dl>
+          <dt>Palette</dt><dd>Graphite/slate lạnh + accent hổ phách (amber), gần với xanh cũ nhất trong 3 hướng.</dd>
+          <dt>Giả định trụ cột</dt><dd>An toàn tối đa quan trọng hơn tính khác biệt.</dd>
+          <dt>Hỏng khi nào</dt><dd>Không tạo được cảm giác "unforgettable" &mdash; brief đòi redesign toàn bộ, hướng này quá gần bản cũ để coi là "thiết kế lại".</dd>
+          <dt>Trade-off</dt><dd>Rủi ro thực thi thấp nhất, nhưng không gắn được với ý niệm "email tạm thời/tự huỷ" của sản phẩm.</dd>
+        </dl>
+      </div>
+      <div class="approach-card picked">
+        <span class="approach-tag">Chọn</span>
+        <h3>A. Ember on Bone</h3>
+        <div class="swatch-row">
+          <div class="swatch" style="background:#1E1A15"></div>
+          <div class="swatch" style="background:#F6F4EF"></div>
+          <div class="swatch" style="background:#B8501B"></div>
+        </div>
+        <dl>
+          <dt>Palette</dt><dd>Mực ấm gần đen trên nền ngà (chroma cực thấp, không phải cream bão hoà), 1 accent "ember" cam-đỏ cháy, restrained ≤10% diện tích.</dd>
+          <dt>Giả định trụ cột</dt><dd>Motif ember dùng lại được cho mọi trạng thái "sống" mà không phá tính tin cậy của admin console.</dd>
+          <dt>Hỏng khi nào</dt><dd>Nếu ember bị lạm dụng tràn lan (nhiều hơn accent action/selection/state) thì mất tính hiếm &mdash; hỏng nguyên tắc 60/30/10.</dd>
+          <dt>Trade-off</dt><dd>Khác biệt rõ, gắn với nội dung sản phẩm, nhưng cần kỷ luật khi implement để accent không lan ra ngoài vai trò của nó.</dd>
+        </dl>
+      </div>
+      <div class="approach-card">
+        <h3>C. Signal Red</h3>
+        <div class="swatch-row">
+          <div class="swatch" style="background:#101014"></div>
+          <div class="swatch" style="background:#F2EFEA"></div>
+          <div class="swatch" style="background:#D81E2C"></div>
+        </div>
+        <dl>
+          <dt>Palette</dt><dd>Committed strategy &mdash; đỏ bão hoà cao chiếm 30-60% mặt hero, gần đen tuyệt đối phần còn lại.</dd>
+          <dt>Giả định trụ cột</dt><dd>Trang public là "brand" page nên được phép rực hơn product page.</dd>
+          <dt>Hỏng khi nào</dt><dd>Register mismatch: admin console (product/dashboard) cần restrained &le;10% accent để giữ độ tin cậy &mdash; dùng chung 1 design system với public thì đỏ 30-60% ở admin sẽ phá vỡ sự tin cậy đó ngay lập tức.</dd>
+          <dt>Trade-off</dt><dd>Ấn tượng mạnh nhất nhưng rủi ro cao nhất, và không nhất quán được giữa 2 bề mặt theo đúng ràng buộc "1 design system chung".</dd>
+        </dl>
+      </div>
+    </div>
+    <div class="recommend-note">
+      <b>Khuyến nghị: A. Ember on Bone.</b> Đáp ứng đúng "editorial-minimal nâng cấp" (tiến hoá từ hairline-grid hiện có, không lật đổ), giữ accent restrained phù hợp cả product (admin) lẫn public, và motif ember là chi tiết "đáng nhớ" bắt nguồn từ chính nội dung (email tự huỷ) chứ không phải trang trí rời rạc.
+    </div>
+  </section>
+
+  <!-- 3. TOKENS -->
+  <section class="block">
+    <div class="block-head"><h2>3. Token specimen (Ember on Bone)</h2><span class="idx">tokens</span></div>
+    <div class="token-grid">
+      <div>
+        <div class="swatch-strip">
+          <div style="background:#1E1A15"><span>ink</span></div>
+          <div style="background:#6B6156"><span>muted</span></div>
+          <div style="background:#DAD5CB"><span>line</span></div>
+          <div style="background:#F6F4EF; color:#1E1A15"><span style="color:#1E1A15">canvas</span></div>
+          <div style="background:#B8501B"><span>ember</span></div>
+          <div style="background:#2F7D4F"><span>green</span></div>
+        </div>
+        <p class="token-note">OKLCH construction: canvas <code>oklch(97.5% 0.006 75)</code>, ink <code>oklch(18% 0.012 50)</code>, ember <code>oklch(56% 0.15 45)</code> (chroma trong tier brand/accent 0.08-0.15). Dark theme brighten ember lên <code>oklch(70% 0.14 45)</code> để đủ tương phản trên nền tối. <code>--red</code> tách hue riêng (hue 20, crimson) để không lẫn với ember (hue 45).</p>
+        <p class="token-note">Radius thu nhỏ so với bản cũ: sm 6px / base 8px / lg 10px (cũ 8/12/16) &mdash; sắc hơn, đúng tinh thần Swiss. Depth: bỏ soft-shadow trên panel, chỉ giữ 1 shadow tinted cho overlay nổi (modal/dropdown). Spacing scale 4pt giữ nguyên &mdash; đã đúng chuẩn, không phải sửa.</p>
+      </div>
+      <div>
+        <div class="type-specimen">
+          <div class="disp spec-96">Hộp thư tạm, biến mất đúng hẹn.</div>
+          <div class="disp spec-64">Schibsted Grotesk 700, tracking &minus;0.02em</div>
+          <div class="disp spec-40">Libre Franklin cho nhãn/label 650</div>
+          <p class="spec-body">Libre Franklin cho body copy, 16-18px, line-height 1.6, đo 45-75ch. JetBrains Mono giữ nguyên cho địa chỉ email/mã xác thực/dữ liệu &mdash; đây là dùng mono đúng chức năng, không phải costume kỹ thuật.</p>
+        </div>
+        <p class="token-note">Triển khai thật: thêm <code>@fontsource-variable/schibsted-grotesk</code> + <code>@fontsource-variable/libre-franklin</code>, cùng pattern self-host hiện tại (không CDN) &mdash; nhất quán với cách <code>Inter Variable</code>/<code>JetBrains Mono Variable</code> đang được cài. Bản HTML này dùng system-sans thay thế vì phải tự chứa (self-contained, mở offline).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. DIAGRAM -->
+  <section class="block">
+    <div class="block-head"><h2>4. Luồng triển khai (sau brief này)</h2><span class="idx">workflow</span></div>
+    <div class="diagram-shell">
+      <svg viewBox="0 0 1240 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="flowTitle flowDesc">
+        <title id="flowTitle">Luồng triển khai redesign frontend</title>
+        <desc id="flowDesc">Bảy bước tuần tự: brief này, cập nhật token nền tảng, public surfaces, admin console, kiểm tra accessibility/responsive, QA hình ảnh qua run-tmail, rồi ship.</desc>
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0L10 5L0 10z" fill="var(--muted)"></path>
+          </marker>
+        </defs>
+        <g font-family="Libre Franklin, sans-serif">
+          <!-- nodes -->
+          <g>
+            <rect x="10" y="70" width="150" height="80" rx="8" fill="var(--ember-soft)" stroke="var(--ember)"></rect>
+            <text x="85" y="102" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">1. Brief này</text>
+            <text x="85" y="122" text-anchor="middle" font-size="10.5" fill="var(--muted)">brainstorm.html</text>
+          </g>
+          <g>
+            <rect x="190" y="70" width="150" height="80" rx="8" fill="var(--surface)" stroke="var(--line)"></rect>
+            <text x="265" y="96" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">2. Token nền tảng</text>
+            <text x="265" y="114" text-anchor="middle" font-size="10.5" fill="var(--muted)">styles.css :root +</text>
+            <text x="265" y="128" text-anchor="middle" font-size="10.5" fill="var(--muted)">[data-theme='dark']</text>
+          </g>
+          <g>
+            <rect x="370" y="20" width="150" height="80" rx="8" fill="var(--surface)" stroke="var(--line)"></rect>
+            <text x="445" y="46" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">3a. Public</text>
+            <text x="445" y="64" text-anchor="middle" font-size="10.5" fill="var(--muted)">hero, inbox,</text>
+            <text x="445" y="78" text-anchor="middle" font-size="10.5" fill="var(--muted)">reader, bulk</text>
+          </g>
+          <g>
+            <rect x="370" y="120" width="150" height="80" rx="8" fill="var(--surface)" stroke="var(--line)"></rect>
+            <text x="445" y="146" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">3b. Admin</text>
+            <text x="445" y="164" text-anchor="middle" font-size="10.5" fill="var(--muted)">dashboard, domains,</text>
+            <text x="445" y="178" text-anchor="middle" font-size="10.5" fill="var(--muted)">settings tabs</text>
+          </g>
+          <g>
+            <rect x="550" y="70" width="150" height="80" rx="8" fill="var(--surface)" stroke="var(--line)"></rect>
+            <text x="625" y="96" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">4. A11y + responsive</text>
+            <text x="625" y="114" text-anchor="middle" font-size="10.5" fill="var(--muted)">contrast, focus-visible,</text>
+            <text x="625" y="128" text-anchor="middle" font-size="10.5" fill="var(--muted)">375px / 640px / 952px</text>
+          </g>
+          <g>
+            <rect x="730" y="70" width="150" height="80" rx="8" fill="var(--surface)" stroke="var(--line)"></rect>
+            <text x="805" y="96" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">5. QA hình ảnh</text>
+            <text x="805" y="114" text-anchor="middle" font-size="10.5" fill="var(--muted)">run-tmail skill,</text>
+            <text x="805" y="128" text-anchor="middle" font-size="10.5" fill="var(--muted)">screenshot đối chiếu</text>
+          </g>
+          <g>
+            <rect x="910" y="70" width="150" height="80" rx="8" fill="var(--surface)" stroke="var(--line)"></rect>
+            <text x="985" y="96" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">6. Test + review</text>
+            <text x="985" y="114" text-anchor="middle" font-size="10.5" fill="var(--muted)">vitest, vue-tsc,</text>
+            <text x="985" y="128" text-anchor="middle" font-size="10.5" fill="var(--muted)">ak:code-review</text>
+          </g>
+          <g>
+            <rect x="1090" y="70" width="140" height="80" rx="8" fill="var(--ember-soft)" stroke="var(--ember)"></rect>
+            <text x="1160" y="102" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">7. Ship</text>
+            <text x="1160" y="122" text-anchor="middle" font-size="10.5" fill="var(--muted)">ak:ship / PR</text>
+          </g>
+          <!-- arrows -->
+          <line x1="160" y1="110" x2="188" y2="110" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"></line>
+          <line x1="340" y1="95" x2="368" y2="65" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"></line>
+          <line x1="340" y1="125" x2="368" y2="155" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"></line>
+          <line x1="520" y1="65" x2="548" y2="95" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"></line>
+          <line x1="520" y1="155" x2="548" y2="125" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"></line>
+          <line x1="700" y1="110" x2="728" y2="110" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"></line>
+          <line x1="880" y1="110" x2="908" y2="110" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"></line>
+          <line x1="1060" y1="110" x2="1088" y2="110" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"></line>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- 5. MOCKUPS -->
+  <section class="block">
+    <div class="block-head"><h2>5. Mockup có annotation</h2><span class="idx">ui/ux</span></div>
+    <div class="mock-tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-target="mock-public">Public · Hero</button>
+      <button role="tab" aria-selected="false" data-target="mock-inbox">Public · Inbox</button>
+      <button role="tab" aria-selected="false" data-target="mock-admin">Admin · Dashboard</button>
+    </div>
+
+    <div class="mock-panel active" id="mock-public">
+      <div class="mock-frame">
+        <div class="fake-header">
+          <div class="fake-brand"><span class="brand-mark">TM</span> TMail</div>
+          <div class="fake-nav">
+            <a aria-current="page">Trang chủ</a>
+            <a>Tài liệu</a>
+            <a>Tạo hàng loạt</a>
+            <a>Đọc mã hàng loạt</a>
+            <a>Quản trị</a>
+            <select><option>Tiếng Việt</option></select>
+            <span class="fake-icon-btn">&#9789;</span>
+          </div>
+        </div>
+        <div class="fake-hero">
+          <div class="fake-eyebrow">Hộp thư tạm thời</div>
+          <h2>Nhận thư. Giữ địa chỉ của bạn.</h2>
+          <p class="sub">Chọn tên, mở hộp thư và không cần tạo tài khoản.</p>
+        </div>
+        <div class="fake-public-body">
+          <div class="fake-form-panel">
+            <div class="fake-panel-heading">
+              <h3>Tạo địa chỉ</h3>
+              <button class="fake-btn-text" type="button">Mở email ngẫu nhiên</button>
+            </div>
+            <div class="fake-form-fields">
+              <div class="fake-field"><label>Tên địa chỉ</label><input value="phong.tran42" /></div>
+              <span class="fake-at" aria-hidden="true">@</span>
+              <div class="fake-field"><label>Tên miền nhận thư</label><select><option>tmail.dev</option></select></div>
+            </div>
+            <div class="fake-address-preview">
+              <span>phong.tran42@tmail.dev</span>
+              <button class="fake-btn-text" type="button">Sao chép</button>
+            </div>
+            <button class="fake-btn" type="button">Mở hộp thư</button>
+          </div>
+          <div class="fake-form-panel">
+            <div class="fake-panel-heading"><h3>Hộp thư đã lưu</h3></div>
+            <div class="fake-saved-list">
+              <div class="fake-saved-row"><span>phong.tran42@tmail.dev</span><button class="fake-trash" type="button">Quên</button></div>
+              <div class="fake-saved-row"><span>dev.test01@tmail.dev</span><button class="fake-trash" type="button">Quên</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="callout-list">
+        <div class="callout"><b>nav</b><div>Giữ nguyên đủ 5 mục nav gốc (Trang chủ/Tài liệu/Tạo hàng loạt/Đọc mã hàng loạt/Quản trị) + locale picker + theme toggle &mdash; không bớt, chỉ đổi màu trạng thái active sang <code>--ember</code>.<span class="evidence">Acceptance: AppHeader.vue không đổi cấu trúc <code>&lt;nav&gt;</code>, chỉ đổi token CSS.</span></div></div>
+        <div class="callout"><b>fake-btn-text</b><div>"Mở email ngẫu nhiên" và "Sao chép" giữ đúng vai trò text-button gốc (không viền, gạch chân) &mdash; chỉ đổi màu chữ sang <code>--ember</code> thay vì <code>--accent</code> tím cũ.<span class="evidence">Non-goal: không đổi hành vi randomize()/copyAddress().</span></div></div>
+        <div class="callout"><b>fake-btn</b><div>"Mở hộp thư" là primary-button duy nhất của panel (1 CTA/ý định) &mdash; nền <code>--ember</code>, chữ trắng, tuân 60/30/10.<span class="evidence">Bằng chứng: contrast chữ/nền ≥ 4.5:1.</span></div></div>
+        <div class="callout"><b>fake-trash</b><div>Nút "Quên" trong Hộp thư đã lưu giữ nguyên &mdash; hành động huỷ nhẹ (text-button muted), không phải accent, đúng vai trò forget-button gốc.<span class="evidence">Non-goal: không đổi logic removeSession().</span></div></div>
+      </div>
+    </div>
+
+    <div class="mock-panel" id="mock-inbox">
+      <div class="mock-frame">
+        <div class="fake-inbox">
+          <div class="fake-sidebar">
+            <div class="fake-addr-pill">phong.tran42@tmail.dev</div>
+            <div class="fake-action-row">
+              <button class="primary" type="button">Sao chép</button>
+              <button type="button">Làm mới</button>
+              <button type="button">Địa chỉ mới</button>
+              <button type="button">QR</button>
+              <button type="button">Bật âm thanh</button>
+              <button type="button">Bật thông báo</button>
+            </div>
+            <span class="fake-countdown"><span class="ember-dot"></span> Tự làm mới sau 24s</span>
+          </div>
+          <div class="fake-list">
+            <div class="fake-row unread">
+              <span class="code">482913</span>
+              <span class="subj"><strong>Mã xác thực Coinbase</strong><span>noreply@coinbase.com</span></span>
+              <time>2 phút trước</time>
+            </div>
+            <div class="fake-row">
+              <span class="code" style="color:var(--muted)">&mdash;</span>
+              <span class="subj"><strong style="font-weight:500">Chào mừng đến với DevForum</strong><span>hello@devforum.io</span></span>
+              <time>hôm qua</time>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="callout-list">
+        <div class="callout"><b>action-row</b><div>Giữ đủ 6 nút gốc của <code>.inbox-hero-actions</code> (Sao chép, Làm mới, Địa chỉ mới, QR, Bật âm thanh, Bật thông báo) &mdash; không thêm/bớt nút, chỉ nút "Sao chép" giữ vai trò primary (nền <code>--ember</code>), 5 nút còn lại là secondary (viền hairline).<span class="evidence">Acceptance: InboxView.vue giữ nguyên 6 <code>&lt;button&gt;</code> và <code>data-action</code> hiện có, chỉ đổi class token màu.</span></div></div>
+        <div class="callout"><b>ember-dot</b><div>Motif ember tái sử dụng cho trạng thái "đang sống" (đếm ngược auto-refresh) &mdash; cùng 1 chấm dùng cho tin chưa đọc, MX health pulse ở admin. Đây là "one memorable element" của cả hệ thống.<span class="evidence">Bằng chứng: cùng token <code>--ember</code> + cùng kích thước chấm 6-7px xuất hiện ở cả 3 nơi.</span></div></div>
+        <div class="callout"><b>unread row</b><div>Border-left 2px <code>--ember</code> + nền <code>--ember-soft</code> thay vì border-left 3px xanh cũ &mdash; radius giảm còn 8px cho toàn bộ card/row.<span class="evidence">Shape lock: 1 hệ radius (6/8/10px) áp toàn app, không còn 12/16px.</span></div></div>
+        <div class="callout"><b>code badge</b><div>Mã xác thực giữ <code>--font-mono</code>, nay tô màu <code>--ember</code> thay vì <code>--ink</code> mặc định &mdash; tăng độ quét nhanh khi user cần copy mã.<span class="evidence">Non-goal: không đổi logic trích mã (verificationCode.ts).</span></div></div>
+      </div>
+    </div>
+
+    <div class="mock-panel" id="mock-admin">
+      <div class="mock-frame">
+        <div class="fake-admin">
+          <div class="fake-admin-rail">
+            <div class="on">Dashboard</div>
+            <div>Domains</div>
+            <div>Mail server</div>
+            <div>Content</div>
+            <div>Access</div>
+            <div>General</div>
+          </div>
+          <div class="fake-admin-main">
+            <div class="fake-metric-grid">
+              <div><dt>Domain hoạt động</dt><dd>14</dd></div>
+              <div><dt>Hộp thư 24h</dt><dd>2,847</dd></div>
+              <div><dt>MX lỗi</dt><dd style="color:var(--ember)">3</dd></div>
+            </div>
+            <div class="fake-domain-row"><span class="dom">mail.example.dev</span><span class="pill pill-ok">MX ok</span></div>
+            <div class="fake-domain-row"><span class="dom">tmp.otherhost.io</span><span class="pill pill-warn">MX lỗi 40 phút</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="callout-list">
+        <div class="callout"><b>metric-grid</b><div>Giữ nguyên grid-line hairline hiện có (border-top/border-left + border-right/bottom mỗi ô) &mdash; đây chính là "editorial-minimal nâng cấp": kế thừa signature đã tốt, chỉ đổi màu số liệu MX lỗi sang <code>--ember</code> thay vì đỏ generic.<span class="evidence">Bằng chứng: 1 depth strategy (hairline) xuyên suốt admin, không thêm shadow.</span></div></div>
+        <div class="callout"><b>pill-warn</b><div>Cảnh báo MX dùng <code>--ember-soft</code>/<code>--ember</code> (không phải <code>--red</code>) vì đây là trạng thái "cần chú ý" chứ chưa phải lỗi nghiêm trọng &mdash; <code>--red</code> dành riêng cho lỗi thực sự (xoá thất bại, session hết hạn).<span class="evidence">Rule: accent restrained ≤10% diện tích, chỉ ember ở nơi cần điều hướng mắt.</span></div></div>
+        <div class="callout"><b>rail</b><div>Tab đang chọn: border-left 2px + nền <code>--ember-soft</code> + chữ <code>--ember</code>, radius giảm còn <code>--radius-sm</code> (6px) cho hàng rail thay vì bo tròn lớn.<span class="evidence">Touch target vẫn ≥44px chiều cao, giữ hành vi role="tab"/aria-selected hiện có.</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. RISKS -->
+  <section class="block">
+    <div class="block-head"><h2>6. Câu hỏi/rủi ro còn mở</h2><span class="idx">unresolved</span></div>
+    <div class="risk-list">
+      <div class="risk-item"><span class="n">01</span><div>Site admin nào đã tự set <code>primaryColor</code>/<code>accentColor</code> riêng qua Content tab sẽ không bị ảnh hưởng bởi đổi default &mdash; nhưng site nào đang dùng default cũ (xanh) sẽ đổi màu ngay khi deploy. Cần xác nhận: có site production nào đang dựa vào đúng tông xanh đó cho brand riêng của họ không?</div></div>
+      <div class="risk-item"><span class="n">02</span><div>Đổi font family (Inter &rarr; Schibsted Grotesk/Libre Franklin) làm tăng dung lượng font tải về (thêm 2 family self-host) trong khi bundle hiện chỉ có Inter + JetBrains Mono. Cần đo lại kích thước font-face trước khi chốt ở phase implement.</div></div>
+      <div class="risk-item"><span class="n">03</span><div>Email HTML sandbox (<code>.sandbox-frame</code>) cố tình giữ nền trắng bất kể theme &mdash; redesign không đổi điều này, nhưng viền/radius quanh khung sandbox sẽ đổi theo token mới; cần xác nhận không tạo cảm giác lệch tông giữa khung ember-toned và nội dung email trắng bên trong.</div></div>
+    </div>
+  </section>
+
+  <footer class="doc-footer">
+    Handoff: outcome/constraints/non-goals/acceptance criteria + hướng A (Ember on Bone) sẵn sàng chuyển sang <code>ak-plan</code> để tách phase (token nền tảng &rarr; public &rarr; admin &rarr; QA) rồi <code>/ak:cook</code> implement thật.
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var flip = document.getElementById('themeFlip');
+    var root = document.documentElement;
+    flip.addEventListener('click', function () {
+      var dark = root.getAttribute('data-theme') === 'dark';
+      root.setAttribute('data-theme', dark ? 'light' : 'dark');
+      flip.textContent = dark ? 'Xem bản tối' : 'Xem bản sáng';
+    });
+
+    var tabs = document.querySelectorAll('.mock-tabs [role="tab"]');
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        tabs.forEach(function (t) { t.setAttribute('aria-selected', 'false'); });
+        document.querySelectorAll('.mock-panel').forEach(function (p) { p.classList.remove('active'); });
+        tab.setAttribute('aria-selected', 'true');
+        document.getElementById(tab.dataset.target).classList.add('active');
+      });
+    });
+  })();
+</script>
+</body>
+</html>
