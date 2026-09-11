@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from '../i18n'
 
 const props = withDefaults(defineProps<{
@@ -22,7 +22,10 @@ const sourceUrl = computed(() => `${props.mode === 'message' ? '/message-sandbox
 
 watch(
   () => [props.html, props.css, props.mode] as const,
-  () => { revision.value += 1 },
+  () => {
+    revision.value += 1
+    sentMessageRevision = -1
+  },
 )
 
 function sendContent(): void {
@@ -36,6 +39,22 @@ function sendContent(): void {
     mode: props.mode,
   }, '*')
 }
+
+function handleWindowMessage(event: MessageEvent): void {
+  if (event.source !== frame.value?.contentWindow) return
+  if (event.data && event.data.type === 'tmail:sandbox-ready') {
+    sentMessageRevision = -1
+    sendContent()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('message', handleWindowMessage)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('message', handleWindowMessage)
+})
 </script>
 
 <template>

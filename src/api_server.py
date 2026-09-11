@@ -80,17 +80,20 @@ _SANDBOX_DOCUMENT = """<!doctype html>
 <html><head><meta charset="utf-8"><title>Sandboxed content</title></head><body>
 <script>
 "use strict";
-addEventListener("message", (event) => {
+function onMessage(event) {
   const value = event.data;
   if (event.source !== parent || !value || value.type !== "tmail:sandbox-content") return;
   if (typeof value.html !== "string" || typeof value.css !== "string") return;
   if (value.mode !== "content") return;
+  removeEventListener("message", onMessage);
   document.open();
   document.write(`<!doctype html><html><head><base target="_blank"><style>${value.css}</style></head><body>`);
   document.write(value.html);
   document.write("</body></html>");
   document.close();
-}, {once: true});
+}
+addEventListener("message", onMessage);
+try { parent.postMessage({ type: "tmail:sandbox-ready" }, "*"); } catch (e) {}
 </script>
 </body></html>
 """
@@ -101,28 +104,43 @@ def _message_sandbox(nonce: str) -> str:
 <html><head><meta charset="utf-8"><title>Message content</title></head><body>
 <script nonce="{nonce}">
 "use strict";
-addEventListener("message", (event) => {{
+function onMessage(event) {{
   const value = event.data;
   if (event.source !== parent || !value || value.type !== "tmail:sandbox-content") return;
   if (value.mode !== "message" || typeof value.html !== "string") return;
+  removeEventListener("message", onMessage);
   const content = new DOMParser().parseFromString(value.html, "text/html");
   for (const meta of content.querySelectorAll("meta[http-equiv]")) {{
     if (meta.httpEquiv.toLowerCase() === "refresh") meta.remove();
   }}
+  var bodyAttrs = "";
+  if (content.body) {{
+    for (var i = 0; i < content.body.attributes.length; i++) {{
+      var attr = content.body.attributes[i];
+      if (!attr.name.toLowerCase().startsWith("on")) {{
+        bodyAttrs += ' ' + attr.name + '="' + attr.value.replace(/"/g, '&quot;') + '"';
+      }}
+    }}
+  }}
   document.open();
   document.write('<!doctype html><html><head><meta charset="utf-8">');
   document.write('<meta name="viewport" content="width=device-width,initial-scale=1">');
+  document.write('<base target="_blank">');
   document.write('<style>html,body{{margin:0;padding:0;max-width:100%;overflow-wrap:anywhere}}body{{padding:16px}}img{{max-width:100%;height:auto}}table{{max-width:100%}}</style>');
-  document.write(content.head.innerHTML);
-  document.write('</head><body>');
-  document.write(content.body.innerHTML);
+  if (content.head) {{
+    document.write(content.head.innerHTML);
+  }}
+  document.write('</head><body' + bodyAttrs + '>');
+  document.write(content.body ? content.body.innerHTML : value.html);
   document.write('</body></html>');
   document.close();
   for (const link of document.links) {{
     link.target = "_blank";
     link.rel = "noopener noreferrer";
   }}
-}}, {{once: true}});
+}}
+addEventListener("message", onMessage);
+try {{ parent.postMessage({{ type: "tmail:sandbox-ready" }}, "*"); }} catch (e) {{}}
 </script></body></html>'''
 
 

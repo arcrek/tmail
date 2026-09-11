@@ -753,6 +753,8 @@ def test_sandbox_document_has_isolated_inline_policy_and_bootstrap(client):
     assert "script-src 'unsafe-inline' https:" not in csp
     assert "connect-src" not in csp
     assert "tmail:sandbox-content" in response.text
+    assert "tmail:sandbox-ready" in response.text
+    assert "once: true" not in response.text
 
 
 def test_message_sandbox_allows_email_styles_but_only_its_nonce_script(client):
@@ -771,6 +773,9 @@ def test_message_sandbox_allows_email_styles_but_only_its_nonce_script(client):
     assert "object-src 'none'" in csp
     assert "script-src 'unsafe-inline'" not in csp
     assert "allow-same-origin" not in first.text
+    assert "tmail:sandbox-ready" in first.text
+    assert "once: true" not in first.text
+    assert '<base target="_blank">' in first.text
 
 
 def test_redoc_csp_allows_only_generated_redoc_assets(client):

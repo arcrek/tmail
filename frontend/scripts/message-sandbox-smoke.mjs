@@ -73,12 +73,17 @@ try {
 
   const escapeUrl = new URL('/__message_sandbox_escape__', baseUrl).href
   const hostileHtml = `
+    <body style="background-color: rgb(240, 240, 240)" data-test="email-body">
     <meta http-equiv="refresh" content="0;url=${escapeUrl}">
     <div id="probe" style="background-color: rgb(219, 234, 254)">Styled content</div>
     <script>globalThis.__tmailScriptRan = true<\/script>
     <img id="attack-image" src="data:image/png;base64,broken" onerror="globalThis.__tmailEventRan = true">
     <form id="attack-form" action="${escapeUrl}" target="_top"><button>Submit</button></form>
   `
+  // Dispatch extraneous messages beforehand to verify listener resilience against extension noise
+  await evaluate(`window.postMessage({ type: 'noise:extension', payload: 123 }, '*')`)
+  await evaluate(`window.postMessage('arbitrary string', '*')`)
+
   await evaluate(`window.postMessage({
     type: 'tmail:sandbox-content', mode: 'message', html: ${JSON.stringify(hostileHtml)}, css: ''
   }, '*')`)
@@ -88,9 +93,11 @@ try {
 
   const checks = {
     inlineStyle: await evaluate("getComputedStyle(document.getElementById('probe')).backgroundColor === 'rgb(219, 234, 254)'"),
+    bodyAttributePreserved: await evaluate("document.body.getAttribute('data-test') === 'email-body'"),
     scriptBlocked: await evaluate("typeof globalThis.__tmailScriptRan === 'undefined'"),
     eventHandlerBlocked: await evaluate("document.getElementById('attack-image').complete && typeof globalThis.__tmailEventRan === 'undefined'"),
     refreshNavigationBlocked: (await evaluate('location.href')).startsWith(sandboxUrl),
+    baseTargetBlank: await evaluate("document.querySelector('base[target=\"_blank\"]') !== null"),
   }
 
   await evaluate("document.getElementById('attack-form').requestSubmit()")

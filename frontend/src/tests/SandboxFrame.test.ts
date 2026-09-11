@@ -29,6 +29,7 @@ describe('SandboxFrame', () => {
     }, '*')
     await frame.trigger('load')
     expect(postMessage).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
     contentWindow.mockRestore()
   })
 
@@ -52,6 +53,7 @@ describe('SandboxFrame', () => {
       css: 'body { color: red }',
       mode: 'content',
     }, '*')
+    wrapper.unmount()
     contentWindow.mockRestore()
   })
 
@@ -63,5 +65,73 @@ describe('SandboxFrame', () => {
     expect(wrapper.get('iframe').element).not.toBe(first)
 
     expect(() => wrapper.unmount()).not.toThrow()
+  })
+
+  it('responds to tmail:sandbox-ready from its own iframe contentWindow', async () => {
+    const postMessage = vi.fn()
+    const mockWindow = { postMessage } as unknown as Window
+    const contentWindow = vi.spyOn(HTMLIFrameElement.prototype, 'contentWindow', 'get')
+      .mockReturnValue(mockWindow)
+    const wrapper = mount(SandboxFrame, {
+      props: { html: '<p>Ready handshake test</p>', mode: 'message' },
+    })
+
+    // Ignore messages from unknown sources or with other types
+    window.dispatchEvent(new MessageEvent('message', {
+      source: {} as Window,
+      data: { type: 'tmail:sandbox-ready' },
+    }))
+    window.dispatchEvent(new MessageEvent('message', {
+      source: mockWindow,
+      data: { type: 'extension:noise' },
+    }))
+    expect(postMessage).not.toHaveBeenCalled()
+
+    // Dispatch authentic ready event from frame contentWindow
+    window.dispatchEvent(new MessageEvent('message', {
+      source: mockWindow,
+      data: { type: 'tmail:sandbox-ready' },
+    }))
+
+    expect(postMessage).toHaveBeenCalledTimes(1)
+    expect(postMessage).toHaveBeenCalledWith({
+      type: 'tmail:sandbox-content',
+      html: '<p>Ready handshake test</p>',
+      css: '',
+      mode: 'message',
+    }, '*')
+
+    // Subsequent load event should not duplicate send
+    const frame = wrapper.get('iframe')
+    await frame.trigger('load')
+    expect(postMessage).toHaveBeenCalledTimes(1)
+
+    wrapper.unmount()
+    contentWindow.mockRestore()
+  })
+
+  it('re-sends on sandbox-ready even if load event fired prematurely', async () => {
+    const postMessage = vi.fn()
+    const mockWindow = { postMessage } as unknown as Window
+    const contentWindow = vi.spyOn(HTMLIFrameElement.prototype, 'contentWindow', 'get')
+      .mockReturnValue(mockWindow)
+    const wrapper = mount(SandboxFrame, {
+      props: { html: '<p>Premature load test</p>', mode: 'message' },
+    })
+    const frame = wrapper.get('iframe')
+
+    // Initial load event fires (e.g. on about:blank)
+    await frame.trigger('load')
+    expect(postMessage).toHaveBeenCalledTimes(1)
+
+    // Then the real sandbox document signals it is ready
+    window.dispatchEvent(new MessageEvent('message', {
+      source: mockWindow,
+      data: { type: 'tmail:sandbox-ready' },
+    }))
+    expect(postMessage).toHaveBeenCalledTimes(2)
+
+    wrapper.unmount()
+    contentWindow.mockRestore()
   })
 })
