@@ -3,6 +3,7 @@
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MessageReader from '../components/MessageReader.vue'
+import { useToast } from '../toast'
 
 const mocks = vi.hoisted(() => ({
   message: vi.fn(),
@@ -10,12 +11,17 @@ const mocks = vi.hoisted(() => ({
   attachment: vi.fn(),
   source: vi.fn(),
   deleteMessage: vi.fn(),
+  copyText: vi.fn(),
 }))
 
 vi.mock('../api', async () => {
   const actual = await vi.importActual<typeof import('../api')>('../api')
   return { ...actual, api: { ...actual.api, ...mocks } }
 })
+
+vi.mock('../clipboard', () => ({
+  copyText: mocks.copyText,
+}))
 
 enableAutoUnmount(afterEach)
 
@@ -89,6 +95,7 @@ describe('MessageReader', () => {
     mocks.attachment.mockReset().mockResolvedValue(new Blob(['note']))
     mocks.source.mockReset().mockResolvedValue(new Blob(['source']))
     mocks.deleteMessage.mockReset().mockResolvedValue(undefined)
+    mocks.copyText.mockReset().mockResolvedValue(undefined)
     vi.stubGlobal('confirm', vi.fn().mockReturnValue(true))
     vi.stubGlobal('URL', { createObjectURL: vi.fn().mockReturnValue('blob:test'), revokeObjectURL: vi.fn() })
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () {
@@ -285,5 +292,31 @@ describe('MessageReader', () => {
 
     expect(document.activeElement).toBe(wrapper.get('[data-action="close"]').element)
     wrapper.unmount()
+  })
+
+  it('renders the verification code banner above reader body and copies the code', async () => {
+    mocks.message.mockResolvedValueOnce({
+      ...message('one'),
+      subject: 'Verification Code: 994821',
+      text: 'Here is your verification code: 994821',
+      html: [],
+    })
+    const wrapper = mount(MessageReader, { props: { token: 'signed', id: 'one' } })
+    await flushPromises()
+
+    const codeAside = wrapper.get('.verification-code')
+    const readerBody = wrapper.get('.reader-body')
+    const grid = wrapper.get('.reader-content-grid')
+    const children = Array.from(grid.element.children)
+
+    expect(children.indexOf(codeAside.element)).toBeLessThan(children.indexOf(readerBody.element))
+    expect(codeAside.text()).toContain('994821')
+
+    const copyBtn = codeAside.get('button')
+    expect(copyBtn.attributes('aria-label')).toBe('Copy code')
+    await copyBtn.trigger('click')
+    expect(mocks.copyText).toHaveBeenCalledWith('994821')
+    const toast = useToast()
+    expect(toast.toasts.value.map((t) => t.message)).toContain('Verification code copied.')
   })
 })
