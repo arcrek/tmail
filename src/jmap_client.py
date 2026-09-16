@@ -209,6 +209,7 @@ class JmapClient:
                 "filter": {"operator": "OR", "conditions": [
                     {"to": address}, {"header": ["Delivered-To", address]},
                 ]},
+                "sort": [{"property": "receivedAt", "isAscending": False}],
                 "limit": limit,
                 "position": position,
                 "calculateTotal": True,

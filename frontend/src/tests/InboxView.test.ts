@@ -584,8 +584,8 @@ describe('InboxView polling', () => {
     expect(wrapper.classes()).toContain('inbox-view')
     expect(wrapper.get('.inbox-hero').text()).toContain(session.address)
     expect(wrapper.get('.message-list').exists()).toBe(true)
-    expect(styles).toMatch(/\.page\.inbox-page \{[\s\S]*?72rem\);\s*\}/)
-    expect(styles).toMatch(/\.inbox-view \{[\s\S]*?grid-template-columns: minmax\(17rem, 22rem\) minmax\(0, 1fr\);/)
+    expect(styles).toMatch(/\.page\.inbox-page \{[\s\S]*?86rem\);\s*\}/)
+    expect(styles).toMatch(/\.inbox-view \{[\s\S]*?grid-template-columns: minmax\(16rem, 18\.5rem\) minmax\(0, 1fr\);/)
     expect(styles).toMatch(/@media \(max-width: 640px\) \{[\s\S]*?\.inbox-view \{ grid-template-columns: 1fr; \}/)
     expect(wrapper.text()).not.toMatch(/Sent|Contacts|Addresses/)
   })
@@ -752,5 +752,33 @@ describe('InboxView polling', () => {
 
     await wrapper.get('.qr-close-button').trigger('click')
     expect(wrapper.find('.qr-modal-backdrop').exists()).toBe(false)
+  })
+
+  it('renders message rows ordered newest-first by createdAt', async () => {
+    const wrapper = mount(InboxView, {
+      props: {
+        session: { address: 'box@example.com', token: 'signed' },
+        fetchSeconds: 10,
+      },
+    })
+    await flushPromises()
+
+    const oldMsg = { ...summary('old'), createdAt: '2026-07-20T10:00:00Z', subject: 'Older Mail' }
+    const newMsg = { ...summary('new'), createdAt: '2026-07-22T10:00:00Z', subject: 'Newer Mail' }
+    mocks.messages.mockResolvedValue({
+      '@context': '/contexts/Message',
+      '@id': '/messages?page=1',
+      '@type': 'hydra:Collection',
+      'hydra:totalItems': 2,
+      'hydra:member': [oldMsg, newMsg], // intentionally oldest-first from mock
+      'hydra:view': { '@id': '/messages?page=1', '@type': 'hydra:PartialCollectionView' },
+    })
+
+    const refreshButton = wrapper.get('[data-action="refresh"]')
+    await refreshButton.trigger('click')
+    await flushPromises()
+
+    const subjects = wrapper.findAll('.message-subject').map((el) => el.text())
+    expect(subjects).toEqual(['Newer Mail', 'Older Mail'])
   })
 })

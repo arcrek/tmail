@@ -7,6 +7,7 @@ import { extractVerificationCode } from '../verificationCode'
 import AppIcon from './AppIcon.vue'
 import SandboxFrame from './SandboxFrame.vue'
 import { useI18n } from '../i18n'
+import { useToast } from '../toast'
 
 const props = defineProps<{ token: string; id: string }>()
 const emit = defineEmits<{
@@ -16,6 +17,7 @@ const emit = defineEmits<{
   stale: [id: string]
 }>()
 const { t, formatDate: localDate, formatNumber } = useI18n()
+const toast = useToast()
 
 const message = ref<MessageResource | null>(null)
 const loading = ref(true)
@@ -37,6 +39,7 @@ async function copyVerificationCode(): Promise<void> {
   actionError.value = ''
   try {
     await copyText(verificationCode.value)
+    toast.success(t('inbox.codeCopied'))
   } catch {
     actionError.value = t('error.copy')
   }
@@ -268,9 +271,22 @@ onBeforeUnmount(() => { requestVersion += 1 })
 
       <div class="reader-content-grid">
         <aside v-if="verificationCode" class="verification-code" :aria-label="t('reader.code')">
-          <strong>{{ t('reader.code') }}</strong>
-          <code>{{ verificationCode }}</code>
-          <button class="secondary-button compact-button" type="button" @click="copyVerificationCode">{{ t('address.copy') }}</button>
+          <div class="verification-code-lead">
+            <span class="verification-code-badge">
+              <AppIcon name="key" />
+              {{ t('reader.code') }}
+            </span>
+            <code>{{ verificationCode }}</code>
+          </div>
+          <button
+            class="primary-button compact-button"
+            type="button"
+            :aria-label="t('inbox.copyCodeAction')"
+            @click="copyVerificationCode"
+          >
+            <AppIcon name="copy" />
+            {{ t('address.copy') }}
+          </button>
         </aside>
 
         <div class="reader-body">

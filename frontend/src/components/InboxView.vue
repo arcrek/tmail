@@ -58,7 +58,12 @@ watch(selectedId, (value) => {
   void nextTick(() => listHeading.value?.focus())
 })
 
-const pageMessages = computed(() => collection.value?.['hydra:member'] ?? [])
+const pageMessages = computed(() => {
+  const items = collection.value?.['hydra:member'] ?? []
+  return [...items].sort(
+    (a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0),
+  )
+})
 const messages = computed(() => {
   const needle = query.value.trim().toLowerCase()
   if (!needle) return pageMessages.value

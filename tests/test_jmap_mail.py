@@ -98,6 +98,7 @@ def test_list_messages_queries_recipient_and_returns_query_total(client, mocked_
             {"header": ["Delivered-To", "box@example.com"]},
         ],
     }
+    assert query["sort"] == [{"property": "receivedAt", "isAscending": False}]
 
 
 def test_get_message_requests_full_body_and_attachment_fields(client, mocked_post):
