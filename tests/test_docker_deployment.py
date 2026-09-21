@@ -42,7 +42,7 @@ def test_api_entrypoint_seeds_runtime_config_once(tmp_path):
 def test_compose_exposes_only_frontend_and_persists_runtime():
     compose = (ROOT / "compose.yaml").read_text()
 
-    assert "${TMAIL_HTTP_BIND:-127.0.0.1}:${TMAIL_HTTP_PORT:-8080}:80" in compose
+    assert "${TMAIL_HTTP_BIND:-127.0.0.1}:${TMAIL_HTTP_PORT:-8081}:80" in compose
     assert "TMAIL_API_HOST: 0.0.0.0" in compose
     assert 'TMAIL_API_PORT: "8000"' in compose
     assert 'FORWARDED_ALLOW_IPS: "*"' in compose

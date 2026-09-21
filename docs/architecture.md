@@ -113,6 +113,24 @@ TMail partitions persistence between two independent stores with distinct perfor
   - If the Web API is deployed via Docker Compose while the policy daemon runs as a systemd service on the host, the systemd unit `tmail-api.service` must be disabled (`sudo systemctl disable --now tmail-api.service`).
   - Failure to disable the host service results in two split-brain instances reading and writing divergent `config.json` files (one at `/var/lib/tmail-policy/config.json` and one inside Docker volume `tmail-data`).
 
+### Invariant 6: Strict Port Allocation and Reverse Proxy Boundaries
+- **Invariant**: Network listeners on the host must maintain disjoint port ownership to prevent public reverse proxy hijacking and internal API collisions.
+- **Enforcement**:
+  - **Port 25**: Postfix MTA (exclusive public SMTP listener).
+  - **Port 2525**: Stalwart internal SMTP listener (receives relays from Postfix).
+  - **Port 8080**: Stalwart internal JMAP HTTP API (`http://127.0.0.1:8080/jmap/` used by [`src/jmap_client.py`](../src/jmap_client.py)).
+  - **Port 8443**: Stalwart WebUI HTTPS listener (isolated from public web ports).
+  - **Port 80 & 443**: Host Nginx Reverse Proxy (terminates public HTTP and Let's Encrypt TLS; configured via [`deploy/nginx-tmail.conf.example`](../deploy/nginx-tmail.conf.example)).
+  - **Port 8081**: Docker `frontend` container bound to `127.0.0.1:8081` (specified in [`compose.yaml`](../compose.yaml)).
+  - **Port 8000**: Docker `api` container (FastAPI backend exposed within the Docker bridge network).
+  - **Port 10030**: Postfix policy daemon bound to `127.0.0.1:10030`.
+
+### Invariant 7: Network MTU 1500 Enforcement (Preventing PMTUD Black Holes)
+- **Invariant**: On cloud virtualized environments with Jumbo Frame defaults (e.g., Oracle Cloud default MTU 9000), the primary network interface must be pinned to MTU 1500.
+- **Enforcement**:
+  - Cloudflare Anycast edge nodes connect via standard MTU 1500 (TCP MSS 1460). When an origin interface responds with MTU 9000 (MSS 8960), transit gateways drop frames exceeding 1500 bytes. When ICMP Fragmentation Needed is blackholed, connections stall indefinitely in `SYN-RECV` or `FIN-WAIT-1`, causing Cloudflare Error 522 timeouts.
+  - Origin hosts must persist MTU 1500 in `/etc/netplan/99-mtu.yaml` (`dhcp4-overrides: {use-mtu: false}`), disable cloud-init network overrides via `/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg`, and configure BBR with TCP timestamps disabled (`net.ipv4.tcp_timestamps = 0`) to prevent Anycast ECMP PAWS drops.
+
 ---
 
 ## 4. Architectural Decision Ledger
@@ -125,3 +143,5 @@ TMail partitions persistence between two independent stores with distinct perfor
 | **Iframe Content Sandboxing** | Inbound emails contain arbitrary, untrusted HTML, SVG, and CSS from external senders that could exploit the web client. | HTML sanitization libraries (e.g., Bleach or DOMPurify) rendered directly into the host DOM. | Isolated sandbox `<iframe>` communicating solely through `postMessage`, combined with `assetsInlineLimit: 0` in Vite. *Trade-off:* Added asynchronous frame messaging complexity, but provides ironclad script and CSS isolation. |
 | **Origin IP Allowlisting for Cloudflare** | Rate-limiting buckets trust `CF-Connecting-IP` directly to track visitor request quotas. | Relying solely on edge WAF rules without origin port firewalling. | Enforcing origin-level IP allowlisting ([`deploy/cloudflare-nginx-allowlist.sh`](../deploy/cloudflare-nginx-allowlist.sh)) for all Cloudflare proxy deployments. *Trade-off:* Requires recurring cron synchronization of Cloudflare CIDRs, but prevents IP spoofing against origin ports. |
 | **Filesystem Device/Inode Config Pinning** | Deployments and rollbacks must guarantee configuration integrity without downtime or file corruption. | In-place file edits or unpinned symlink directory switching. | CLI-managed atomic installs (`src.config install-runtime`) pinning `(dev, inode)` pairs. *Trade-off:* Deployment scripts require strict error handling and cleanup, but invalid configurations or half-written files never reach production services. |
+| **Stalwart Port 8443 Web Isolation & Host Nginx SSL** | Stalwart by default binds port 443, conflicting with public web reverse proxies and intercepting HTTPS traffic. | Running Nginx only on port 80 (Flexible SSL) without origin port 443 listener. | Relocating Stalwart HTTPS listener to port 8443 and terminating Let's Encrypt SSL on host Nginx ports 80/443. *Trade-off:* Requires managing SSL certificates on both Cloudflare and host Nginx, but eliminates port conflicts, 521/522 fallback timeouts, and direct connection errors. |
+| **Host MTU 1500 Pinning on Cloud VPS** | Cloud hypervisors (Oracle Cloud) assign MTU 9000, creating PMTUD black holes with Cloudflare Anycast edge nodes. | Relying on TCP MSS clamping at the firewall level. | Pinned host MTU 1500 via Netplan override and disabling cloud-init network updates. *Trade-off:* Slightly lower intra-VPC throughput, but guarantees 100% reliable packet transit across public internet gateways. |
