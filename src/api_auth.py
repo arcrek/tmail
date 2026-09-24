@@ -120,10 +120,11 @@ def active_domains(cache_file: str | DomainCache, state) -> list[str]:
     manual = settings.get("manual_domains", [])
     source = state.get_frozen_domains()
     if settings["auto_sync_domains"]:
-        source = []
         cache = cache_file if isinstance(cache_file, DomainCache) else DomainCache(cache_file)
         cache.load()
-        source = cache.domains()
+        cached = cache.domains()
+        if cached:
+            source = cached
     domains = []
     for value in [*source, *manual]:
         try:

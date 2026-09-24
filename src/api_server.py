@@ -349,7 +349,8 @@ def elevated_access(
 
 
 def mail_runtime(request: Request) -> tuple[Config, JmapClient]:
-    with request.app.state.admin_lock:
+    lock = getattr(request.app.state, "jmap_lock", request.app.state.admin_lock)
+    with lock:
         return _rebuild_jmap_if_stale(request)
 
 
@@ -818,6 +819,7 @@ def create_app(config_path: str) -> FastAPI:
     app.state.domain_cache = DomainCache(cfg.cache_file)
     app.state.domain_cache.load()
     app.state.admin_lock = threading.Lock()
+    app.state.jmap_lock = threading.Lock()
 
     limiter = _FixedWindowLimiter(limit=10, seconds=60)
     logging.getLogger(__name__).warning(

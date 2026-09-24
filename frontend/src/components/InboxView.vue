@@ -219,7 +219,11 @@ async function announceToast(item: MessageSummary): Promise<void> {
 
 async function resolveCodes(items: MessageSummary[]): Promise<void> {
   const targets = items.filter((item) => !codeCache.value.has(item.id))
-  await Promise.allSettled(targets.map((item) => fetchCode(item)))
+  const concurrency = 2
+  for (let i = 0; i < targets.length; i += concurrency) {
+    const chunk = targets.slice(i, i + concurrency)
+    await Promise.allSettled(chunk.map((item) => fetchCode(item)))
+  }
 }
 
 async function refresh(): Promise<void> {

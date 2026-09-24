@@ -93,3 +93,14 @@ def test_auto_sync_retains_snapshot_when_refresh_lock_fails_then_retries(
         assert active_domains(cache, state) == ["old.example"]
 
     assert active_domains(cache, state) == ["new.example"]
+
+
+def test_auto_sync_falls_back_to_frozen_domains_when_cache_empty(tmp_path):
+    path = tmp_path / "domains.json"
+    cache = DomainCache(str(path))
+    state = StateStore(str(tmp_path / "state.db"))
+    state.replace_frozen_domains(["frozen.example"])
+    state.update_settings({"auto_sync_domains": True})
+
+    assert active_domains(cache, state) == ["frozen.example"]
+
