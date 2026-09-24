@@ -120,7 +120,7 @@ TMail partitions persistence between two independent stores with distinct perfor
   - **Port 2525**: Stalwart internal SMTP listener (receives relays from Postfix).
   - **Port 8080**: Stalwart internal JMAP HTTP API (`http://127.0.0.1:8080/jmap/` used by [`src/jmap_client.py`](../src/jmap_client.py)).
   - **Port 8443**: Stalwart WebUI HTTPS listener (isolated from public web ports).
-  - **Port 80 & 443**: Host Nginx Reverse Proxy (terminates public HTTP and Let's Encrypt TLS; configured via [`deploy/nginx-tmail.conf.example`](../deploy/nginx-tmail.conf.example)).
+  - **Port 80 & 443**: Host Nginx Reverse Proxy (terminates public HTTP and Let's Encrypt TLS with HTTP/2 negotiation and upstream keep-alive connection pooling; configured via [`deploy/nginx-tmail.conf.example`](../deploy/nginx-tmail.conf.example)).
   - **Port 8081**: Docker `frontend` container bound to `127.0.0.1:8081` (specified in [`compose.yaml`](../compose.yaml)).
   - **Port 8000**: Docker `api` container (FastAPI backend exposed within the Docker bridge network).
   - **Port 10030**: Postfix policy daemon bound to `127.0.0.1:10030`.
@@ -130,6 +130,14 @@ TMail partitions persistence between two independent stores with distinct perfor
 - **Enforcement**:
   - Cloudflare Anycast edge nodes connect via standard MTU 1500 (TCP MSS 1460). When an origin interface responds with MTU 9000 (MSS 8960), transit gateways drop frames exceeding 1500 bytes. When ICMP Fragmentation Needed is blackholed, connections stall indefinitely in `SYN-RECV` or `FIN-WAIT-1`, causing Cloudflare Error 522 timeouts.
   - Origin hosts must persist MTU 1500 in `/etc/netplan/99-mtu.yaml` (`dhcp4-overrides: {use-mtu: false}`), disable cloud-init network overrides via `/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg`, and configure BBR with TCP timestamps disabled (`net.ipv4.tcp_timestamps = 0`) to prevent Anycast ECMP PAWS drops.
+
+### Invariant 8: Decoupled Mailbox Runtime Locks & Debounced Domain Synchronization
+- **Invariant**: Public mailbox reads and token operations must never stall behind administrative domain synchronization or upstream JMAP network latency.
+- **Enforcement**:
+  - [`src/api_server.py:mail_runtime`](../src/api_server.py) acquires `app.state.jmap_lock` exclusively, decoupling high-throughput mailbox and token readers from `app.state.admin_lock`.
+  - [`src/admin_api.py:refresh_domains`](../src/admin_api.py) performs the synchronous `jmap.list_domains()` call strictly outside `admin_lock` to prevent blocking concurrent admin handlers during network latency.
+  - A double-checked 60-second debounce window inside `admin_lock` prevents thundering-herd JMAP queries during concurrent traffic spikes.
+  - [`src/api_auth.py:active_domains`](../src/api_auth.py) falls back to `state.get_frozen_domains()` whenever `cache.domains()` is temporarily empty, ensuring transient cache invalidations never surface empty domain lists or spurious "No receiving domains available" states to visitors.
 
 ---
 
@@ -145,3 +153,6 @@ TMail partitions persistence between two independent stores with distinct perfor
 | **Filesystem Device/Inode Config Pinning** | Deployments and rollbacks must guarantee configuration integrity without downtime or file corruption. | In-place file edits or unpinned symlink directory switching. | CLI-managed atomic installs (`src.config install-runtime`) pinning `(dev, inode)` pairs. *Trade-off:* Deployment scripts require strict error handling and cleanup, but invalid configurations or half-written files never reach production services. |
 | **Stalwart Port 8443 Web Isolation & Host Nginx SSL** | Stalwart by default binds port 443, conflicting with public web reverse proxies and intercepting HTTPS traffic. | Running Nginx only on port 80 (Flexible SSL) without origin port 443 listener. | Relocating Stalwart HTTPS listener to port 8443 and terminating Let's Encrypt SSL on host Nginx ports 80/443. *Trade-off:* Requires managing SSL certificates on both Cloudflare and host Nginx, but eliminates port conflicts, 521/522 fallback timeouts, and direct connection errors. |
 | **Host MTU 1500 Pinning on Cloud VPS** | Cloud hypervisors (Oracle Cloud) assign MTU 9000, creating PMTUD black holes with Cloudflare Anycast edge nodes. | Relying on TCP MSS clamping at the firewall level. | Pinned host MTU 1500 via Netplan override and disabling cloud-init network updates. *Trade-off:* Slightly lower intra-VPC throughput, but guarantees 100% reliable packet transit across public internet gateways. |
+| **Decoupled JMAP Locks & Debounced Domain Sync** | Synchronous JMAP domain listings (141KB payload) held `admin_lock`, stalling public mailbox readers and token checks, causing Cloudflare 522 timeouts. | Running unbounded background threads without locks or increasing proxy timeouts. | Partition `jmap_lock` from `admin_lock`, perform JMAP calls outside locks, and use double-checked 60s debounce in `refresh_domains`. *Trade-off:* Domain listing changes can take up to 60s to reflect automatically, but readers never experience latency spikes. |
+| **Frontend Verification Code Throttling** | Opening inboxes with multiple messages fired up to 15 concurrent `/messages/<id>` requests, flooding single-worker backends. | Unbounded parallel `Promise.allSettled` or disabling automated verification-code extraction entirely. | Chunked client concurrency (`chunkSize = 2`) in [`frontend/src/components/InboxView.vue`](../frontend/src/components/InboxView.vue). *Trade-off:* Slightly staggered badge population, but eliminates origin queue buildup and Cloudflare 520 stream drops. |
+| **Non-blocking Domain Availability Fallback** | Cold cache reloads or file updates temporarily returned empty domain lists, presenting false "no domains" errors to visitors. | Blocking the HTTP thread until the domain cache is refreshed from disk. | Fallback to `StateStore.get_frozen_domains()` in [`src/api_auth.py:active_domains`](../src/api_auth.py) when cache is empty. *Trade-off:* May momentarily serve frozen domain lists during a cold-start, but guarantees 100% availability without empty responses. |

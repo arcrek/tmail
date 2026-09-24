@@ -79,6 +79,8 @@ docker compose up -d --build   # serves at http://127.0.0.1:8080 (TMAIL_HTTP_POR
 
 **SPA routing collides with API routes at the top level** (`/`, `/{address}`, `/admin`, `/sandbox`, etc. all live under `/`). `_SPA_RESERVED` and `_POST_ONLY_ROUTES` in `api_server.py` are the reserved-word list that keeps a mailbox local-part like `admin@…` from being swallowed by the SPA catch-all — check them when adding new top-level routes.
 
+**Lock separation and debounced domain sync.** `api_server.py` creates two independent locks: `app.state.jmap_lock` protects the JMAP client runtime for high-throughput mailbox and token readers (`mail_runtime`), while `app.state.admin_lock` serializes administrative configuration updates. Never hold locks during network I/O. `refresh_domains` in `admin_api.py` fetches domain lists outside `admin_lock` and applies a double-checked 60-second debounce. `active_domains` in `api_auth.py` falls back to `state.get_frozen_domains()` when the cache is cold/empty to guarantee 100% domain list availability. In the frontend, `resolveCodes` in `frontend/src/components/InboxView.vue` batches message inspection with concurrency = 2 to prevent backend worker saturation.
+
 ## Repo conventions
 
 - Feature work is planned under `plans/<YYMMDD-HHMM>-<slug>/` as a `plan.md` plus numbered `phase-NN-*.md` files before implementation (see `superpowers:writing-plans`/`executing-plans` skills). `docs/brainstorms/` holds earlier open-ended exploration docs.
