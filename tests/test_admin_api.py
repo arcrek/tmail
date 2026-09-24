@@ -646,3 +646,26 @@ def test_automatic_sync_does_not_query_after_auto_sync_is_disabled(
     assert not worker.is_alive()
     assert not errors
     fake_jmap.list_domains.assert_not_called()
+
+
+def test_auto_sync_domains_debounced(admin_client, fake_jmap):
+    request = SimpleNamespace(app=admin_client.app)
+    admin_client.app.state.state_store.update_settings({"auto_sync_domains": True})
+    fake_jmap.list_domains.return_value = ["debounced.example"]
+
+    # First call triggers sync
+    result1 = admin_api.refresh_domains(request, require_auto=True)
+    assert result1 == ["debounced.example"]
+    assert fake_jmap.list_domains.call_count == 1
+
+    # Immediate second call should be debounced and not call JMAP again
+    fake_jmap.list_domains.return_value = ["new.example"]
+    result2 = admin_api.refresh_domains(request, require_auto=True)
+    assert result2 == ["debounced.example"]
+    assert fake_jmap.list_domains.call_count == 1
+
+    # Manual sync (require_auto=False) bypasses debounce
+    result3 = admin_api.refresh_domains(request, require_auto=False)
+    assert result3 == ["new.example"]
+    assert fake_jmap.list_domains.call_count == 2
+

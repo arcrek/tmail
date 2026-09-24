@@ -8,6 +8,7 @@ import json
 import re
 import secrets
 import sqlite3
+import time
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request, Response
@@ -307,10 +308,18 @@ def update_settings(
     return settings(request, _session_value)
 
 
+_AUTO_SYNC_DEBOUNCE_SECONDS = 60.0
+
+
 def refresh_domains(request: Request, *, require_auto: bool = False) -> list[str]:
     state = request.app.state.state_store
-    if require_auto and not state.get_settings()["auto_sync_domains"]:
-        return _active_domains(request)
+    if require_auto:
+        if not state.get_settings()["auto_sync_domains"]:
+            return _active_domains(request)
+        now = time.monotonic()
+        last_sync = getattr(request.app.state, "_last_auto_sync_time", 0.0)
+        if now - last_sync < _AUTO_SYNC_DEBOUNCE_SECONDS:
+            return _active_domains(request)
     if not require_auto:
         with request.app.state.admin_lock:
             _config, jmap = _rebuild_jmap_if_stale(request)
@@ -342,9 +351,13 @@ def refresh_domains(request: Request, *, require_auto: bool = False) -> list[str
                 if not state.get_settings()["auto_sync_domains"]:
                     state.replace_frozen_domains(domains)
                 state.record_sync(True, f"{len(domains)} domains")
+                if require_auto:
+                    request.app.state._last_auto_sync_time = time.monotonic()
                 return domains
         raise RuntimeError("Domain cache changed during sync")
     except Exception as exc:
+        if require_auto:
+            request.app.state._last_auto_sync_time = time.monotonic()
         state.record_sync(False, type(exc).__name__)
         raise
 
