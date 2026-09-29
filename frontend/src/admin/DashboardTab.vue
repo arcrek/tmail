@@ -49,51 +49,50 @@ onMounted(refresh)
 
     <template v-else-if="dashboard">
       <div class="dashboard-kpi-container">
-        <h2 class="sr-only">Key Performance Indicators</h2>
         <dl class="metric-grid">
           <div class="metric-card">
-            <div class="metric-header">
-              <dt>{{ t('dashboard.stored') }}</dt>
+            <dt class="metric-header">
+              <span>{{ t('dashboard.stored') }}</span>
               <AppIcon name="mail" class="metric-icon" />
-            </div>
+            </dt>
             <dd class="metric-value">{{ formatNumber(dashboard.messages.stored) }}</dd>
           </div>
           <div class="metric-card">
-            <div class="metric-header">
-              <dt>{{ t('dashboard.today') }}</dt>
+            <dt class="metric-header">
+              <span>{{ t('dashboard.today') }}</span>
               <AppIcon name="clock" class="metric-icon" />
-            </div>
+            </dt>
             <dd class="metric-value">{{ formatNumber(dashboard.messages.today) }}</dd>
           </div>
           <div class="metric-card">
-            <div class="metric-header">
-              <dt>{{ t('dashboard.week') }}</dt>
+            <dt class="metric-header">
+              <span>{{ t('dashboard.week') }}</span>
               <AppIcon name="sparkles" class="metric-icon" />
-            </div>
+            </dt>
             <dd class="metric-value">{{ formatNumber(dashboard.messages.sevenDays) }}</dd>
           </div>
         </dl>
 
         <dl class="metric-grid">
           <div class="metric-card">
-            <div class="metric-header">
-              <dt>{{ t('dashboard.domainsActive') }}</dt>
+            <dt class="metric-header">
+              <span>{{ t('dashboard.domainsActive') }}</span>
               <AppIcon name="globe" class="metric-icon" />
-            </div>
+            </dt>
             <dd class="metric-value">{{ formatNumber(dashboard.domains.active) }}</dd>
           </div>
           <div class="metric-card">
-            <div class="metric-header">
-              <dt>{{ t('dashboard.domainsToday') }}</dt>
+            <dt class="metric-header">
+              <span>{{ t('dashboard.domainsToday') }}</span>
               <AppIcon name="plus" class="metric-icon" />
-            </div>
+            </dt>
             <dd class="metric-value">{{ formatNumber(dashboard.domains.domainsToday) }}</dd>
           </div>
           <div class="metric-card">
-            <div class="metric-header">
-              <dt>{{ t('dashboard.domainsWeek') }}</dt>
+            <dt class="metric-header">
+              <span>{{ t('dashboard.domainsWeek') }}</span>
               <AppIcon name="shield" class="metric-icon" />
-            </div>
+            </dt>
             <dd class="metric-value">{{ formatNumber(dashboard.domains.domainsSevenDays) }}</dd>
           </div>
         </dl>

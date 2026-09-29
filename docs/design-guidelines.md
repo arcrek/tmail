@@ -133,3 +133,12 @@ Drop shadows (`--shadow-1` or explicit float shadows) are strictly limited to el
   Arbitrary email HTML and site content rendered inside the sandboxed iframe intentionally retains `background: #fff` across both light and dark themes. Email authors format content expecting a white paper canvas; inverting or darkening raw email HTML breaks external branding and third-party layout formatting.
 - **QR Code Wrapper (`.qr-code-wrapper`):**
   Retains `background: #fff` in both themes to ensure sufficient optical contrast when scanned by mobile device camera sensors.
+
+---
+
+## 8. Responsive Contracts
+
+- The public header changes to a menu at 952px and below, keeping the brand and theme control visible when navigation, unlock, and locale controls would otherwise crowd the bar.
+- At 640px and below, the inbox stacks its address panel above the message list or reader. Bulk code results become labeled rows, so addresses, subjects, codes, and actions remain visible without page-level horizontal scrolling.
+- Long mailbox addresses may wrap, but ordinary addresses should fit on one line in the desktop inbox rail. The displayed address uses the technical monospace face at a restrained size; the copy action remains immediately below it.
+- The default favicon uses the existing envelope icon and ember color. An administrator-provided favicon overrides it through site settings.

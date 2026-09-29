@@ -192,13 +192,13 @@ onBeforeUnmount(() => {
         <thead><tr><th scope="col">{{ t('bulkCode.email') }}</th><th scope="col">{{ t('bulkCode.subject') }}</th><th scope="col">{{ t('bulkCode.code') }}</th><th scope="col"><span class="sr-only">{{ t('bulkCode.actions') }}</span></th></tr></thead>
         <tbody>
           <tr v-for="row in rows" :key="row.address">
-            <td><span class="saved-address">{{ row.address }}</span><button class="row-icon-button" type="button" :aria-label="t('bulkCode.copyEmailFor', { address: row.address })" @click="copy(row.address, 'bulkCode.emailCopied')"><AppIcon name="copy" /></button></td>
-            <td v-if="row.status === 'loading'" aria-live="polite"><span class="skeleton skeleton-label" /><span class="sr-only">{{ t('bulkCode.loading') }}</span></td>
-            <td v-else-if="row.status === 'error'"><span role="alert">{{ row.error }}</span></td>
-            <td v-else>{{ row.subject || t('bulkCode.noSubject') }}</td>
-            <td v-if="row.status === 'loading'"><span class="skeleton skeleton-label" /></td>
-            <td v-else>{{ row.code || t('bulkCode.noCode') }}</td>
-            <td><span class="row-actions"><button class="text-button" type="button" :disabled="!row.code" :aria-label="t('bulkCode.copyCodeFor', { address: row.address })" @click="copy(row.code ?? '', 'bulkCode.codeCopied')">{{ t('bulkCode.copyCode') }}</button><button v-if="row.status === 'error'" class="text-button" type="button" @click="resolveRow(row)">{{ t('address.retry') }}</button></span></td>
+            <td :data-label="t('bulkCode.email')"><span class="saved-address">{{ row.address }}</span><button class="row-icon-button" type="button" :aria-label="t('bulkCode.copyEmailFor', { address: row.address })" @click="copy(row.address, 'bulkCode.emailCopied')"><AppIcon name="copy" /></button></td>
+            <td v-if="row.status === 'loading'" :data-label="t('bulkCode.subject')" aria-live="polite"><span class="skeleton skeleton-label" /><span class="sr-only">{{ t('bulkCode.loading') }}</span></td>
+            <td v-else-if="row.status === 'error'" :data-label="t('bulkCode.subject')"><span role="alert">{{ row.error }}</span></td>
+            <td v-else :data-label="t('bulkCode.subject')">{{ row.subject || t('bulkCode.noSubject') }}</td>
+            <td v-if="row.status === 'loading'" :data-label="t('bulkCode.code')"><span class="skeleton skeleton-label" /></td>
+            <td v-else :data-label="t('bulkCode.code')">{{ row.code || t('bulkCode.noCode') }}</td>
+            <td :data-label="t('bulkCode.actions')"><span class="row-actions"><button class="text-button" type="button" :disabled="!row.code" :aria-label="t('bulkCode.copyCodeFor', { address: row.address })" @click="copy(row.code ?? '', 'bulkCode.codeCopied')">{{ t('bulkCode.copyCode') }}</button><button v-if="row.status === 'error'" class="text-button" type="button" @click="resolveRow(row)">{{ t('address.retry') }}</button></span></td>
           </tr>
         </tbody>
       </table>
