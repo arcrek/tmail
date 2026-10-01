@@ -13,7 +13,9 @@ export async function copyText(text: string): Promise<void> {
   textarea.tabIndex = -1
   textarea.setAttribute('aria-hidden', 'true')
   Object.assign(textarea.style, { position: 'fixed', left: '-9999px', opacity: '0' })
-  document.body.append(textarea)
+  // A modal makes elements outside it inert, including clipboard fallbacks.
+  const container = previousFocus?.closest('dialog[open]') ?? document.body
+  container.append(textarea)
   try {
     textarea.select()
     if (!document.execCommand('copy')) throw new Error('Copy failed')

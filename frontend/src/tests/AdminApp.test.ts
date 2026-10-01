@@ -161,7 +161,7 @@ describe('administration frontend', () => {
 
   it('keeps the admin shell compact at the shared tablet breakpoint and themed on real tokens', () => {
     expect(styles).not.toContain('@media (max-width: 900px)')
-    expect(styles).toMatch(/@media \(max-width: 952px\) \{[\s\S]*?\.admin-shell\.three-pane \{[\s\S]*?\.admin-content \{\s*grid-column: 2;/)
+    expect(styles).toMatch(/@media \(max-width: 952px\) \{[\s\S]*?\.admin-shell \{[\s\S]*?\.admin-content \{\s*grid-column: 2;/)
     expect(styles).toMatch(/\.admin-section \{[^}]*padding: 0;/)
     expect(styles).toMatch(/\.admin-section > h1,[^}]*font-size: clamp\(1\.6rem, 3vw, var\(--text-2xl\)\);/)
     expect(styles).toMatch(/\.admin-login-panel h1 \{[^}]*font-size: clamp\(1\.6rem, 3vw, var\(--text-2xl\)\);/)
@@ -195,8 +195,8 @@ describe('administration frontend', () => {
       'Access',
       'HTML & Ads',
     ])
-    expect(wrapper.get('.admin-shell').classes()).toContain('three-pane')
-    expect(wrapper.get('.admin-account-rail').text()).toContain('Healthy')
+    expect(wrapper.get('.admin-sidebar .admin-account-controls').text()).toContain('Healthy')
+    expect(wrapper.get('.admin-shell').element.children).toHaveLength(3)
     expect(wrapper.get('.admin-sidebar').text()).toContain('Dashboard')
     expect(wrapper.get('.admin-content [role="tabpanel"]').exists()).toBe(true)
     expect(wrapper.text()).not.toMatch(/Sent|Contacts|Addresses/)

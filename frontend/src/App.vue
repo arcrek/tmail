@@ -229,6 +229,8 @@ onBeforeUnmount(() => {
       :unlocking="unlocking"
       :bulk-active="view === 'bulk'"
       :bulk-code-active="view === 'bulkCode'"
+      :home-active="view === 'address' || view === 'inbox'"
+      :admin-active="view === 'admin'"
       v-model:unlock-open="unlockOpen"
       v-model:unlock-value="unlockValue"
       @home="newAddress"

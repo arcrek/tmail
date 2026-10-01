@@ -23,14 +23,18 @@ describe('AppHeader', () => {
   it('renders the home link and emits home when clicked', async () => {
     initLocale()
     const wrapper = mount(AppHeader, {
-      props: { unlockOpen: false, unlockValue: '', showLocalePicker: false, showUnlock: false },
+      props: { unlockOpen: false, unlockValue: '', showLocalePicker: false, showUnlock: false, homeActive: true },
       global: { stubs: { ThemeToggle: true } },
     })
 
     const link = wrapper.get('.home-link')
     expect(link.text()).toContain('Home')
+    expect(link.attributes('aria-current')).toBe('page')
     await link.trigger('click')
     expect(wrapper.emitted('home')).toHaveLength(1)
+    await wrapper.setProps({ homeActive: false, adminActive: true })
+    expect(link.attributes('aria-current')).toBeUndefined()
+    expect(wrapper.get('.admin-link').attributes('aria-current')).toBe('page')
   })
 
   it('toggles mobile menu and closes on escape', async () => {

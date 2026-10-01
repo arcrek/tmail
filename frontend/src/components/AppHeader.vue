@@ -14,6 +14,8 @@ const props = withDefaults(defineProps<{
   unlocking?: boolean
   bulkActive?: boolean
   bulkCodeActive?: boolean
+  homeActive?: boolean
+  adminActive?: boolean
 }>(), {
   appName: '', logoDataUrl: '', showLocalePicker: true, showUnlock: true, accessToken: '', unlocking: false, bulkActive: false, bulkCodeActive: false,
 })
@@ -73,6 +75,7 @@ function onLocaleChange(event: Event): void {
   <header class="app-header">
     <a class="brand" href="/" @click="onBrandClick">
       <img v-if="logoDataUrl" :src="logoDataUrl" alt="">
+      <span v-else class="brand-mark" aria-hidden="true"><AppIcon name="mail" /></span>
       <span class="brand-name">{{ appName || t('app.defaultName') }}</span>
     </a>
 
@@ -97,7 +100,7 @@ function onLocaleChange(event: Event): void {
       :class="{ 'mobile-open': mobileOpen }"
       :aria-label="t('nav.site')"
     >
-      <a class="home-link" href="/" @click.prevent="onHomeClick">
+      <a class="home-link" href="/" :aria-current="props.homeActive ? 'page' : undefined" @click.prevent="onHomeClick">
         <AppIcon name="home" />
         {{ t('nav.home') }}
       </a>
@@ -113,7 +116,7 @@ function onLocaleChange(event: Event): void {
         <AppIcon name="file-text" />
         {{ t('nav.bulkCode') }}
       </a>
-      <a class="admin-link" href="/admin" @click="closeMobileMenu">
+      <a class="admin-link" href="/admin" :aria-current="props.adminActive ? 'page' : undefined" @click="closeMobileMenu">
         <AppIcon name="shield" />
         {{ t('nav.admin') }}
       </a>

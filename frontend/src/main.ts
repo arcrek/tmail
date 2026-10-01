@@ -1,4 +1,3 @@
-import '@fontsource-variable/schibsted-grotesk'
 import '@fontsource-variable/libre-franklin'
 import '@fontsource-variable/jetbrains-mono'
 import { createApp } from 'vue'
