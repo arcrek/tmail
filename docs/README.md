@@ -7,7 +7,7 @@ TMail does not handle SMTP transport, TLS negotiation, or DNS resolution; it aut
 ## Documentation Index
 
 - **[System Architecture & Invariants](architecture.md)**: System topology, service boundaries, dual-store persistence model, security invariants, and the architectural decision ledger.
-- **[Frontend Design Guidelines](design-guidelines.md)**: Visual design system (*Ember on Bone*), OKLCH/CSS token contracts, and typographic rules for the Vue 3 SPA.
+- **[Frontend Design Guidelines](design-guidelines.md)**: Google-inspired product design, CSS token contracts, and responsive interaction rules for the Vue 3 SPA.
 - **[Operator Quickstart & Deployment](../README.md)**: Installation commands, Docker Compose setups, systemd deployment, and reverse proxy configuration.
 - **[Agent Contributor Guidelines](../AGENT.md)**: Repository conventions, testing commands, runtime flags, and developer workflows.
 
