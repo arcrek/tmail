@@ -6,10 +6,17 @@ from src.api_state import StateStore
 
 def test_settings_and_frozen_domains_round_trip(tmp_path):
     store = StateStore(str(tmp_path / "state.db"))
+    assert store.get_settings()["primary_color"] == "#0b57d0"
+    assert store.get_settings()["accent_color"] == "#0842a0"
     store.update_settings({"auto_sync_domains": False, "fetch_seconds": 20})
     store.replace_frozen_domains(["b.example", "a.example"])
     assert store.get_settings()["auto_sync_domains"] is False
     assert store.get_frozen_domains() == ["a.example", "b.example"]
+
+    store.update_settings({"primary_color": "#b8501b", "accent_color": "#8f3e15"})
+    reopened = StateStore(store.path)
+    assert reopened.get_settings()["primary_color"] == "#b8501b"
+    assert reopened.get_settings()["accent_color"] == "#8f3e15"
 
 
 def test_admin_session_expires(tmp_path):

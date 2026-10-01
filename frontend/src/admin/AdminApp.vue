@@ -156,16 +156,8 @@ async function logout(): Promise<void> {
     </div>
   </section>
 
-  <div v-else class="admin-shell three-pane">
+  <div v-else class="admin-shell">
     <a class="skip-link" href="#admin-main-content">{{ t('a11y.skipToContent') }}</a>
-    <aside class="admin-account-rail account-rail">
-      <div class="api-status"><span class="pulse-dot" aria-hidden="true" /> {{ t('admin.apiStatus') }} <strong>{{ t('admin.healthy') }}</strong></div>
-      <button class="rail-signout" type="button" :disabled="pending || childBusy" @click="logout">
-        {{ pending ? t('admin.loggingOut') : t('admin.logout') }}
-      </button>
-      <p v-if="error" class="admin-error" role="alert">{{ error }}</p>
-    </aside>
-
     <aside class="admin-sidebar">
       <div class="list-heading"><div><h2>{{ t('admin.settings') }}</h2><span>{{ t('admin.config') }}</span></div></div>
       <nav role="tablist" :aria-label="t('admin.sections')">
@@ -185,6 +177,13 @@ async function logout(): Promise<void> {
           <span>{{ t(tab.key) }}</span>
         </button>
       </nav>
+      <div class="admin-account-controls">
+        <div class="api-status"><span class="pulse-dot" aria-hidden="true" /> {{ t('admin.apiStatus') }} <strong>{{ t('admin.healthy') }}</strong></div>
+        <button class="rail-signout" type="button" :disabled="pending || childBusy" @click="logout">
+          {{ pending ? t('admin.loggingOut') : t('admin.logout') }}
+        </button>
+        <p v-if="error" class="admin-error" role="alert">{{ error }}</p>
+      </div>
     </aside>
 
     <section id="admin-main-content" class="admin-content" tabindex="-1">

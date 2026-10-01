@@ -37,4 +37,27 @@ describe('copyText', () => {
     await expect(copyText('box@example.com')).rejects.toThrow('Copy failed')
     expect(document.querySelector('textarea')).toBeNull()
   })
+
+  it('keeps the fallback within the focused dialog and restores focus', async () => {
+    const dialog = document.body.appendChild(document.createElement('dialog'))
+    dialog.setAttribute('open', '')
+    const button = dialog.appendChild(document.createElement('button'))
+    button.focus()
+    vi.stubGlobal('navigator', { ...navigator, clipboard: undefined })
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: vi.fn(() => {
+        expect(dialog.querySelector('textarea')?.value).toBe('box@example.com')
+        return true
+      }),
+    })
+
+    try {
+      await copyText('box@example.com')
+      expect(dialog.querySelector('textarea')).toBeNull()
+      expect(document.activeElement).toBe(button)
+    } finally {
+      dialog.remove()
+    }
+  })
 })

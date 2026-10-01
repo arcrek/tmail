@@ -1,43 +1,44 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import AppIcon from './AppIcon.vue'
 import { generateQrMatrix } from '../qrcode'
 import { copyText } from '../clipboard'
 import { useI18n } from '../i18n'
-import { useToast } from '../toast'
 
 const props = defineProps<{ address: string }>()
 const emit = defineEmits<{ close: [] }>()
 const { t } = useI18n()
-const toast = useToast()
+const dialog = ref<HTMLDialogElement | null>(null)
+const copied = ref(false)
+const copyError = ref('')
+const copying = ref(false)
 
 const matrix = computed(() => generateQrMatrix(props.address))
 const matrixSize = computed(() => matrix.value.length)
 
 async function copy(): Promise<void> {
+  if (copying.value) return
+  copying.value = true
+  copied.value = false
+  copyError.value = ''
   try {
     await copyText(props.address)
-    toast.success(t('address.copiedNotice'))
+    copied.value = true
   } catch {
-    toast.error(t('error.copy'))
+    copyError.value = t('error.copy')
+  } finally {
+    copying.value = false
   }
 }
 
-function onKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Escape') emit('close')
-}
-
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+onMounted(() => dialog.value?.showModal?.())
+onBeforeUnmount(() => dialog.value?.close?.())
 </script>
 
 <template>
-  <div class="qr-modal-backdrop" @click.self="emit('close')">
+  <dialog ref="dialog" class="qr-modal-backdrop" aria-labelledby="qr-title" @cancel.prevent="emit('close')" @click.self="emit('close')">
     <div
       class="qr-modal panel"
-      role="dialog"
-      aria-modal="true"
-      :aria-labelledby="'qr-title'"
     >
       <div class="qr-modal-header">
         <h2 id="qr-title">{{ t('inbox.qrTitle') }}</h2>
@@ -78,11 +79,13 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
       <div class="qr-address-card">
         <span class="qr-address-text">{{ address }}</span>
-        <button class="primary-button compact-button" type="button" @click="copy">
-          <AppIcon name="copy" />
-          {{ t('address.copy') }}
+        <button class="primary-button compact-button" type="button" :disabled="copying" @click="copy">
+          <AppIcon :name="copied ? 'check' : 'copy'" />
+          {{ copied ? t('address.copied') : t('address.copy') }}
         </button>
+        <span class="sr-only" role="status" aria-live="polite">{{ copied ? t('address.copiedNotice') : '' }}</span>
       </div>
+      <p v-if="copyError" class="reader-error" role="alert">{{ copyError }}</p>
     </div>
-  </div>
+  </dialog>
 </template>

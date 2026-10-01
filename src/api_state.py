@@ -10,8 +10,8 @@ DEFAULT_SETTINGS = {
     "app_name": "Temporary Inbox",
     "logo_data_url": "",
     "favicon_data_url": "",
-    "primary_color": "#b8501b",
-    "accent_color": "#8f3e15",
+    "primary_color": "#0b57d0",
+    "accent_color": "#0842a0",
     "language": "en",
     "cookie_enabled": False,
     "cookie_text": "",
@@ -30,7 +30,7 @@ DEFAULT_SETTINGS = {
     "ad_slots": {},
 }
 
-# Brand colors from before the "Ember on Bone" redesign. `INSERT OR IGNORE`
+# Original brand colors. `INSERT OR IGNORE`
 # below never overwrites a row that already exists, so an existing
 # state.db keeps these forever unless explicitly migrated. On startup we
 # upgrade a database still sitting on both legacy values (i.e. an admin
