@@ -34,7 +34,7 @@ server {
         proxy_set_header X-Forwarded-Proto $tmail_forwarded_proto;
     }
 
-    location ~ ^/(?:domains(?:/|$)|accounts$|token$|unlock$|lock$|me$|messages(?:/|$)|sources(?:/|$)|site$|admin/api(?:/|$)|docs(?:/|$)|redoc$|openapi\.json$|sandbox$|message-sandbox$) {
+    location ~ ^/(?:domains(?:/|$)|accounts$|token$|unlock$|lock$|me$|messages(?:/|$)|sources(?:/|$)|site$|admin/api(?:/|$)|docs(?:/|$)|redoc$|openapi\.json$|sandbox$|message-sandbox$|robots\.txt$|sitemap\.xml$|llms\.txt$|llms-full\.txt$|index\.md$|index\.html\.md$) {
         proxy_pass http://api:8000;
         proxy_http_version 1.1;
         proxy_set_header Host $http_host;
@@ -44,11 +44,24 @@ server {
     }
 
     location / {
+        error_page 418 = @api;
+        if ($http_accept ~* "text/markdown") {
+            return 418;
+        }
         try_files $uri /index.html;
         add_header Cache-Control "no-store";
         add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; frame-src 'self'; frame-ancestors 'none'" always;
         add_header X-Frame-Options "DENY" always;
         add_header X-Content-Type-Options "nosniff" always;
         add_header Referrer-Policy "no-referrer" always;
+    }
+
+    location @api {
+        proxy_pass http://api:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $tmail_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $tmail_forwarded_proto;
     }
 }

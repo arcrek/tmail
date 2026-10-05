@@ -61,7 +61,7 @@ def test_nginx_keeps_spa_and_backend_routes_same_origin():
     for route in (
         "domains", "accounts", "token", "unlock", "lock", "me", "messages", "sources", "site",
         "admin/api", "docs", "redoc", "openapi\\.json", "sandbox",
-        "message-sandbox",
+        "message-sandbox", "robots\\.txt", "sitemap\\.xml", "llms\\.txt", "index\\.md",
     ):
         assert route in nginx
 
