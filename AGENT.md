@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENT.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to autonomous and coding agents when working with code in this repository.
 
 ## What this is
 
@@ -84,4 +84,6 @@ docker compose up -d --build   # serves at http://127.0.0.1:8080 (TMAIL_HTTP_POR
 ## Repo conventions
 
 - Feature work is planned under `plans/<YYMMDD-HHMM>-<slug>/` as a `plan.md` plus numbered `phase-NN-*.md` files before implementation (see `superpowers:writing-plans`/`executing-plans` skills). `docs/brainstorms/` holds earlier open-ended exploration docs.
+- UI and styling decisions must adhere to `DESIGN.md` (tokens, typography, brand essence, motion rules, and breakpoints).
+- Before submitting UI or routing changes, complete the verification checklist in `REVIEW.md`, capture screenshots across 1440px, 768px, 375px, and 320px reflow, and verify discovery surfaces with `check-discovery-surfaces.mjs`.
 - Deployment lives entirely under `deploy/` (systemd units, install/deploy/release scripts, Postfix snippet) — production is a checkout-based install (`deploy/install.sh`), not just the Docker Compose path.

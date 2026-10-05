@@ -38,6 +38,7 @@
 
   /* Radii */
   --radius-sm: 8px;
+  --radius-md: 8px;
   --radius: 12px;
   --radius-lg: 24px;
   --radius-pill: 999px;
@@ -195,11 +196,16 @@ a {
   font-size: var(--text-sm);
   text-decoration: none;
   transform: translateY(-200%);
-  transition: transform var(--transition);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--transition), opacity var(--transition);
 }
 
+.skip-link:focus,
 .skip-link:focus-visible {
   transform: translateY(var(--space-4));
+  opacity: 1;
+  pointer-events: auto;
 }
 
 h1,
@@ -616,10 +622,15 @@ main {
 
 .panel-heading {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
   margin-bottom: 1.75rem;
+}
+
+.panel-heading .text-button {
+  white-space: nowrap;
 }
 
 .bulk-actions-bar {
@@ -701,6 +712,85 @@ main {
 
 .saved-inboxes li:last-child {
   border-bottom: 0;
+}
+
+.how-it-works {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+}
+
+.how-it-works h2 {
+  font-size: clamp(1.15rem, 2vw, 1.4rem);
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+}
+
+.how-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: var(--space-4);
+}
+
+.how-step-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+}
+
+.how-step-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--primary-soft);
+  color: var(--accent);
+}
+
+.how-step-icon .app-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.how-step-card h3 {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+}
+
+.how-step-card p {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--muted);
+  margin: 0;
+}
+
+.trust-notice {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.82rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  line-height: 1.4;
+}
+
+.trust-notice .app-icon {
+  flex-shrink: 0;
+  width: 1.2rem;
+  height: 1.2rem;
+  color: var(--accent);
 }
 
 .bulk-controls {
@@ -927,11 +1017,12 @@ main {
   max-width: none;
   margin: 0;
   overflow-wrap: anywhere;
+  word-break: break-word;
   font-family: var(--font-mono);
-  font-size: clamp(1.25rem, 1.55vw, 1.45rem);
+  font-size: clamp(0.95rem, 1.1vw, 1.12rem);
   font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
 }
 
 .inbox-hero-actions {
@@ -2435,12 +2526,18 @@ main {
 
 @media (max-width: 952px) {
   .app-header {
-    flex-wrap: wrap;
-    row-gap: 0.5rem;
+    flex-wrap: nowrap;
+    gap: var(--space-3);
   }
 
-  .app-header .brand { flex: 1 1 auto; }
-  .header-right-actions { display: flex; }
+  .app-header .brand {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .header-right-actions {
+    display: flex;
+    flex-shrink: 0;
+  }
   .mobile-menu-button { display: grid; }
   .desktop-theme-toggle { display: none; }
 

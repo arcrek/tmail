@@ -63,8 +63,11 @@ def make_message(recipient: str, message_id: str, subject: str, preview: str) ->
 def build_fake_jmap() -> MagicMock:
     fake = MagicMock()
     fake.discover_mail_account_id.return_value = "mail-account"
+    last_address = "box@example.com"
 
     def _list_messages(_account, address, _limit, _position):
+        nonlocal last_address
+        last_address = address
         # Recipient MUST match the requesting address — api_server filters
         # messages via `to`/`cc`/`bcc` and drops anything addressed elsewhere.
         return (2, [
@@ -76,7 +79,7 @@ def build_fake_jmap() -> MagicMock:
         # Detail view: caller's address isn't known here, so this only
         # round-trips correctly for the /messages list flow, not deep-link
         # opens of an arbitrary id from a different session.
-        return make_message("box@example.com", message_id, "Hello from fake JMAP", "A short preview")
+        return make_message(last_address, message_id, "Invoice #4471", "Your invoice is attached")
 
     fake.list_messages.side_effect = _list_messages
     fake.get_message.side_effect = _get_message
