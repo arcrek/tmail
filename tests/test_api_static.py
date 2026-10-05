@@ -14,7 +14,7 @@ def frontend_dist(tmp_path):
     dist = tmp_path / "dist"
     assets = dist / "assets"
     assets.mkdir(parents=True)
-    (dist / "index.html").write_text('<div id="app"></div>')
+    (dist / "index.html").write_text('<link rel="canonical" href="__BASE_URL__/"><div id="app"></div>')
     (assets / "app.js").write_text("console.log('tmail')")
     return dist
 
@@ -134,3 +134,63 @@ def test_api_startup_rejects_weak_or_placeholder_credentials(
     config_path.write_text(json.dumps(config))
     with pytest.raises(ValueError, match=field):
         create_app(str(config_path))
+
+
+def test_discovery_surfaces(client):
+    robots = client.get("/robots.txt")
+    assert robots.status_code == 200
+    assert robots.headers["content-type"].startswith("text/plain")
+    assert "Sitemap:" in robots.text
+    assert "Disallow: /admin" in robots.text
+    assert "Disallow: /sandbox" in robots.text
+
+    # Proxy header validation
+    robots_forwarded = client.get("/robots.txt", headers={"X-Forwarded-Host": "tmail.example.org, proxy.internal", "X-Forwarded-Proto": "https"})
+    assert "Sitemap: https://tmail.example.org/sitemap.xml" in robots_forwarded.text
+
+    # Malicious host rejection falls back to localhost
+    robots_bad_host = client.get("/robots.txt", headers={"X-Forwarded-Host": "evil.com</loc><loc>phish", "X-Forwarded-Proto": "javascript"})
+    assert "Sitemap: http://localhost/sitemap.xml" in robots_bad_host.text
+
+    sitemap = client.get("/sitemap.xml")
+    assert sitemap.status_code == 200
+    assert "application/xml" in sitemap.headers["content-type"]
+    assert "<urlset" in sitemap.text
+    assert "<loc>" in sitemap.text
+
+    llms = client.get("/llms.txt")
+    assert llms.status_code == 200
+    assert llms.headers.get("x-robots-tag") == "noindex"
+    assert llms.text.startswith("# TMail")
+    assert "> " in llms.text
+
+    llms_full = client.get("/llms-full.txt")
+    assert llms_full.status_code == 200
+    assert llms_full.headers.get("x-robots-tag") == "noindex"
+    assert len(llms_full.text) >= 500
+    assert "GET /sources/{id}" in llms_full.text
+
+    twin = client.get("/index.md")
+    assert twin.status_code == 200
+    assert twin.headers.get("x-robots-tag") == "noindex"
+    assert "Accept" in twin.headers.get("vary", "")
+    assert "# TMail" in twin.text
+
+    twin_html_md = client.get("/index.html.md")
+    assert twin_html_md.status_code == 200
+    assert twin_html_md.headers.get("x-robots-tag") == "noindex"
+    assert "# TMail" in twin_html_md.text
+
+    # Content negotiation on /
+    negotiated = client.get("/", headers={"Accept": "text/markdown"})
+    assert negotiated.status_code == 200
+    assert "text/markdown" in negotiated.headers["content-type"]
+    assert "Accept" in negotiated.headers.get("vary", "")
+    assert "# TMail" in negotiated.text
+
+    # Base URL replacement in HTML response
+    html_resp = client.get("/", headers={"X-Forwarded-Host": "mycustomhost.com", "X-Forwarded-Proto": "https"})
+    assert html_resp.status_code == 200
+    assert 'href="https://mycustomhost.com/"' in html_resp.text
+    assert "__BASE_URL__" not in html_resp.text
+

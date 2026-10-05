@@ -11,6 +11,7 @@ import secrets
 import threading
 import time
 from urllib.parse import quote
+import xml.sax.saxutils
 
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
@@ -53,6 +54,7 @@ _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 _SPA_RESERVED = {
     "accounts", "admin", "api", "assets", "docs", "domains", "favicon.ico", "me",
     "messages", "openapi.json", "redoc", "settings", "site", "sources", "token",
+    "robots.txt", "sitemap.xml", "llms.txt", "llms-full.txt", "index.md", "index.html.md",
 }
 _POST_ONLY_ROUTES = {"accounts", "token"}
 _ERROR_RESPONSES = {
@@ -803,6 +805,115 @@ def register_public_routes(app: FastAPI) -> None:
         )
 
 
+_HOST_RE = re.compile(r"^[a-zA-Z0-9.-]+(:[0-9]{1,5})?$")
+
+
+def _site_base_url(request: Request) -> str:
+    scheme = (request.headers.get("x-forwarded-proto") or request.url.scheme or "http").lower()
+    if scheme not in ("http", "https"):
+        scheme = "http"
+
+    raw_host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc or "localhost"
+    host = raw_host.split(",")[0].strip()
+    if not _HOST_RE.match(host):
+        host = "localhost"
+
+    return f"{scheme}://{host}".rstrip("/")
+
+
+def _robots_content(base: str) -> str:
+    return (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /admin\n"
+        "Disallow: /sandbox\n"
+        "Disallow: /message-sandbox\n\n"
+        "# Training crawlers disallowed; AI search and retrieval crawlers allowed\n"
+        "User-agent: GPTBot\n"
+        "Disallow: /\n\n"
+        "User-agent: ClaudeBot\n"
+        "Disallow: /\n\n"
+        "User-agent: CCBot\n"
+        "Disallow: /\n\n"
+        f"Sitemap: {base}/sitemap.xml\n"
+    )
+
+
+def _sitemap_content(base: str) -> str:
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    escaped_base = xml.sax.saxutils.escape(base)
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        '  <url>\n'
+        f'    <loc>{escaped_base}/</loc>\n'
+        f'    <lastmod>{today}</lastmod>\n'
+        '    <changefreq>daily</changefreq>\n'
+        '  </url>\n'
+        '</urlset>\n'
+    )
+
+
+def _llms_content(base: str) -> str:
+    return (
+        "# TMail\n\n"
+        "> Fast, passwordless temporary email service with custom domain support, automatic verification code extraction, and REST API access.\n\n"
+        "TMail provisions short-lived email addresses fronting Postfix and Stalwart JMAP. Inboxes require no registration or credentials, providing instant disposable mailboxes for testing, automated signups, and privacy.\n\n"
+        "## Documentation\n"
+        f"- [Overview]({base}/index.md): System architecture, mailbox lifecycle, verification code extraction, and privacy policy.\n"
+        f"- [API Documentation]({base}/docs): Interactive OpenAPI documentation for mailbox token issuance, message streaming, and domain management.\n"
+    )
+
+
+def _llms_full_content(base: str) -> str:
+    return (
+        "# TMail — Full Documentation for Language Models\n\n"
+        "> Fast, passwordless temporary email service with custom domain support and instant verification code extraction.\n\n"
+        "## Architecture Overview\n"
+        "TMail sits in front of Postfix and Stalwart JMAP mail server. It consists of:\n"
+        "1. Policy Daemon: A high-performance daemon Postfix checks on SMTP delivery to verify MX ownership and cache domains.\n"
+        "2. Web API Server: FastAPI service providing public mailbox endpoints, Server-Sent Events (SSE) message streams, and admin management.\n"
+        "3. Janitor Service: Periodic retention cleanup deleting messages older than configured retention days.\n\n"
+        "## Public Mailbox API\n"
+        f"- Base URL: {base}\n"
+        "- GET /domains: Lists active receiving domains available for address creation.\n"
+        "- POST /token: Issues a stateless HMAC-signed bearer token for an address (local@domain).\n"
+        "- GET /messages: Retrieves message summaries for the authenticated address.\n"
+        "- GET /messages/{id}: Retrieves message details with sandboxed HTML and plain text bodies.\n"
+        "- GET /sources/{id}: Downloads raw RFC 822 message source (.eml).\n"
+        "- GET /messages/stream: Real-time Server-Sent Events stream for new incoming messages.\n\n"
+        "## Privacy & Retention Policy\n"
+        "- Inboxes are passwordless: anyone with the address name can view incoming mail.\n"
+        "- Do not use temporary inboxes for sensitive, banking, or permanent personal accounts.\n"
+        "- Messages are automatically expunged after server retention days expire.\n"
+        "- No personal tracking or user profiling cookies are used.\n"
+    )
+
+
+def _index_md_content(base: str) -> str:
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return (
+        "# TMail — Disposable Temporary Email\n\n"
+        f"Canonical URL: {base}/\n"
+        f"Last Updated: {today}\n\n"
+        "## Overview\n"
+        "TMail is a privacy-first temporary email service designed for instant disposable mailboxes.\n\n"
+        "### Key Features\n"
+        "- **Passwordless Inboxes**: Access inboxes directly by name without accounts or passwords.\n"
+        "- **Instant Verification Codes**: Automatically extracts OTP codes and confirmation links directly in the message overview.\n"
+        "- **Custom Domain Support**: Multi-domain receiving backed by Postfix MX routing and Stalwart JMAP mail delivery.\n"
+        "- **Developer REST API**: Full programmatic access to generate addresses, stream messages via Server-Sent Events (SSE), and download raw `.eml` sources.\n\n"
+        "### How It Works\n"
+        "1. Choose or generate an address across available domains.\n"
+        "2. Provide the address to third-party services.\n"
+        "3. Incoming emails appear immediately in the web inbox with one-click verification code copying.\n\n"
+        "### Retention & Privacy Policy\n"
+        "- Mailboxes are public and accessible to anyone holding the address name.\n"
+        "- Messages are automatically deleted according to server retention policy.\n"
+        "- No personal data, tracking cookies, or persistent user profiles are retained.\n"
+    )
+
+
 def create_app(config_path: str) -> FastAPI:
     config_store = ConfigStore(config_path)
     cfg = validate_web_config(config_store.get())
@@ -856,18 +967,79 @@ def create_app(config_path: str) -> FastAPI:
     index_file = frontend_dist / "index.html"
     app.mount("/assets", StaticFiles(directory=frontend_dist / "assets", check_dir=False), name="assets")
 
-    def spa_index():
+    _index_cache: tuple[float, str] | None = None
+
+    def _get_index_content() -> str:
+        nonlocal _index_cache
+        try:
+            mtime = index_file.stat().st_mtime
+        except OSError:
+            return index_file.read_text(encoding="utf-8")
+        if _index_cache is not None and _index_cache[0] == mtime:
+            return _index_cache[1]
+        text = index_file.read_text(encoding="utf-8")
+        _index_cache = (mtime, text)
+        return text
+
+    def spa_index(request: Request | None = None):
         if not index_file.is_file():
             return PlainTextResponse("Frontend is not installed\n", status_code=503)
-        return FileResponse(index_file)
+        if request is None:
+            return FileResponse(index_file, headers={"Vary": "Accept"})
+        base = _site_base_url(request)
+        content = _get_index_content()
+        if "__BASE_URL__" in content:
+            content = content.replace("__BASE_URL__", base)
+            return HTMLResponse(content, headers={"Vary": "Accept"})
+        return FileResponse(index_file, headers={"Vary": "Accept"})
+
+    @app.get("/robots.txt", include_in_schema=False)
+    def robots_txt(request: Request):
+        return PlainTextResponse(_robots_content(_site_base_url(request)), media_type="text/plain; charset=utf-8")
+
+    @app.get("/sitemap.xml", include_in_schema=False)
+    def sitemap_xml(request: Request):
+        return Response(_sitemap_content(_site_base_url(request)), media_type="application/xml; charset=utf-8")
+
+    @app.get("/llms.txt", include_in_schema=False)
+    def llms_txt(request: Request):
+        return PlainTextResponse(
+            _llms_content(_site_base_url(request)),
+            media_type="text/plain; charset=utf-8",
+            headers={"X-Robots-Tag": "noindex"},
+        )
+
+    @app.get("/llms-full.txt", include_in_schema=False)
+    def llms_full_txt(request: Request):
+        return PlainTextResponse(
+            _llms_full_content(_site_base_url(request)),
+            media_type="text/plain; charset=utf-8",
+            headers={"X-Robots-Tag": "noindex"},
+        )
+
+    @app.get("/index.md", include_in_schema=False)
+    @app.get("/index.html.md", include_in_schema=False)
+    def index_markdown(request: Request):
+        return Response(
+            _index_md_content(_site_base_url(request)),
+            media_type="text/markdown; charset=utf-8",
+            headers={"X-Robots-Tag": "noindex", "Vary": "Accept"},
+        )
 
     @app.get("/", include_in_schema=False)
-    def spa_home():
-        return spa_index()
+    def spa_home(request: Request):
+        accept = request.headers.get("accept", "").lower()
+        if "text/markdown" in accept:
+            return Response(
+                _index_md_content(_site_base_url(request)),
+                media_type="text/markdown; charset=utf-8",
+                headers={"X-Robots-Tag": "noindex", "Vary": "Accept"},
+            )
+        return spa_index(request)
 
     @app.get("/admin", include_in_schema=False)
-    def spa_admin():
-        return spa_index()
+    def spa_admin(request: Request):
+        return spa_index(request)
 
     @app.get("/sandbox", include_in_schema=False, response_class=HTMLResponse)
     def sandbox_document():
@@ -897,7 +1069,7 @@ def create_app(config_path: str) -> FastAPI:
             or address.endswith("@")
         ):
             raise HTTPException(404, "Resource not found")
-        return spa_index()
+        return spa_index(request)
 
     return app
 

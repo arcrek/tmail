@@ -182,4 +182,29 @@ function forget(address: string): void {
     </ul>
     <p v-else class="empty-copy">{{ t('address.savedHelp') }}</p>
   </section>
+
+  <section class="how-it-works" aria-labelledby="how-it-works-heading">
+    <h2 id="how-it-works-heading">{{ t('how.title') }}</h2>
+    <div class="how-steps">
+      <div class="how-step-card">
+        <div class="how-step-icon"><AppIcon name="sparkles" /></div>
+        <h3>{{ t('how.step1Title') }}</h3>
+        <p>{{ t('how.step1Desc') }}</p>
+      </div>
+      <div class="how-step-card">
+        <div class="how-step-icon"><AppIcon name="key" /></div>
+        <h3>{{ t('how.step2Title') }}</h3>
+        <p>{{ t('how.step2Desc') }}</p>
+      </div>
+      <div class="how-step-card">
+        <div class="how-step-icon"><AppIcon name="shield" /></div>
+        <h3>{{ t('how.step3Title') }}</h3>
+        <p>{{ t('how.step3Desc') }}</p>
+      </div>
+    </div>
+    <div class="trust-notice" role="note">
+      <AppIcon name="shield" />
+      <span>{{ t('trust.privacyNotice') }}</span>
+    </div>
+  </section>
 </template>
