@@ -53,6 +53,19 @@ def test_compose_exposes_only_frontend_and_persists_runtime():
     assert 'NGINX_ENVSUBST_FILTER: "^TMAIL_TRUST_FORWARD_HEADERS$$"' in compose
 
 
+def test_docker_janitor_uses_the_api_container_runtime_config():
+    override = (ROOT / "deploy/tmail-janitor-docker.conf").read_text()
+
+    assert "User=root\n" in override
+    assert "WorkingDirectory=/\n" in override
+    assert "Environment=TMAIL_API_CONTAINER=tmail-api-1\n" in override
+    assert (
+        "ExecStart=\n"
+        "ExecStart=/usr/bin/docker exec ${TMAIL_API_CONTAINER} python -m src.email_janitor\n"
+    ) in override
+    assert "--env" not in override  # Inherit the API's live TMAIL_CONFIG, not the host config.
+
+
 def test_nginx_keeps_spa_and_backend_routes_same_origin():
     nginx = (ROOT / "docker/nginx.conf.template").read_text()
 
