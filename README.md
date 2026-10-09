@@ -97,6 +97,24 @@ admin console or by hand — silently does nothing for the other:
 sudo systemctl disable --now tmail-api.service
 ```
 
+Run the daily retention janitor inside the API container as well. Otherwise it reads the
+host config rather than the settings saved by the admin console in the Docker volume:
+
+```bash
+sudo install -d /etc/systemd/system/tmail-janitor.service.d
+sudo install -m 644 deploy/tmail-janitor-docker.conf \
+  /etc/systemd/system/tmail-janitor.service.d/docker.conf
+sudo systemctl daemon-reload
+sudo systemctl enable --now tmail-janitor.timer
+```
+
+The drop-in defaults to container `tmail-api-1`. If your Compose project uses another name,
+set `Environment=TMAIL_API_CONTAINER=<container-name>` in the drop-in. The API container
+must be running when the daily job fires (03:00 UTC on this production host, with up to
+30 minutes of randomized delay). Saving retention days takes effect at the next run;
+it does not immediately delete old messages. To return to the host janitor, remove only
+`/etc/systemd/system/tmail-janitor.service.d/docker.conf` and run `sudo systemctl daemon-reload`.
+
 `tmail-policy.service` has no Docker Compose equivalent in this repo (`compose.yaml` only defines
 `api` and `frontend`) — Postfix still needs it running via systemd regardless of how you serve the
 web API.
