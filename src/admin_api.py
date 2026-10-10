@@ -317,8 +317,8 @@ def refresh_domains(request: Request, *, require_auto: bool = False) -> list[str
         if not state.get_settings()["auto_sync_domains"]:
             return _active_domains(request)
         now = time.monotonic()
-        last_sync = getattr(request.app.state, "_last_auto_sync_time", 0.0)
-        if now - last_sync < _AUTO_SYNC_DEBOUNCE_SECONDS:
+        last_sync = getattr(request.app.state, "_last_auto_sync_time", None)
+        if last_sync is not None and now - last_sync < _AUTO_SYNC_DEBOUNCE_SECONDS:
             return _active_domains(request)
     if not require_auto:
         with request.app.state.admin_lock:
@@ -331,8 +331,8 @@ def refresh_domains(request: Request, *, require_auto: bool = False) -> list[str
                     if not state.get_settings()["auto_sync_domains"]:
                         return _active_domains(request)
                     now = time.monotonic()
-                    last_sync = getattr(request.app.state, "_last_auto_sync_time", 0.0)
-                    if now - last_sync < _AUTO_SYNC_DEBOUNCE_SECONDS:
+                    last_sync = getattr(request.app.state, "_last_auto_sync_time", None)
+                    if last_sync is not None and now - last_sync < _AUTO_SYNC_DEBOUNCE_SECONDS:
                         return _active_domains(request)
                     _config, jmap = _rebuild_jmap_if_stale(request)
                 values = jmap.list_domains()

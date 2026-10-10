@@ -12,9 +12,16 @@ const dialog = ref<HTMLDialogElement | null>(null)
 const copied = ref(false)
 const copyError = ref('')
 const copying = ref(false)
+const quietZone = 4
 
-const matrix = computed(() => generateQrMatrix(props.address))
-const matrixSize = computed(() => matrix.value.length)
+const matrix = computed(() => {
+  try {
+    return generateQrMatrix(props.address)
+  } catch {
+    return null
+  }
+})
+const matrixSize = computed(() => (matrix.value?.length ?? 0) + quietZone * 2)
 
 async function copy(): Promise<void> {
   if (copying.value) return
@@ -54,7 +61,8 @@ onBeforeUnmount(() => dialog.value?.close?.())
 
       <p class="qr-help">{{ t('inbox.qrHelp') }}</p>
 
-      <div class="qr-code-wrapper">
+      <p v-if="!matrix" class="reader-error" role="alert">{{ t('inbox.qrError') }}</p>
+      <div v-else class="qr-code-wrapper">
         <svg
           class="qr-svg"
           :viewBox="`0 0 ${matrixSize} ${matrixSize}`"
@@ -66,8 +74,8 @@ onBeforeUnmount(() => dialog.value?.close?.())
             <template v-for="(cell, c) in row" :key="c">
               <rect
                 v-if="cell"
-                :x="c"
-                :y="r"
+                :x="c + quietZone"
+                :y="r + quietZone"
                 width="1"
                 height="1"
                 fill="black"
@@ -89,3 +97,9 @@ onBeforeUnmount(() => dialog.value?.close?.())
     </div>
   </dialog>
 </template>
+
+<style scoped>
+.qr-modal {
+  grid-template-columns: minmax(0, 1fr);
+}
+</style>

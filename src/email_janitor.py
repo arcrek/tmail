@@ -7,12 +7,36 @@ from datetime import datetime, timedelta, timezone
 import httpx
 
 from .config import load_config
-from .jmap_client import JmapClient
+from .jmap_client import JmapClient, JmapUpstreamError
 
 logger = logging.getLogger(__name__)
 
 _USING = ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"]
 _BATCH = 50
+
+
+def _response_data(client: httpx.Client, url: str, payload: dict, method: str, account_id: str) -> dict:
+    try:
+        response = client.post(url, json=payload, timeout=30)
+        response.raise_for_status()
+        envelope = response.json()
+    except Exception:
+        raise JmapUpstreamError() from None
+    if not isinstance(envelope, dict):
+        raise JmapUpstreamError()
+    responses = envelope.get("methodResponses")
+    if not isinstance(responses, list) or len(responses) != 1:
+        raise JmapUpstreamError()
+    result = responses[0]
+    if not isinstance(result, list) or len(result) != 3:
+        raise JmapUpstreamError()
+    response_method, data, call_id = result
+    if (
+        response_method != method or call_id != "0"
+        or not isinstance(data, dict) or data.get("accountId") != account_id
+    ):
+        raise JmapUpstreamError()
+    return data
 
 
 def _query_old_emails(client: httpx.Client, url: str, account_id: str, before_utc: str) -> list[str]:
@@ -30,13 +54,11 @@ def _query_old_emails(client: httpx.Client, url: str, account_id: str, before_ut
             "0",
         ]],
     }
-    resp = client.post(url, json=payload, timeout=30)
-    resp.raise_for_status()
-    method_resp = resp.json().get("methodResponses", [[]])[0]
-    if method_resp[0] == "Email/query":
-        return method_resp[1].get("ids", [])
-    logger.warning("Unexpected Email/query response: %s", method_resp)
-    return []
+    data = _response_data(client, url, payload, "Email/query", account_id)
+    ids = data.get("ids")
+    if not isinstance(ids, list) or any(not isinstance(value, str) for value in ids):
+        raise JmapUpstreamError()
+    return ids
 
 
 def _destroy_emails(client: httpx.Client, url: str, account_id: str, ids: list[str]) -> int:
@@ -49,17 +71,28 @@ def _destroy_emails(client: httpx.Client, url: str, account_id: str, ids: list[s
             "0",
         ]],
     }
-    resp = client.post(url, json=payload, timeout=30)
-    resp.raise_for_status()
-    method_resp = resp.json().get("methodResponses", [[]])[0]
-    if method_resp[0] == "Email/set":
-        destroyed = method_resp[1].get("destroyed", [])
-        not_destroyed = method_resp[1].get("notDestroyed", {})
-        if not_destroyed:
-            logger.warning("Failed to destroy %d emails: %s", len(not_destroyed), not_destroyed)
-        return len(destroyed)
-    logger.warning("Unexpected Email/set response: %s", method_resp)
-    return 0
+    data = _response_data(client, url, payload, "Email/set", account_id)
+    destroyed = data.get("destroyed")
+    not_destroyed = data.get("notDestroyed")
+    if destroyed is None:
+        destroyed = []
+    if not_destroyed is None:
+        not_destroyed = {}
+    if (
+        not isinstance(destroyed, list)
+        or any(not isinstance(value, str) or value not in ids for value in destroyed)
+        or len(set(destroyed)) != len(destroyed)
+        or not isinstance(not_destroyed, dict)
+        or any(
+            key not in ids or not isinstance(error, dict) or not isinstance(error.get("type"), str)
+            for key, error in not_destroyed.items()
+        )
+        or set(destroyed).intersection(not_destroyed)
+    ):
+        raise JmapUpstreamError()
+    if not_destroyed:
+        logger.warning("Failed to destroy %d emails: %s", len(not_destroyed), not_destroyed)
+    return len(destroyed)
 
 
 def run(config_path: str) -> None:
@@ -86,6 +119,8 @@ def run(config_path: str) -> None:
             if not ids:
                 break
             deleted = _destroy_emails(client, cfg.jmap_url, account_id, ids)
+            if deleted == 0:
+                raise JmapUpstreamError()
             total_deleted += deleted
             logger.info("Deleted batch of %d (total so far: %d)", deleted, total_deleted)
 
