@@ -36,7 +36,7 @@ def config_path(tmp_path, cache_file):
         "cache_file": str(cache_file),
         "api_token_secret": "s" * 32,
         "admin_password": "admin-secret",
-        "state_db": "state.db",
+        "state_db": str(tmp_path / "state.db"),
         "mail_account_id": "mail-account",
     }))
     return path
