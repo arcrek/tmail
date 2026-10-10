@@ -46,13 +46,27 @@ There's no `pytest.ini`/`pyproject.toml`/conftest — plain pytest discovery ove
 ### Frontend (run from `frontend/`)
 
 ```bash
-npm install
+npm ci
 npm run dev      # Vite dev server; proxies API paths (see vite.config.ts) to 127.0.0.1:8000
 npm run build     # vue-tsc --noEmit type check, then vite build to frontend/dist
 npm run test      # vitest run — single-run unit tests in frontend/src/tests/
 npx vitest run frontend/src/tests/InboxView.test.ts   # single test file
-npm run test:sandbox-browser   # scripts/message-sandbox-smoke.mjs, real-browser sandbox iframe check
+npx playwright install --with-deps chromium
+PYTHON=../.venv/bin/python npm run test:sandbox-browser
 ```
+
+The browser check owns a headless Chromium instance and an isolated fake-JMAP app on
+`127.0.0.1:8099`. Build first. It requires the backend development dependencies above;
+`PYTHON` selects their interpreter (default: `python3`). No CDP endpoint or running app
+is needed. An occupied port fails explicitly. The runner closes its browser/server and
+removes temporary state on success, failure, SIGINT, and SIGTERM. It opens a real inbox
+and message, then verifies the embedded iframe's opaque origin, permitted styling,
+blocked scripts/forms/navigation, and denied parent DOM/storage access.
+
+CI runs the full backend suite and the clean frontend install, full tests, build, and
+browser check for pull requests and all publication events. Both Docker image jobs
+require successful checks. Only push/manual publication jobs receive package-write
+permission and authenticate to GHCR; pull requests cannot publish.
 
 ### Running the whole app for a live check
 

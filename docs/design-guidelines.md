@@ -39,11 +39,11 @@ Use the radius tokens: 8px for small elements, 12px for fields and inner cards, 
 - Public navigation becomes a menu at 952px. Active destinations use a tinted pill and `aria-current`.
 - Search uses a tinted pill field. Form controls retain visible labels and outlines.
 - Keep visible keyboard focus and at least 44px touch targets. Reduced-motion mode disables animation and transitions.
-- QR sharing centers its dialog, keeps it within the viewport, and restores focus to the trigger when dismissed. Copy success and error feedback stays inside the dialog so it remains accessible. The shared clipboard fallback places its temporary textarea inside the focused dialog to avoid the inert background.
+- QR sharing centers its dialog, keeps it within the viewport, and restores focus to the trigger when dismissed. QR symbols encode the complete plain address and include a white four-module quiet zone on every side. Generation failure shows a localized alert and keeps the address and copy button available. Copy success and error feedback stays inside the dialog so it remains accessible. The shared clipboard fallback places its temporary textarea inside the focused dialog to avoid the inert background.
 
 ## Content boundaries
 
-Email HTML and administrator-provided HTML remain sandboxed. Email and QR surfaces stay white in both themes for content fidelity and scanning. Theme changes must not alter sandbox permissions or inline production assets. The default envelope favicon is bundled under `/assets/` so the API static mount serves it; administrator-provided favicons still override it.
+Email HTML and administrator-provided HTML remain sandboxed. Email and QR surfaces stay white in both themes for content fidelity and scanning. The owned `npm run test:sandbox-browser` gate opens the actual message iframe through the inbox flow and proves its opaque origin, denied parent DOM/storage access, and blocked email scripts, event handlers, refreshes, and forms. Theme changes must not alter sandbox permissions or inline production assets. The default envelope favicon is bundled under `/assets/` so the API static mount serves it; administrator-provided favicons still override it.
 
 ## Verification
 
