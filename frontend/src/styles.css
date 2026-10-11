@@ -1122,6 +1122,26 @@ main {
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
 }
 
+.mailbox-login {
+  width: min(100%, 32rem);
+  margin-inline: auto;
+  padding: clamp(var(--space-4), 4vw, var(--space-6));
+  display: grid;
+  gap: var(--space-5);
+}
+
+.mailbox-login h1 {
+  max-width: none;
+  margin: 0;
+  font-size: var(--text-2xl);
+}
+
+.mailbox-login p { margin: 0; }
+.mailbox-login .settings-form { gap: var(--space-3); }
+#mailbox-login-help { color: var(--muted); font-size: var(--text-sm); line-height: 1.5; }
+#mailbox-login-error:empty { display: none; }
+.mailbox-login .text-button { justify-self: start; }
+
 .mailbox-password-dialog { width: min(100%, 32rem); }
 .mailbox-password-dialog .field,
 .mailbox-login .field { min-width: 0; }

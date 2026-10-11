@@ -221,6 +221,34 @@ try {
   await fresh.locator('.mailbox-login button[type="submit"]').click()
   await fresh.waitForFunction(() => document.getElementById('mailbox-login-error').textContent.includes('incorrect'))
   assert.equal(await login(fresh).inputValue(), '')
+  const loginShots = join(root, 'plans/reports/mailbox-login-ui-shots')
+  await mkdir(loginShots, { recursive: true })
+  for (const locale of ['en', 'vi']) {
+    await fresh.setViewportSize({ width: 1440, height: 900 })
+    await fresh.locator('.locale-picker select').selectOption(locale)
+    for (const theme of ['light', 'dark']) {
+      await fresh.evaluate((value) => { document.documentElement.dataset.theme = value }, theme)
+      for (const width of [1440, 768, 375, 320]) {
+        await fresh.setViewportSize({ width, height: 900 })
+        assert(await fresh.locator('.mailbox-login').evaluate((card) => {
+          const rect = card.getBoundingClientRect()
+          const styles = getComputedStyle(card)
+          const heading = card.querySelector('h1')
+          const field = card.querySelector('.field').getBoundingClientRect()
+          return document.documentElement.scrollWidth <= innerWidth && card.scrollWidth <= card.clientWidth + 1 &&
+            rect.width <= 512 && Math.abs(rect.left + rect.right - innerWidth) <= 2 &&
+            parseFloat(styles.paddingLeft) >= 16 && parseFloat(styles.paddingRight) >= 16 &&
+            field.left - rect.left >= 16 && rect.right - field.right >= 16 &&
+            parseFloat(getComputedStyle(heading).fontSize) <= 32 &&
+            [...card.querySelectorAll('p')].every((node) => getComputedStyle(node).marginBottom === '0px') &&
+            [...card.querySelectorAll('button')].every((node) => node.getBoundingClientRect().height >= 44)
+        }), `Mailbox login spacing or overflow at ${locale}/${theme}/${width}`)
+        await fresh.screenshot({ path: join(loginShots, `${locale}-${theme}-${width}.png`) })
+      }
+    }
+  }
+  await fresh.setViewportSize({ width: 1440, height: 900 })
+  await fresh.locator('.locale-picker select').selectOption('en')
   await signIn(fresh, replacement)
   await fresh.locator('[data-action="mailbox-logout"]').click()
   await login(fresh).waitFor()
