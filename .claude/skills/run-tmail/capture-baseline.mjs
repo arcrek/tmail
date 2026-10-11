@@ -30,7 +30,7 @@ for (const vp of viewports) {
 
     // Enter address and navigate to inbox
     await page.fill('#local-part', 'demo.user');
-    await page.click('button.primary-button[type=submit]');
+    await page.click('.address-form button.primary-button[type=submit]');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(600);
     await page.evaluate(() => window.scrollTo(0, 0));

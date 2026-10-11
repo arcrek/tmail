@@ -18,6 +18,7 @@ const toast = useToast()
 const domains = ref<DomainResource[]>([])
 const selectedDomain = ref('')
 const localPart = ref('')
+const quickEmail = ref('')
 const loadingDomains = ref(true)
 const submitting = ref(false)
 const domainError = ref('')
@@ -63,7 +64,7 @@ onMounted(loadDomains)
 watch(() => props.accessToken, loadDomains)
 
 async function submit(submittedAddress = address.value): Promise<void> {
-  if (!submittedAddress) return
+  if (!submittedAddress || submitting.value) return
   const version = ++submitVersion
   submitting.value = true
   try {
@@ -106,6 +107,31 @@ function forget(address: string): void {
     <p class="eyebrow">{{ t('address.eyebrow') }}</p>
     <h1 id="address-title">{{ t('address.title') }}</h1>
     <p class="lede">{{ t('address.lede') }}</p>
+  </section>
+
+  <section class="panel quick-access" aria-labelledby="quick-access-title">
+    <div class="panel-heading">
+      <h2 id="quick-access-title">{{ t('address.quickAccess') }}</h2>
+    </div>
+    <form @submit.prevent="submit(quickEmail.trim().toLowerCase())">
+      <div class="field">
+        <label for="quick-email">{{ t('address.email') }}</label>
+        <input
+          id="quick-email"
+          v-model.trim="quickEmail"
+          name="email"
+          type="email"
+          inputmode="email"
+          autocomplete="email"
+          autocapitalize="none"
+          :spellcheck="false"
+          required
+        >
+      </div>
+      <button class="primary-button" type="submit" :disabled="submitting || !quickEmail.trim()">
+        {{ submitting ? t('address.opening') : t('address.openMailbox') }}
+      </button>
+    </form>
   </section>
 
   <div v-if="loadingDomains" class="panel loading-panel" aria-live="polite">

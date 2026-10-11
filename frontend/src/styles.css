@@ -606,17 +606,20 @@ main {
 }
 
 .address-form,
+.quick-access,
 .empty-state,
 .loading-panel {
   padding: clamp(1.4rem, 3vw, 2rem);
 }
 
-.address-form form {
+.address-form form,
+.quick-access form {
   display: grid;
   gap: var(--space-5);
 }
 
-.address-form form > .primary-button {
+.address-form form > .primary-button,
+.quick-access form > .primary-button {
   justify-self: start;
 }
 

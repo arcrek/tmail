@@ -26,7 +26,7 @@ const errors = []
   await page.fill('#local-part', 'demo.user')
   await page.screenshot({ path: `${OUT}/01-address-form.png`, fullPage: true })
 
-  await page.click('button.primary-button[type=submit]')
+  await page.click('.address-form button.primary-button[type=submit]')
   await page.waitForLoadState('networkidle')
   await page.waitForTimeout(500)
   await page.screenshot({ path: `${OUT}/02-inbox-live-messages.png`, fullPage: true })

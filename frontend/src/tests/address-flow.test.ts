@@ -254,11 +254,100 @@ describe('address flow', () => {
     expect(mocks.messages).toHaveBeenLastCalledWith('new-token', 1)
   })
 
+  it('opens a full email address without selecting a domain and preserves unlocked access', async () => {
+    localStorage.setItem('tmail.accessToken', 'saved-token')
+    const wrapper = mount(App)
+    await flushPromises()
+    expect(wrapper.get<HTMLSelectElement>('#domain').element.value).toBe('example.com')
+    await wrapper.get('#quick-email').setValue('  Box@Other.Example  ')
+    await wrapper.get('.quick-access form').trigger('submit')
+    await flushPromises()
+
+    expect(mocks.token).toHaveBeenCalledWith('box@other.example', 'saved-token')
+    expect(location.pathname).toBe('/box%40other.example')
+    expect(wrapper.find('.inbox-view').exists()).toBe(true)
+    expect(JSON.parse(localStorage.getItem('tmail.addresses')!)[0].address).toBe('box@other.example')
+  })
+
+  it('requires a valid full email address before native form submission', async () => {
+    const wrapper = mount(AddressPanel)
+    await flushPromises()
+    const input = wrapper.get<HTMLInputElement>('#quick-email')
+    expect(input.element.checkValidity()).toBe(false)
+    expect(wrapper.get('.quick-access button').attributes('disabled')).toBeDefined()
+    await input.setValue('not-an-email')
+    expect(input.element.checkValidity()).toBe(false)
+    await input.setValue('box@example.com')
+    expect(input.element.checkValidity()).toBe(true)
+    expect(wrapper.get('.quick-access button').attributes('disabled')).toBeUndefined()
+    expect(mocks.token).not.toHaveBeenCalled()
+  })
+
+  it('keeps quick access available when the domain list cannot load', async () => {
+    mocks.domains.mockRejectedValue(new ApiError(502, 'Domain list unavailable'))
+    const wrapper = mount(AddressPanel)
+    await flushPromises()
+    await wrapper.get('#quick-email').setValue('box@example.com')
+    await wrapper.get('.quick-access form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.emitted('open')?.[0]?.[0]).toMatchObject({ address: 'box@example.com' })
+  })
+
+  it('prevents repeated opens while quick access is pending', async () => {
+    let finish!: (value: { token: string }) => void
+    mocks.token.mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    const wrapper = mount(AddressPanel)
+    await flushPromises()
+    await wrapper.get('#quick-email').setValue('box@example.com')
+    await wrapper.get('.quick-access form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.get('.quick-access button').attributes('disabled')).toBeDefined()
+    await wrapper.get('.quick-access form').trigger('submit')
+    expect(mocks.token).toHaveBeenCalledOnce()
+    finish({ token: 'signed-token' })
+    await flushPromises()
+    expect(wrapper.emitted('open')).toHaveLength(1)
+    expect(wrapper.get('.quick-access button').attributes('disabled')).toBeUndefined()
+  })
+
+  it('uses the password prompt when quick access opens a protected mailbox', async () => {
+    mocks.token.mockRejectedValueOnce(new ApiError(401, 'Password required'))
+    const wrapper = mount(App)
+    await flushPromises()
+    await wrapper.get('#quick-email').setValue('box@example.com')
+    await wrapper.get('.quick-access form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.find('.inbox-view').exists()).toBe(false)
+    expect(wrapper.get('#mailbox-login-password').exists()).toBe(true)
+    expect(location.pathname).toBe('/box%40example.com')
+    await wrapper.get('#mailbox-login-password').setValue('password-12345')
+    await wrapper.get('.mailbox-login form').trigger('submit')
+    await flushPromises()
+    expect(mocks.token).toHaveBeenLastCalledWith('box@example.com', undefined, 'password-12345')
+    expect(wrapper.find('.inbox-view').exists()).toBe(true)
+  })
+
+  it('reports server validation errors from quick access and allows retry', async () => {
+    mocks.token.mockRejectedValueOnce(new ApiError(422, 'Invalid address'))
+    const wrapper = mount(App)
+    await flushPromises()
+    await wrapper.get('#quick-email').setValue('box@unsupported.example')
+    await wrapper.get('.quick-access form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('Invalid address')
+    expect(wrapper.find('.inbox-view').exists()).toBe(false)
+    expect(wrapper.get('.quick-access button').attributes('disabled')).toBeUndefined()
+    await wrapper.get('#quick-email').setValue('box@example.com')
+    await wrapper.get('.quick-access form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.find('.inbox-view').exists()).toBe(true)
+  })
+
   it('creates a custom address with an active domain', async () => {
     const wrapper = mount(AddressPanel)
     await flushPromises()
     await wrapper.get('#local-part').setValue('paper')
-    await wrapper.get('form').trigger('submit')
+    await wrapper.get('.address-form form').trigger('submit')
     await flushPromises()
 
     expect(mocks.token).toHaveBeenCalledWith('paper@example.com', undefined)
@@ -275,7 +364,7 @@ describe('address flow', () => {
     } })
     const wrapper = mount(AddressPanel)
     await flushPromises()
-    await wrapper.get('.panel-heading button').trigger('click')
+    await wrapper.get('.address-form .panel-heading button').trigger('click')
     await flushPromises()
 
     expect(mocks.token).toHaveBeenCalledTimes(1)
@@ -391,7 +480,7 @@ describe('address flow', () => {
     const wrapper = mount(AddressPanel)
     await flushPromises()
     expect(wrapper.text()).toContain('No receiving domains are available')
-    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('.empty-state button[type="submit"]').attributes('disabled')).toBeDefined()
   })
 
   it('shows a Hydra domain-loading error separately from an empty list', async () => {
@@ -416,14 +505,14 @@ describe('address flow', () => {
     await flushPromises()
 
     await wrapper.get('#local-part').setValue('alpha')
-    await wrapper.get('form').trigger('submit')
+    await wrapper.get('.address-form form').trigger('submit')
     await flushPromises()
     expect(location.pathname).toBe('/alpha%40example.com')
 
     await wrapper.get('.app-header .home-link').trigger('click')
     await flushPromises()
     await wrapper.get('#local-part').setValue('beta')
-    await wrapper.get('form').trigger('submit')
+    await wrapper.get('.address-form form').trigger('submit')
     await flushPromises()
     expect(location.pathname).toBe('/beta%40example.com')
 
