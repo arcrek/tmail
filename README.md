@@ -64,41 +64,66 @@ The application is available at `http://127.0.0.1:8080`. Use `TMAIL_HTTP_PORT` t
 
 Use an HTTPS reverse proxy in production. The default Compose bind exposes the service on all interfaces, so protect it with a network boundary. If the proxy sanitizes forwarded headers, enable trusted forwarding with `TMAIL_TRUST_FORWARD_HEADERS=on`. Note the bundled nginx config does not strip `CF-Connecting-IP`; since the rate limiter trusts that header unconditionally (see "Running behind Cloudflare" below), any client able to reach this Compose deployment directly can spoof it to bypass rate limiting unless your proxy strips or overwrites it.
 
-## Production installation
+## Production deployment
 
-On the mail server, from a checkout containing `config.json`:
+The verified production route runs the API and frontend with Docker Compose from
+`/home/ubuntu/tmail/compose.yaml`. The Compose services use the GHCR API and
+frontend images, and the named `tmail_tmail-data` volume persists the runtime
+configuration, domain cache, and SQLite state. The seed configuration is the
+deployment checkout's `/home/ubuntu/tmail/config.json`; the API container is
+`tmail-api-1`. On the host, Docker currently stores that volume at
+`/var/lib/docker/volumes/tmail_tmail-data/_data`.
 
-```bash
-sudo bash deploy/install.sh
-```
+Before each upgrade, stop the existing API workers and retain a verified SQLite
+backup before the new image can migrate the database. Prepare a reviewed
+Compose deployment input that pins both images to an immutable revision or
+digest; the base manifest defaults to `latest`, which is not a release pin.
+Start the API and frontend only after the backup and pinned references are
+ready, then verify container health and the running image revisions/digests.
 
-For later deployments:
+The production API currently runs one Python worker without a cgroup CPU or RAM
+cap. Calibrate Argon2id on the actual host and worker topology, including
+aggregate memory for the two process-local hash slots, before release. Local
+timings do not certify production.
 
-```bash
-./deploy/deploy.sh root@example-host
-```
+Once mailbox protection has been used, never roll back to a passwordless image;
+retain password enforcement or stop the API. A separately authorized backup
+restore can revive old credentials and sessions.
 
-The deployed services use `/var/lib/tmail-policy/config.json` as mutable runtime configuration. The release under `/opt/tmail-policy` remains read-only to the service.
+Postfix must own port 25 and consult `inet:127.0.0.1:10030`, as shown in
+`deploy/postfix_main_snippet.cf`. Stalwart receives accepted relay mail on port
+2525.
 
-Postfix must own port 25 and consult `inet:127.0.0.1:10030`, as shown in `deploy/postfix_main_snippet.cf`. Stalwart receives accepted relay mail on port 2525.
+### Compose API with systemd policy and janitor
 
-### Hybrid: `tmail-api` via Docker Compose, policy daemon via systemd
+The verified topology keeps `tmail-policy.service` active for Postfix while
+`tmail-api.service` remains inactive so only the Compose API owns web traffic.
+The daily janitor runs inside `tmail-api-1` through
+`deploy/tmail-janitor-docker.conf` and `tmail-janitor.timer`, so it reads the
+same persistent state as the API. Do not run a second API or a host janitor
+against a different configuration path.
 
-`deploy/install.sh`/`deploy/release.sh` install and enable **both** `tmail-policy.service` and
-`tmail-api.service`. If you instead serve the web API/frontend from the [Docker Compose](#run-with-docker-compose)
-stack on the same host (e.g. so `ghcr.io/arcrek/tmail-api` image releases don't require a
-checkout-based redeploy), disable the systemd copy after install — otherwise you have two
-independent `tmail-api` processes with two independent `config.json` files (one at
-`/var/lib/tmail-policy/config.json`, one inside the `tmail-data` Docker volume), and only
-whichever nginx actually proxies to receives real traffic. Editing one config later — via the
-admin console or by hand — silently does nothing for the other:
+### Checkout-based systemd alternate
+
+`deploy/install.sh`/`deploy/release.sh` remain supported for a checkout-based
+deployment in which both `tmail-policy.service` and `tmail-api.service` run
+under systemd. That alternate uses `/var/lib/tmail-policy/config.json` as
+mutable runtime configuration and keeps the release under `/opt/tmail-policy`
+read-only to the service. Keep the systemd API disabled when the Compose API
+route is active.
+
+If the Compose API is introduced after a checkout-based install, disable the
+systemd copy before starting Compose — otherwise two independent API processes
+use two independent configuration stores, and edits to one silently do nothing
+for the other:
 
 ```bash
 sudo systemctl disable --now tmail-api.service
 ```
 
-Run the daily retention janitor inside the API container as well. Otherwise it reads the
-host config rather than the settings saved by the admin console in the Docker volume:
+For a Compose API deployment, run the daily retention janitor inside the API
+container as well. Otherwise it reads the host config rather than the settings
+saved by the admin console in the Docker volume:
 
 ```bash
 sudo install -d /etc/systemd/system/tmail-janitor.service.d
@@ -239,7 +264,7 @@ delete security records. A separately authorized backup restore can revive old
 passwords and sessions. SMTP delivery and message retention are unchanged.
 
 Before release, calibrate Argon2id on deployment-equivalent CPU, RAM, and worker
-count. Current settings are 64 MiB, three passes, one lane, and two concurrent
+count. Current settings are 32 MiB, two passes, one lane, and two concurrent
 hash slots per process; size aggregate memory across workers and verify overload
 rejection. Record latency and peak memory with headroom before tuning; do not go
 below 19 MiB, two passes, and one lane. Local timings do not certify production.

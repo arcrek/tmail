@@ -143,7 +143,7 @@ def test_exact_unicode_and_space_passwords(mailbox, password):
     auth, clock = mailbox
     token = auth.set_password("user@example.com", password)
     encoded = auth.state.mailbox_security("user@example.com")["password_hash"]
-    assert encoded.startswith("$argon2id$v=19$m=65536,t=3,p=1$")
+    assert encoded.startswith("$argon2id$v=19$m=32768,t=2,p=1$")
     assert auth.resolve(token)["kind"] == "visitor"
     assert auth.resolve(auth.login("user@example.com", password))["kind"] == "visitor"
     with pytest.raises(ValueError):
@@ -419,4 +419,4 @@ def test_concurrent_logins_during_transparent_hash_upgrade(mailbox, monkeypatch)
     security = auth.state.mailbox_security(address)
     assert security["generation"] == 1
     assert security["password_hash"] != old
-    assert "$m=65536,t=3,p=1$" in security["password_hash"]
+    assert "$m=32768,t=2,p=1$" in security["password_hash"]
