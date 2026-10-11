@@ -116,4 +116,32 @@ describe('api', () => {
       expect.objectContaining<ApiError>({ status: 422, message: 'Domain is not active' }),
     )
   })
+
+  it('sends exact mailbox passwords and explicit CSRF-protected admin exchanges', async () => {
+    const fetch = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({}), { headers: { 'Content-Type': 'application/json' } })))
+    vi.stubGlobal('fetch', fetch)
+    const password = ' 😀exact password '
+    await api.token('box@example.com', 'site-access', password)
+    await api.setPassword('visitor', password, 'current-password')
+    await api.removePassword('visitor', 'current-password')
+    await api.logout('visitor')
+    await api.admin.mailboxToken('box@example.com', 'csrf')
+    await api.admin.setMailboxPassword('box@example.com', password, 'csrf')
+    await api.admin.removeMailboxPassword('box@example.com', 'csrf')
+    expect(fetch.mock.calls[0]?.[1].body).toBe(JSON.stringify({ address: 'box@example.com', password }))
+    expect(fetch.mock.calls[1]?.[1].body).toBe(JSON.stringify({ password, currentPassword: 'current-password' }))
+    expect(fetch.mock.calls[2]?.[0]).toBe('/me/password')
+    expect(fetch.mock.calls[2]?.[1].method).toBe('DELETE')
+    expect(fetch.mock.calls[3]?.[0]).toBe('/me/logout')
+    for (const [url, options] of fetch.mock.calls.slice(4)) {
+      expect(url).toMatch(/^\/admin\/api\/mailboxes\//)
+      expect(options.headers['X-CSRF-Token']).toBe('csrf')
+      expect(options.credentials).toBe('same-origin')
+    }
+  })
+
+  it('exposes structured mailbox error codes', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ '@type': 'hydra:Error', 'hydra:description': 'Mailbox password required', code: 'password_required' }), { status: 401, headers: { 'Content-Type': 'application/json' } })))
+    await expect(api.token('box@example.com')).rejects.toMatchObject({ status: 401, detail: { code: 'password_required' } })
+  })
 })

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError, api } from '../api'
+import { authorizationFailed, openMailbox } from '../mailbox-access'
 import { copyText } from '../clipboard'
 import { randomDomain, randomLocalPart } from '../randomAddress'
 import { loadSessions, removeSession } from '../session'
@@ -10,7 +11,7 @@ import { useI18n } from '../i18n'
 import { useToast } from '../toast'
 
 const props = withDefaults(defineProps<{ accessToken?: string }>(), { accessToken: '' })
-const emit = defineEmits<{ open: [session: AddressSession] }>()
+const emit = defineEmits<{ open: [session: AddressSession]; login: [address: string] }>()
 const { t } = useI18n()
 const toast = useToast()
 
@@ -35,6 +36,11 @@ const message = (value: unknown) =>
   value instanceof ApiError ? value.message : t('error.unavailable')
 
 let domainsVersion = 0
+let submitVersion = 0
+onBeforeUnmount(() => { ++domainsVersion; ++submitVersion })
+function handleStorage(): void { sessions.value = loadSessions() }
+onMounted(() => window.addEventListener('storage', handleStorage))
+onBeforeUnmount(() => window.removeEventListener('storage', handleStorage))
 
 async function loadDomains(): Promise<void> {
   const version = ++domainsVersion
@@ -56,14 +62,17 @@ async function loadDomains(): Promise<void> {
 onMounted(loadDomains)
 watch(() => props.accessToken, loadDomains)
 
-async function submit(): Promise<void> {
-  if (!address.value) return
+async function submit(submittedAddress = address.value): Promise<void> {
+  if (!submittedAddress) return
+  const version = ++submitVersion
   submitting.value = true
   try {
-    const response = await api.token(address.value, props.accessToken || undefined)
-    emit('open', { address: address.value, token: response.token })
+    const session = await openMailbox(submittedAddress, props.accessToken || undefined)
+    if (version === submitVersion) emit('open', session)
   } catch (cause) {
-    toast.error(message(cause))
+    if (version !== submitVersion) return
+    if (authorizationFailed(cause)) emit('login', submittedAddress)
+    else toast.error(message(cause))
   } finally {
     submitting.value = false
   }
@@ -127,7 +136,7 @@ function forget(address: string): void {
       </button>
     </div>
 
-    <form @submit.prevent="submit">
+    <form @submit.prevent="submit()">
       <div class="address-fields">
       <div class="field local-field">
         <label for="local-part">{{ t('address.name') }}</label>
@@ -172,7 +181,7 @@ function forget(address: string): void {
     <h2 id="remembered-title">{{ t('address.saved') }}</h2>
     <ul v-if="sessions.length">
       <li v-for="session in sessions" :key="session.address">
-        <button class="saved-address" type="button" @click="emit('open', session)">
+        <button class="saved-address" type="button" @click="submit(session.address)">
           {{ session.address }}
         </button>
         <button class="forget-button" type="button" :aria-label="t('address.forget', { address: session.address })" @click="forget(session.address)">

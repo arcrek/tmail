@@ -43,7 +43,7 @@ flowchart TD
   - A cache miss triggers an MX lookup via [`src/mx_checker.py`](../src/mx_checker.py). If the domain's MX points to `mx_hostname`, the daemon dynamically provisions the domain in Stalwart via JMAP ([`src/jmap_client.py`](../src/jmap_client.py)), updates `DomainCache`, and emits an audit event to [`src/api_state.py:StateStore`](../src/api_state.py).
 - **Web & Admin API ([`src/api_server.py`](../src/api_server.py), [`src/admin_api.py`](../src/admin_api.py))**:
   - FastAPI application providing public Hydra REST endpoints ([`src/api_models.py`](../src/api_models.py)), administrator endpoints (`/admin/api/*`), static asset delivery, and SPA routing.
-  - Public endpoints provide passwordless, token-based mailbox inspection.
+  - Mailbox endpoints provide token-based inspection, with passwords required for protected addresses.
   - The SPA catch-all route explicitly guards reserved system paths (`_SPA_RESERVED`) so mailbox local-parts cannot shadow application endpoints.
 - **Retention Janitor ([`src/email_janitor.py`](../src/email_janitor.py))**:
   - Independent maintenance utility triggered by [`deploy/tmail-janitor.timer`](../deploy/tmail-janitor.timer).
@@ -67,7 +67,63 @@ TMail partitions persistence between two independent stores with distinct perfor
 | Store | Underlying Mechanism | Executable Owner | Primary Purpose | Concurrency Model |
 |---|---|---|---|---|
 | **Domain Cache** | Atomic JSON file (`domains.json`) | [`src/domain_cache.py:DomainCache`](../src/domain_cache.py) | Instant lookup of MX-verified domains for Postfix SMTP checks | In-memory `set` synchronized via `fcntl.flock` and file generation tracking |
-| **State Store** | SQLite database (`state.db`) | [`src/api_state.py:StateStore`](../src/api_state.py) | Relational storage: site settings, admin sessions, unlock keys, frozen domains, activity logs | Multi-process SQLite with `PRAGMA journal_mode=WAL` |
+| **State Store** | SQLite database (`state.db`) | [`src/api_state.py:StateStore`](../src/api_state.py) | Relational storage: site settings, admin/unlock/mailbox sessions, password hashes, revocation generations, frozen domains, activity logs | Multi-process SQLite with `PRAGMA journal_mode=WAL` |
+
+### State database upgrades and mailbox lifecycle
+
+`StateStore` keeps the configured database path and serializes initialization with a
+`<state_db>.migration.lock` filesystem lock. Before upgrading an existing version-zero
+database, it uses SQLite's backup API, verifies integrity, fsyncs the backup, and
+publishes a unique `.state-backup-*.sqlite3` file beside the database. The initializing
+store exposes that path as `backup_path`. New empty databases need no historical
+backup. Additive schema changes and `PRAGMA user_version` commit together; backup or
+migration failure aborts startup. A retry may make another backup and preserves
+previous backups. Backup files contain credentials and must stay private.
+
+For an upgrade, stop old API workers before starting the new release. Confirm the
+configured path and retain the verified backup; never copy only a live WAL main
+file. Do not restore a backup without separate authorization: old credentials may
+become valid again. Once mailbox protection is enabled, rollback must retain
+password enforcement or stop the service.
+
+The storage/authentication layer in [`api_state.py`](../src/api_state.py) and
+[`api_auth.py`](../src/api_auth.py) enforces mailbox password protection through the shared `mailbox_access` dependency
+in [`api_server.py`](../src/api_server.py). Every mailbox route validates token
+generation, expiry, and any parent admin session. The existing admin cookie remains
+scoped to `/admin`; explicit CSRF-protected admin endpoints exchange it for a
+mailbox bearer and reset/remove protection. Admin writes recheck the parent inside
+the committing transaction.
+`MailboxAuth` accepts addresses already validated by the caller's domain policy.
+Lifecycle callers pass `elevated=True` only from a trusted site-unlock result or
+validated mailbox bearer. Claim, login, change and removal preserve this domain
+access in replacement tokens; elevation never bypasses mailbox password checks.
+Password mismatches raise credential errors; verification failures and corrupt
+stored hashes raise sanitized `PasswordServiceError` without exposing values.
+It preserves exact 12–128-character passwords, uses Argon2id, and performs hashing
+outside SQLite write transactions with two process-local hash slots, reserved before
+thread offload and retained until the actual worker completes. Password endpoints
+use the existing 10-request/60-second IP limiter; password-bearing login always
+uses the IP bucket, even with site unlock. Generations
+persist after password removal/expiry. Password mutations and lazy expiry revoke
+previous tokens; successful visitor login renews protection without revoking
+other devices. Visitor sessions expire 90 days after issuance, independently of
+protection renewal. Admin mailbox sessions depend on a live parent session and
+never renew protection. Reads never renew protection or delete email.
+
+SSE streams revalidate authorization between polling waits of at most five seconds,
+and again before emitting updates. A separate eight-worker authorization pool
+keeps rechecks independent of ordinary mail requests; checks time out after five
+seconds and close the stream on timeout or exhausted capacity. Authorization
+workers retain their slots until completion even after timeout or disconnect.
+Each stream has
+one pending poll; eight process-wide slots bound outstanding polls. A disconnected
+or revoked stream abandons its result but the worker retains capacity until it
+actually finishes. Downloads revalidate before delivering bytes. Mailbox, token,
+and admin responses use `Cache-Control: no-store`. Production hash calibration and
+worker sizing remain release checks.
+
+If a newly issued token is revoked before its response is constructed, issuance
+returns `409 mailbox_conflict`; database/hash failures remain sanitized `503` errors.
 
 ### Why Persistence Is Partitioned
 
@@ -93,11 +149,11 @@ TMail partitions persistence between two independent stores with distinct perfor
   - Because the origin server maintains a publicly reachable IP address, attackers could bypass Cloudflare and forge arbitrary `CF-Connecting-IP` headers if direct connections are permitted.
   - The origin firewall must restrict incoming HTTP/HTTPS ports to Cloudflare's published CIDR blocks using [`deploy/cloudflare-nginx-allowlist.sh`](../deploy/cloudflare-nginx-allowlist.sh) or OS firewall rules (`ufw` / `iptables`).
 
-### Invariant 3: Stateless Public Inbox Access
-- **Invariant**: Temporary mailbox authorization must not require server-side session allocation or account creation.
+### Invariant 3: Public and Protected Inbox Access
+- **Invariant**: Public mailbox tokens allocate no session; protected visitor and explicit admin access require revocable server-side sessions.
 - **Enforcement**:
   - [`src/api_auth.py:AddressToken`](../src/api_auth.py) issues HMAC-SHA256 signed bearer tokens encoding the normalized address and authorization level, signed with `api_token_secret`.
-  - Token validation is stateless and instantaneous, eliminating database queries and session cleanup overhead for millions of ephemeral visitor inboxes.
+  - Public tokens carry a mailbox generation; every authorization checks SQLite security state. Opaque visitor/admin tokens are stored only as hashes, and admin tokens also require a live parent session.
 
 ### Invariant 4: Runtime Config Immutability and Device/Inode Pinning
 - **Invariant**: Code releases must be immutable, and runtime configuration mutations must be guarded against race conditions or tampering.
@@ -147,7 +203,7 @@ TMail partitions persistence between two independent stores with distinct perfor
 |---|---|---|---|
 | **Split Persistence Model** | Synchronous SMTP recipient validation requires sub-millisecond response latency during heavy connection floods. | Storing domains in SQLite (`state.db`) alongside site settings and activity logs. | Partitioned storage: `DomainCache` (`domains.json`) for instant in-memory sets; `StateStore` (`state.db`) for relational data. *Trade-off:* Requires managing two distinct files, but eliminates database locks on the SMTP hot path. |
 | **Web-Only Domain Suppression** | Administrators need to hide retired or problematic domains from the temporary mail interface without dropping existing inbound mail. | Propagating domain bans to Postfix transport maps or rejecting them at port 25. | Suppressing blacklisted domains exclusively in the public API and UI (`blacklisted_domains`). *Trade-off:* Inbound mail continues reaching Stalwart, but existing user workflows and administrative forwards do not suffer hard bounces. |
-| **Stateless HMAC Bearer Tokens** | Ephemeral inboxes generate massive churn; persisting database session rows creates unbound storage growth. | Database-backed sessions or traditional user account tables in SQLite. | HMAC-SHA256 bearer tokens ([`src/api_auth.py:AddressToken`](../src/api_auth.py)) encoding the address and authorization tier. *Trade-off:* Tokens cannot be individually revoked before expiration, but database writes on token creation drop to zero. |
+| **Generation-checked public tokens and revocable secured sessions** | Public inbox churn must stay cheap while password protection requires persistent revocation. | Per-public-token session rows or HMAC validation without security-state checks. | Signed public tokens allocate no session row; every authorization checks SQLite generation/protection. Protected visitor/admin sessions store only bearer hashes. Tombstones persist after removal/expiry, preventing old public tokens from regaining access. *Trade-off:* Reads require SQLite and fail closed on storage errors. |
 | **Iframe Content Sandboxing** | Inbound emails contain arbitrary, untrusted HTML, SVG, and CSS from external senders that could exploit the web client. | HTML sanitization libraries (e.g., Bleach or DOMPurify) rendered directly into the host DOM. | Isolated sandbox `<iframe>` communicating solely through `postMessage`, combined with `assetsInlineLimit: 0` in Vite. *Trade-off:* Added asynchronous frame messaging complexity, but provides ironclad script and CSS isolation. |
 | **Origin IP Allowlisting for Cloudflare** | Rate-limiting buckets trust `CF-Connecting-IP` directly to track visitor request quotas. | Relying solely on edge WAF rules without origin port firewalling. | Enforcing origin-level IP allowlisting ([`deploy/cloudflare-nginx-allowlist.sh`](../deploy/cloudflare-nginx-allowlist.sh)) for all Cloudflare proxy deployments. *Trade-off:* Requires recurring cron synchronization of Cloudflare CIDRs, but prevents IP spoofing against origin ports. |
 | **Filesystem Device/Inode Config Pinning** | Deployments and rollbacks must guarantee configuration integrity without downtime or file corruption. | In-place file edits or unpinned symlink directory switching. | CLI-managed atomic installs (`src.config install-runtime`) pinning `(dev, inode)` pairs. *Trade-off:* Deployment scripts require strict error handling and cleanup, but invalid configurations or half-written files never reach production services. |

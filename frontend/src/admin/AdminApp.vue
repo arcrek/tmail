@@ -130,6 +130,7 @@ async function logout(): Promise<void> {
   pending.value = true
   try {
     await api.admin.logout(token)
+    window.dispatchEvent(new Event('tmail-admin-logout'))
     csrf.value = ''
     settings.value = null
     activeTab.value = 'dashboard'

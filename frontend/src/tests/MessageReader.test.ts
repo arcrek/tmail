@@ -2,6 +2,7 @@
 
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiError } from '../api'
 import MessageReader from '../components/MessageReader.vue'
 import { useToast } from '../toast'
 
@@ -79,10 +80,12 @@ const message = (id: string, filename = 'notes.txt') => ({
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((yes) => {
+  let reject!: (cause: Error) => void
+  const promise = new Promise<T>((yes, no) => {
     resolve = yes
+    reject = no
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 describe('MessageReader', () => {
@@ -319,4 +322,76 @@ describe('MessageReader', () => {
     const toast = useToast()
     expect(toast.toasts.value.map((t) => t.message)).toContain('Verification code copied.')
   })
+
+  it.each(['setSeen', 'source', 'attachment', 'deleteMessage'] as const)('clears message content on %s authorization failure', async (action) => {
+    mocks.message.mockResolvedValueOnce({ ...detail, seen: action !== 'setSeen' })
+    mocks[action].mockRejectedValueOnce(new ApiError(401, 'Revoked'))
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const wrapper = mount(MessageReader, { props: { token: 'visitor', id: 'one' } })
+    await flushPromises()
+    if (action === 'source') await wrapper.get('[data-download-source]').trigger('click')
+    if (action === 'attachment') await wrapper.get('.attachments button').trigger('click')
+    if (action === 'deleteMessage') await wrapper.get('[data-action="delete"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.emitted('invalid')).toHaveLength(1)
+    expect(wrapper.find('.reader-body').exists()).toBe(false)
+    expect(wrapper.find('.verification-code').exists()).toBe(false)
+    expect(wrapper.find('iframe').exists()).toBe(false)
+  })
+  describe.each(['message', 'setSeen', 'source', 'attachment', 'deleteMessage'] as const)('%s revocation races', (action) => {
+    it.each([
+      [401, false, false], [403, false, false],
+      [401, false, true], [403, false, true],
+      [401, true, false], [403, true, false],
+    ])('handles %s after selection changes (new bearer: %s, already loaded: %s)', async (status, newBearer, alreadyLoaded) => {
+      const old = deferred<unknown>()
+      mocks[action].mockReturnValueOnce(old.promise)
+      const wrapper = mount(MessageReader, { props: { token: 'visitor', id: 'one' } })
+      await flushPromises()
+      if (action === 'source') await wrapper.get('[data-download-source]').trigger('click')
+      if (action === 'attachment') await wrapper.get('.attachments button').trigger('click')
+      if (action === 'deleteMessage') await wrapper.get('[data-action="delete"]').trigger('click')
+      const next = deferred<ReturnType<typeof message>>()
+      mocks.message.mockReturnValueOnce(next.promise)
+      await wrapper.setProps({ token: newBearer ? 'new-visitor' : 'visitor', id: 'two' })
+      if (alreadyLoaded) {
+        next.resolve(message('two'))
+        await flushPromises()
+        expect(wrapper.text()).toContain('Message two')
+      }
+      old.reject(new ApiError(status, 'Revoked'))
+      await flushPromises()
+      expect.soft(wrapper.emitted('invalid')).toEqual(newBearer ? undefined : [[]])
+      next.resolve(message('two'))
+      await flushPromises()
+      expect.soft(wrapper.text().includes('Message two')).toBe(newBearer)
+      expect(wrapper.emitted('deleted')).toBeUndefined()
+      expect(downloadNames).toEqual([])
+      if (!newBearer) {
+        await wrapper.get('.reader-state button').trigger('click')
+        await flushPromises()
+        expect(wrapper.text()).not.toContain('Message two')
+        expect(mocks.message).toHaveBeenCalledTimes(2)
+        mocks.message.mockResolvedValueOnce(message('three'))
+        await wrapper.setProps({ token: 'replacement-visitor', id: 'three' })
+        await flushPromises()
+        expect(wrapper.text()).toContain('Message three')
+      }
+    })
+
+    it('ignores authorization failure after unmount', async () => {
+      const old = deferred<unknown>()
+      mocks[action].mockReturnValueOnce(old.promise)
+      const wrapper = mount(MessageReader, { props: { token: 'visitor', id: 'one' } })
+      await flushPromises()
+      if (action === 'source') await wrapper.get('[data-download-source]').trigger('click')
+      if (action === 'attachment') await wrapper.get('.attachments button').trigger('click')
+      if (action === 'deleteMessage') await wrapper.get('[data-action="delete"]').trigger('click')
+      wrapper.unmount()
+      old.reject(new ApiError(401, 'Revoked'))
+      await flushPromises()
+      expect(wrapper.emitted('invalid')).toBeUndefined()
+    })
+  })
+
 })

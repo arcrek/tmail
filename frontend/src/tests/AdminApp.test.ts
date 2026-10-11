@@ -205,6 +205,7 @@ describe('administration frontend', () => {
 
   it('resumes an existing admin session on reload', async () => {
     mocks.session.mockResolvedValueOnce({ csrfToken: 'resumed-csrf' })
+    const dispatch = vi.spyOn(window, 'dispatchEvent')
     const wrapper = mount(AdminApp)
     await flushPromises()
 
@@ -212,6 +213,7 @@ describe('administration frontend', () => {
     expect(wrapper.findAll('[role="tab"]')).toHaveLength(6)
     await wrapper.get('.rail-signout').trigger('click')
     expect(mocks.logout).toHaveBeenCalledWith('resumed-csrf')
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'tmail-admin-logout' }))
   })
 
   it('invalidates a new session when settings hydration fails', async () => {

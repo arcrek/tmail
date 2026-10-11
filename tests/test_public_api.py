@@ -177,7 +177,7 @@ def test_messages_stream_emits_update_on_new_message(client, fake_jmap, monkeypa
 
     async def exercise():
         request = SimpleNamespace(app=client.app, is_disconnected=connected)
-        response = await _messages_stream_endpoint(client.app)(request, "box@example.com", False)
+        response = await _messages_stream_endpoint(client.app)(request, {"address": "box@example.com", "token": client.app.state.mailbox_auth.public_token("box@example.com")})
         # Heartbeat comment frames may interleave before the change is detected
         # (heartbeat cadence is decoupled from the poll interval); skip past
         # them like a real client does, bounded so a real regression fails fast.
@@ -208,7 +208,7 @@ def test_messages_stream_stays_silent_when_unchanged(client, fake_jmap, monkeypa
 
     async def exercise():
         request = SimpleNamespace(app=client.app, is_disconnected=connected)
-        response = await _messages_stream_endpoint(client.app)(request, "box@example.com", False)
+        response = await _messages_stream_endpoint(client.app)(request, {"address": "box@example.com", "token": client.app.state.mailbox_auth.public_token("box@example.com")})
         event = await anext(response.body_iterator)
         await response.body_iterator.aclose()
         return event
@@ -222,7 +222,7 @@ def test_messages_stream_stops_on_disconnect(client):
 
     async def exercise():
         request = SimpleNamespace(app=client.app, is_disconnected=disconnected)
-        response = await _messages_stream_endpoint(client.app)(request, "box@example.com", False)
+        response = await _messages_stream_endpoint(client.app)(request, {"address": "box@example.com", "token": client.app.state.mailbox_auth.public_token("box@example.com")})
         with pytest.raises(StopAsyncIteration):
             await asyncio.wait_for(anext(response.body_iterator), timeout=0.1)
 

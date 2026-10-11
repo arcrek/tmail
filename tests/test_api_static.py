@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -194,3 +195,22 @@ def test_discovery_surfaces(client):
     assert 'href="https://mycustomhost.com/"' in html_resp.text
     assert "__BASE_URL__" not in html_resp.text
 
+def test_discovery_describes_optional_protection_without_credentials(client):
+    for route in ("/llms.txt", "/llms-full.txt", "/index.md"):
+        response = client.get(route)
+        assert response.status_code == 200
+        assert "password protection" in response.text.lower()
+        assert "Inboxes require no registration or credentials" not in response.text
+        assert "Inboxes are passwordless" not in response.text
+        assert "No personal data, tracking cookies, or persistent user profiles" not in response.text
+        for secret in ("admin-secret", "s" * 32, "password_hash", "token_hash", "admin_session_hash"):
+            assert secret not in response.text
+    full = client.get("/llms-full.txt").text
+    assert "90 days" in full
+    assert "currentPassword" in full
+    assert "POST /me/logout" in full
+    assert "Site unlock never bypasses" in full
+    assert "reads and administrator access do not renew" in full
+    shell = (Path(__file__).resolve().parents[1] / "frontend/index.html").read_text()
+    assert "optional mailbox password protection" in shell
+    assert "without passwords or signups" not in shell

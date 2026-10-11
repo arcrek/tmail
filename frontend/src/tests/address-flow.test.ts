@@ -11,6 +11,7 @@ import { initLocale, setSiteLocale } from '../i18n'
 import { useToast } from '../toast'
 
 const mocks = vi.hoisted(() => ({
+  me: vi.fn(), adminSession: vi.fn(), adminMailboxToken: vi.fn(), logout: vi.fn(),
   domains: vi.fn(),
   token: vi.fn(),
   unlock: vi.fn(),
@@ -21,7 +22,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../api', async () => {
   const actual = await vi.importActual<typeof import('../api')>('../api')
-  return { ...actual, api: { ...actual.api, ...mocks } }
+  return { ...actual, api: { ...actual.api, ...mocks, admin: { ...actual.api.admin, session: mocks.adminSession, mailboxToken: mocks.adminMailboxToken } } }
 })
 
 // AppHeader renders ThemeToggle, whose useTheme() composable reads matchMedia on mount and
@@ -53,6 +54,11 @@ enableAutoUnmount(afterEach)
 
 describe('address flow', () => {
   beforeEach(() => {
+    mocks.adminSession.mockReset().mockRejectedValue(new ApiError(401, 'No administrator session'))
+    mocks.adminMailboxToken.mockReset()
+    mocks.logout.mockReset().mockResolvedValue(undefined)
+    mocks.me.mockReset().mockImplementation(async () => ({ address: decodeURIComponent(location.pathname.slice(1)).toLowerCase(), accessKind: 'public', protected: false }))
+    localStorage.clear()
     const { toasts, dismiss } = useToast()
     for (const toast of toasts.value) dismiss(toast.id)
     localStorage.clear()
@@ -510,5 +516,208 @@ describe('address flow', () => {
     expect(handler).toEqual(expect.any(Function))
     wrapper.unmount()
     expect(remove).toHaveBeenCalledWith('popstate', handler)
+  })
+
+  it('shows a labeled password prompt on a direct protected link, preserves exact input, and clears it after failure', async () => {
+    history.replaceState({}, '', '/box@example.com')
+    mocks.token.mockRejectedValueOnce(new ApiError(401, 'Password required'))
+    const wrapper = mount(App)
+    await flushPromises()
+    expect(wrapper.find('.inbox-view').exists()).toBe(false)
+    expect(wrapper.get('label[for="mailbox-login-password"]').text()).toBe('Mailbox password')
+    mocks.token.mockRejectedValueOnce(new ApiError(401, 'Wrong password'))
+    const password = ' ' + '😀'.repeat(12) + ' '
+    await wrapper.get('#mailbox-login-password').setValue(password)
+    await wrapper.get('.mailbox-login form').trigger('submit')
+    await flushPromises()
+    expect(mocks.token).toHaveBeenLastCalledWith('box@example.com', undefined, password)
+    expect(wrapper.get('#mailbox-login-error').text()).toContain('incorrect')
+    expect((wrapper.get('#mailbox-login-password').element as HTMLInputElement).value).toBe('')
+    mocks.token.mockResolvedValueOnce({ token: 'visitor', accessKind: 'visitor', protected: true })
+    await wrapper.get('#mailbox-login-password').setValue(password)
+    await wrapper.get('.mailbox-login form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.find('.inbox-view').exists()).toBe(true)
+    expect(JSON.parse(localStorage.getItem('tmail.addresses')!)[0]).toEqual({ address: 'box@example.com', token: 'visitor' })
+    expect(localStorage.getItem('tmail.addresses')).not.toContain(password)
+  })
+
+  it('validates remembered sessions before rendering messages and removes a stale entry', async () => {
+    localStorage.setItem('tmail.addresses', JSON.stringify([{ address: 'box@example.com', token: 'stale' }]))
+    history.replaceState({}, '', '/box@example.com')
+    let reject!: (cause: Error) => void
+    mocks.me.mockReturnValueOnce(new Promise((_, fail) => { reject = fail }))
+    mocks.token.mockRejectedValueOnce(new ApiError(401, 'Password required'))
+    const wrapper = mount(App)
+    await flushPromises()
+    expect(mocks.messages).not.toHaveBeenCalled()
+    reject(new ApiError(401, 'Revoked'))
+    await flushPromises()
+    expect(localStorage.getItem('tmail.addresses')).toBe('[]')
+    expect(wrapper.find('#mailbox-login-password').exists()).toBe(true)
+  })
+
+  it('prefers admin exchange without persisting the bearer or CSRF', async () => {
+    history.replaceState({}, '', '/box@example.com')
+    mocks.adminSession.mockResolvedValue({ csrfToken: 'admin-csrf' })
+    mocks.adminMailboxToken.mockResolvedValue({ token: 'admin-secret-bearer', accessKind: 'admin', protected: true })
+    mocks.me.mockResolvedValue({ address: 'box@example.com', accessKind: 'admin', protected: true })
+    const wrapper = mount(App)
+    await flushPromises()
+    expect(mocks.adminMailboxToken).toHaveBeenCalledWith('box@example.com', 'admin-csrf')
+    expect(mocks.token).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Administrator access')
+    expect(localStorage.getItem('tmail.addresses')).toBeNull()
+    expect(localStorage.getItem('tmail.activeAddress')).toBeNull()
+    window.dispatchEvent(new Event('tmail-admin-logout'))
+    await flushPromises()
+    expect(wrapper.find('.inbox-view').exists()).toBe(false)
+    expect(wrapper.find('#mailbox-login-password').exists()).toBe(true)
+  })
+
+  it('clears mail locally before a failed logout request and reports unconfirmed revocation', async () => {
+    history.replaceState({}, '', '/box@example.com')
+    mocks.token.mockResolvedValueOnce({ token: 'visitor', accessKind: 'visitor', protected: true })
+    const wrapper = mount(App)
+    await flushPromises()
+    mocks.logout.mockRejectedValue(new Error('Offline'))
+    await wrapper.get('[data-action="mailbox-logout"]').trigger('click')
+    expect(wrapper.find('.inbox-view').exists()).toBe(false)
+    await flushPromises()
+    expect(mocks.logout).toHaveBeenCalledWith('visitor')
+    expect(wrapper.text()).toContain('Server revocation could not be confirmed')
+    expect(localStorage.getItem('tmail.addresses')).toBe('[]')
+  })
+
+  it('clears active mail on cross-tab removal and validates a replacement token before reuse', async () => {
+    mocks.token.mockResolvedValue({ token: 'visitor', accessKind: 'visitor', protected: true })
+    mocks.me.mockResolvedValue({ address: 'box@example.com', accessKind: 'visitor', protected: true })
+    history.replaceState({}, '', '/box@example.com')
+    const wrapper = mount(App)
+    await flushPromises()
+    localStorage.removeItem('tmail.addresses')
+    window.dispatchEvent(new StorageEvent('storage', { key: 'tmail.addresses' }))
+    await flushPromises()
+    expect(wrapper.find('.inbox-view').exists()).toBe(false)
+    expect(wrapper.find('#mailbox-login-password').exists()).toBe(true)
+    await wrapper.get('.mailbox-login .text-button').trigger('click')
+    await flushPromises()
+    localStorage.setItem('tmail.addresses', JSON.stringify([{ address: 'box@example.com', token: 'replacement' }]))
+    window.dispatchEvent(new StorageEvent('storage', { key: 'tmail.addresses' }))
+    await flushPromises()
+    expect(mocks.me).toHaveBeenCalledWith('replacement')
+    expect(mocks.messages).toHaveBeenLastCalledWith('replacement', 1)
+  })
+
+  it('ignores token results after navigation and after storage removal during saved validation', async () => {
+    history.replaceState({}, '', '/box@example.com')
+    let finish!: (value: { token: string }) => void
+    mocks.token.mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    const wrapper = mount(App)
+    await flushPromises()
+    await wrapper.get('.app-header .brand').trigger('click')
+    finish({ token: 'late' })
+    await flushPromises()
+    expect(wrapper.find('.inbox-view').exists()).toBe(false)
+    expect(mocks.messages).not.toHaveBeenCalled()
+    wrapper.unmount()
+    localStorage.setItem('tmail.addresses', JSON.stringify([{ address: 'box@example.com', token: 'saved' }]))
+    history.replaceState({}, '', '/box@example.com')
+    let finishMe!: (value: { address: string; accessKind: string }) => void
+    mocks.me.mockReturnValueOnce(new Promise((resolve) => { finishMe = resolve }))
+    const restored = mount(App)
+    await flushPromises()
+    localStorage.clear()
+    window.dispatchEvent(new StorageEvent('storage', { key: null }))
+    finishMe({ address: 'box@example.com', accessKind: 'visitor' })
+    await flushPromises()
+    expect(restored.find('.inbox-view').exists()).toBe(false)
+    expect(localStorage.getItem('tmail.addresses')).toBeNull()
+  })
+
+  it('saves password replacement tokens and updates the expiry deadline in the inbox', async () => {
+    history.replaceState({}, '', '/box@example.com')
+    const wrapper = mount(App)
+    await flushPromises()
+    const { api } = await import('../api')
+    vi.spyOn(api, 'setPassword').mockResolvedValue({ id: 'id', token: 'protected-new', accessKind: 'visitor', protected: true, protectedUntil: '2027-01-08T20:00:00Z' })
+    await wrapper.get('[data-action="password"]').trigger('click')
+    await wrapper.get('#mailbox-new-password').setValue('new-password-123')
+    await wrapper.get('#mailbox-confirm-password').setValue('new-password-123')
+    await wrapper.get('dialog form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.find('dialog').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Protection expires:')
+    expect(JSON.parse(localStorage.getItem('tmail.addresses')!)[0].token).toBe('protected-new')
+    expect(mocks.messages).toHaveBeenLastCalledWith('protected-new', 1)
+  })
+
+  it('revokes the parent administrator session on mailbox logout', async () => {
+    history.replaceState({}, '', '/box@example.com')
+    mocks.adminSession.mockResolvedValue({ csrfToken: 'csrf' })
+    mocks.adminMailboxToken.mockResolvedValue({ token: 'admin-bearer', accessKind: 'admin' })
+    mocks.me.mockResolvedValue({ address: 'box@example.com', accessKind: 'admin' })
+    const { api } = await import('../api')
+    const logout = vi.spyOn(api.admin, 'logout').mockResolvedValue(undefined)
+    const wrapper = mount(App)
+    await flushPromises()
+    await wrapper.get('[data-action="mailbox-logout"]').trigger('click')
+    await flushPromises()
+    expect(logout).toHaveBeenCalledWith('csrf')
+    expect(mocks.logout).not.toHaveBeenCalled()
+    expect(wrapper.find('.inbox-view').exists()).toBe(false)
+  })
+
+  it('does not cancel a pending mailbox open on unrelated storage updates', async () => {
+    history.replaceState({}, '', '/box@example.com')
+    let finish!: (value: { token: string }) => void
+    mocks.token.mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    const wrapper = mount(App)
+    await flushPromises()
+    localStorage.setItem('tmail.addresses', JSON.stringify([{ address: 'other@example.com', token: 'other' }]))
+    window.dispatchEvent(new StorageEvent('storage', { key: 'tmail.addresses' }))
+    finish({ token: 'box' })
+    await flushPromises()
+    expect(wrapper.find('.inbox-view').exists()).toBe(true)
+    expect(mocks.messages).toHaveBeenLastCalledWith('box', 1)
+  })
+
+  it('keeps valid public mail visible when another tab replaces or forgets a public saved token', async () => {
+    history.replaceState({}, '', '/box@example.com')
+    mocks.token.mockResolvedValue({ token: 'public-one', accessKind: 'public', protected: false })
+    const wrapper = mount(App)
+    await flushPromises()
+    for (const value of [JSON.stringify([{ address: 'box@example.com', token: 'public-two' }]), '[]']) {
+      localStorage.setItem('tmail.addresses', value)
+      window.dispatchEvent(new StorageEvent('storage', { key: 'tmail.addresses' }))
+      await flushPromises()
+      expect(wrapper.find('.inbox-view').exists()).toBe(true)
+    }
+    expect(mocks.token).toHaveBeenCalledOnce()
+  })
+
+  it('retains a successful password replacement when old inbox access fails before the response arrives', async () => {
+    history.replaceState({}, '', '/box@example.com')
+    const wrapper = mount(App)
+    await flushPromises()
+    const { api } = await import('../api')
+    let finish!: (value: { id: string; token: string; accessKind: 'visitor'; protected: boolean }) => void
+    vi.spyOn(api, 'setPassword').mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    await wrapper.get('[data-action="password"]').trigger('click')
+    await wrapper.get('#mailbox-new-password').setValue('new-password-123')
+    await wrapper.get('#mailbox-confirm-password').setValue('new-password-123')
+    await wrapper.get('dialog form').trigger('submit')
+    await flushPromises()
+    // Another old-bearer request observes revocation after the mutation commits.
+    wrapper.getComponent(InboxView).vm.$emit('invalid')
+    await flushPromises()
+    expect(wrapper.find('.inbox-view').exists()).toBe(false)
+    expect(wrapper.find('dialog').exists()).toBe(true)
+    finish({ id: 'id', token: 'replacement', accessKind: 'visitor', protected: true })
+    await flushPromises()
+    expect(wrapper.find('dialog').exists()).toBe(false)
+    expect(wrapper.find('.inbox-view').exists()).toBe(true)
+    expect(JSON.parse(localStorage.getItem('tmail.addresses')!)[0].token).toBe('replacement')
+    expect(mocks.messages).toHaveBeenLastCalledWith('replacement', 1)
   })
 })

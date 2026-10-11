@@ -40,6 +40,8 @@ Use the radius tokens: 8px for small elements, 12px for fields and inner cards, 
 - Search uses a tinted pill field. Form controls retain visible labels and outlines.
 - Keep visible keyboard focus and at least 44px touch targets. Reduced-motion mode disables animation and transitions.
 - QR sharing centers its dialog, keeps it within the viewport, and restores focus to the trigger when dismissed. QR symbols encode the complete plain address and include a white four-module quiet zone on every side. Generation failure shows a localized alert and keeps the address and copy button available. Copy success and error feedback stays inside the dialog so it remains accessible. The shared clipboard fallback places its temporary textarea inside the focused dialog to avoid the inert background.
+- Mailbox login retains the requested address and provides a labeled password field with current-password autocomplete and inline errors. Password management uses the same native modal pattern as QR sharing, shows the actual protection deadline and 90-day warning, and restores trigger focus. The hidden username field supplies password-manager context without receiving focus. Validate 12–128 Unicode code points and preserve spaces; backend validation is authoritative.
+- Visitor storage changes clear active protected mail before validating replacement access. Public and administrator access remain subject to server authorization checks. Authorization failures clear message lists, readers, code caches, and mailbox notification toasts. A same-session 401/403 takes precedence over request ordering, including after pagination, visibility refresh, or reader selection changes; pending successes cannot restore mail. Ignore failures from previous mailbox sessions. Bulk locked rows link to the normal login page.
 
 ## Content boundaries
 
@@ -48,3 +50,17 @@ Email HTML and administrator-provided HTML remain sandboxed. Email and QR surfac
 ## Verification
 
 Run the [frontend commands](../frontend/package.json) for tests and build. Use the repository’s run-tmail browser harness for live flows and the AK frontend render checker for 375px, 768px, and 1440px layouts. Inspect light/dark states, mobile navigation, the QR dialog, empty/error states, and each admin tab. Tests use isolated test data; they do not contact production Stalwart.
+
+After building, `npm run test:mailbox-browser` uses the existing local fake-JMAP
+harness to check real password and administrator routes, saved/stale sessions,
+cross-tab replacement, server/browser restart persistence, controlled fixture-clock
+expiry, logout failures, modal keyboard behavior, and English and
+Vietnamese in both themes at 1440/768/375/320px. Set `PYTHON` to an interpreter
+with the project requirements installed. It reserves port 8099, creates fresh
+temporary state, writes screenshots under `plans/reports/mailbox-password-ui-shots/`,
+and closes its browser and server on exit. The command first injects a rejected
+password claim into an in-memory runner copy and verifies failure cleanup:
+browser/fixture exit, port release, and temporary-state removal. The CI frontend
+job requires both browser commands after the build. `DISCOVERY_SCANNER` optionally selects the
+external discovery scanner; it runs against the same isolated app and writes a
+JSON report under `plans/reports/`.

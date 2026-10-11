@@ -5,13 +5,13 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { chromium } from 'playwright'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const harness = join(root, '.claude/skills/run-tmail')
-const python = process.env.PYTHON || 'python3'
+const python = process.env.PYTHON?.includes('/') ? resolve(process.env.PYTHON) : process.env.PYTHON || 'python3'
 const port = 8099
 const baseUrl = `http://127.0.0.1:${port}`
 let runDir, server, browser, cleanupPromise

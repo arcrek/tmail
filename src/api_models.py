@@ -14,7 +14,35 @@ class AddressRequest(ApiModel):
     address: str = Field(examples=["box@example.com"])
 
 
-class TokenResponse(ApiModel):
+class TokenRequest(AddressRequest):
+    password: str | None = Field(default=None, min_length=12, max_length=128, repr=False)
+
+
+class PasswordRequest(ApiModel):
+    password: str = Field(min_length=12, max_length=128, repr=False)
+    current_password: str | None = Field(
+        default=None, alias="currentPassword", min_length=12, max_length=128, repr=False
+    )
+
+
+class RemovePasswordRequest(ApiModel):
+    current_password: str | None = Field(
+        default=None, alias="currentPassword", min_length=12, max_length=128, repr=False
+    )
+
+
+class AdminPasswordRequest(AddressRequest):
+    password: str = Field(min_length=12, max_length=128, repr=False)
+
+
+class MailboxMetadata(ApiModel):
+    protected: bool = False
+    protected_until: datetime | None = Field(default=None, alias="protectedUntil")
+    access_kind: str | None = Field(default=None, alias="accessKind")
+    session_expires_at: datetime | None = Field(default=None, alias="sessionExpiresAt")
+
+
+class TokenResponse(MailboxMetadata):
     id: str = Field(examples=["a9f51566bd6705f7ea6ad54b"])
     token: str = Field(examples=["eyJhZGRyZXNzIjoiYm94QGV4YW1wbGUuY29tIiwidiI6MX0.signature"])
 
@@ -27,7 +55,7 @@ class _Resource(ApiModel):
     updated_at: datetime = Field(alias="updatedAt")
 
 
-class AccountResource(_Resource):
+class AccountResource(_Resource, MailboxMetadata):
     context: str = Field(default="/contexts/Account", alias="@context")
     address: str = Field(examples=["box@example.com"])
     quota: int = 0
@@ -153,6 +181,7 @@ class HydraMessages(ApiModel):
 
 
 class HydraError(ApiModel):
+    code: str | None = None
     context: str = Field(default="/contexts/Error", alias="@context")
     type: str = Field(default="hydra:Error", alias="@type")
     title: str = Field(alias="hydra:title")

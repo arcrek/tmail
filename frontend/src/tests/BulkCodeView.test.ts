@@ -7,12 +7,13 @@ import BulkCodeView from '../components/BulkCodeView.vue'
 import { initLocale } from '../i18n'
 
 const mocks = vi.hoisted(() => ({
+  me: vi.fn(), adminSession: vi.fn(), adminMailboxToken: vi.fn(), logout: vi.fn(),
   token: vi.fn(), messages: vi.fn(), message: vi.fn(), copyText: vi.fn(), toastSuccess: vi.fn(), toastError: vi.fn(),
 }))
 
 vi.mock('../api', async () => {
   const actual = await vi.importActual<typeof import('../api')>('../api')
-  return { ...actual, api: { ...actual.api, ...mocks } }
+  return { ...actual, api: { ...actual.api, ...mocks, admin: { ...actual.api.admin, session: mocks.adminSession, mailboxToken: mocks.adminMailboxToken } } }
 })
 vi.mock('../clipboard', () => ({ copyText: mocks.copyText }))
 vi.mock('../toast', () => ({ useToast: () => ({ success: mocks.toastSuccess, error: mocks.toastError }) }))
@@ -24,6 +25,11 @@ enableAutoUnmount(afterEach)
 
 describe('BulkCodeView', () => {
   beforeEach(() => {
+    mocks.adminSession.mockReset().mockRejectedValue(new ApiError(401, 'No administrator session'))
+    mocks.adminMailboxToken.mockReset()
+    mocks.logout.mockReset().mockResolvedValue(undefined)
+    mocks.me.mockReset().mockResolvedValue({ address: 'box@example.com', accessKind: 'public', protected: false })
+    localStorage.clear()
     initLocale()
     mocks.token.mockReset().mockResolvedValue({ token: 'signed' })
     mocks.messages.mockReset().mockResolvedValue(messages())
@@ -203,7 +209,7 @@ describe('BulkCodeView', () => {
     wrapper.unmount()
   })
 
-  it('reissues only an expired cached row token', async () => {
+  it('locks an expired cached row without issuing another passwordless token', async () => {
     const wrapper = mount(BulkCodeView, { props: { fetchSeconds: 20 } })
     await wrapper.get('#bulk-code-addresses').setValue('one@example.com two@example.com')
     await wrapper.get('.bulk-controls').trigger('submit')
@@ -213,6 +219,163 @@ describe('BulkCodeView', () => {
     await wrapper.get('[data-action="refresh"]').trigger('click')
     await flushPromises()
 
-    expect(mocks.token).toHaveBeenCalledTimes(3)
+    expect(mocks.token).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('a').attributes('href')).toBe('/one%40example.com')
+    expect(wrapper.findAll('tbody tr')[0]?.text()).not.toContain('123456')
+  })
+
+  it('uses saved visitor tokens and admin exchanges without passwordless issuance', async () => {
+    localStorage.setItem('tmail.addresses', JSON.stringify([{ address: 'one@example.com', token: 'visitor-saved' }]))
+    mocks.me.mockResolvedValue({ address: 'one@example.com', accessKind: 'visitor', protected: true })
+    const wrapper = mount(BulkCodeView, { props: { fetchSeconds: 20 } })
+    await wrapper.get('#bulk-code-addresses').setValue('one@example.com')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(mocks.me).toHaveBeenCalledWith('visitor-saved')
+    expect(mocks.token).not.toHaveBeenCalled()
+    mocks.adminSession.mockResolvedValue({ csrfToken: 'csrf' })
+    mocks.adminMailboxToken.mockResolvedValue({ token: 'admin-memory', accessKind: 'admin' })
+    await wrapper.get('#bulk-code-addresses').setValue('admin@example.com')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(mocks.adminMailboxToken).toHaveBeenCalledWith('admin@example.com', 'csrf')
+    expect(localStorage.getItem('tmail.addresses')).not.toContain('admin-memory')
+  })
+
+  it('does not repeatedly issue a passwordless token for locked rows', async () => {
+    mocks.token.mockRejectedValue(new ApiError(401, 'Password required'))
+    const wrapper = mount(BulkCodeView, { props: { fetchSeconds: 20 } })
+    await wrapper.get('#bulk-code-addresses').setValue('one@example.com')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    await wrapper.get('[data-action="refresh"]').trigger('click')
+    await flushPromises()
+    expect(mocks.token).toHaveBeenCalledOnce()
+    expect(wrapper.get('a').attributes('href')).toBe('/one%40example.com')
+  })
+
+  it.each(['storage', 'refresh'])('recovers a locked row after another tab signs in via %s', async (recovery) => {
+    mocks.token.mockRejectedValue(new ApiError(401, 'Password required'))
+    const wrapper = mount(BulkCodeView, { props: { fetchSeconds: 20 } })
+    await wrapper.get('#bulk-code-addresses').setValue('one@example.com')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.find('a').exists()).toBe(true)
+
+    let validate!: (value: { address: string; accessKind: string }) => void
+    mocks.me.mockReturnValueOnce(new Promise((resolve) => { validate = resolve }))
+    localStorage.setItem('tmail.addresses', JSON.stringify([{ address: 'one@example.com', token: 'visitor-new' }]))
+    if (recovery === 'storage') window.dispatchEvent(new StorageEvent('storage', { key: 'tmail.addresses' }))
+    else await wrapper.get('[data-action="refresh"]').trigger('click')
+    await flushPromises()
+    expect(mocks.me).toHaveBeenCalledWith('visitor-new')
+    expect(wrapper.text()).not.toContain('123456')
+    expect(mocks.messages).not.toHaveBeenCalled()
+
+    validate({ address: 'one@example.com', accessKind: 'visitor' })
+    await flushPromises()
+    expect(mocks.messages).toHaveBeenCalledWith('visitor-new', 1)
+    expect(wrapper.text()).toContain('123456')
+    expect(wrapper.find('a').exists()).toBe(false)
+    expect(mocks.token).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a revoked replacement locked without repeatedly requesting public access', async () => {
+    mocks.token.mockRejectedValue(new ApiError(401, 'Password required'))
+    const wrapper = mount(BulkCodeView, { props: { fetchSeconds: 20 } })
+    await wrapper.get('#bulk-code-addresses').setValue('one@example.com')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    mocks.me.mockRejectedValue(new ApiError(401, 'Revoked'))
+    localStorage.setItem('tmail.addresses', JSON.stringify([{ address: 'one@example.com', token: 'visitor-revoked' }]))
+    window.dispatchEvent(new StorageEvent('storage', { key: 'tmail.addresses' }))
+    await flushPromises()
+    expect(mocks.me).toHaveBeenCalledWith('visitor-revoked')
+    expect(wrapper.find('a').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('123456')
+    expect(mocks.messages).not.toHaveBeenCalled()
+    const attempts = mocks.token.mock.calls.length
+    await wrapper.get('[data-action="refresh"]').trigger('click')
+    window.dispatchEvent(new StorageEvent('storage', { key: 'tmail.addresses' }))
+    await flushPromises()
+    expect(mocks.me).toHaveBeenCalledOnce()
+    expect(mocks.token).toHaveBeenCalledTimes(attempts)
+  })
+
+  it('uses a replacement visitor token without restoring a late response from the old token', async () => {
+    localStorage.setItem('tmail.addresses', JSON.stringify([{ address: 'one@example.com', token: 'visitor-old' }]))
+    mocks.me.mockResolvedValue({ address: 'one@example.com', accessKind: 'visitor' })
+    const wrapper = mount(BulkCodeView, { props: { fetchSeconds: 20 } })
+    await wrapper.get('#bulk-code-addresses').setValue('one@example.com')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    let finish!: (value: typeof detail) => void
+    mocks.message.mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    await wrapper.get('[data-action="refresh"]').trigger('click')
+    await flushPromises()
+
+    mocks.message.mockResolvedValue({ ...detail, subject: 'Your new code is 654321' })
+    localStorage.setItem('tmail.addresses', JSON.stringify([{ address: 'one@example.com', token: 'visitor-new' }]))
+    window.dispatchEvent(new StorageEvent('storage', { key: 'tmail.addresses' }))
+    await flushPromises()
+    expect(mocks.me).toHaveBeenLastCalledWith('visitor-new')
+    expect(wrapper.text()).toContain('654321')
+    finish(detail)
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('123456')
+    expect(wrapper.text()).toContain('654321')
+    expect(mocks.token).not.toHaveBeenCalled()
+  })
+
+  it('clears codes on cross-tab removal and prevents a late detail response from restoring them', async () => {
+    localStorage.setItem('tmail.addresses', JSON.stringify([{ address: 'one@example.com', token: 'visitor-saved' }]))
+    mocks.me.mockResolvedValue({ address: 'one@example.com', accessKind: 'visitor' })
+    const wrapper = mount(BulkCodeView, { props: { fetchSeconds: 20 } })
+    await wrapper.get('#bulk-code-addresses').setValue('one@example.com')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    let finish!: (value: typeof detail) => void
+    mocks.message.mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    await wrapper.get('[data-action="refresh"]').trigger('click')
+    await flushPromises()
+    localStorage.removeItem('tmail.addresses')
+    window.dispatchEvent(new StorageEvent('storage', { key: 'tmail.addresses' }))
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('123456')
+    finish(detail)
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('123456')
+    expect(wrapper.find('a').exists()).toBe(true)
+  })
+
+  it('finishes pending bulk rows after unrelated storage updates', async () => {
+    let finish!: (value: typeof detail) => void
+    mocks.message.mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    const wrapper = mount(BulkCodeView, { props: { fetchSeconds: 20 } })
+    await wrapper.get('#bulk-code-addresses').setValue('one@example.com')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    localStorage.setItem('tmail.addresses', JSON.stringify([{ address: 'other@example.com', token: 'other' }]))
+    window.dispatchEvent(new StorageEvent('storage', { key: 'tmail.addresses' }))
+    finish(detail)
+    await flushPromises()
+    expect(wrapper.text()).toContain('123456')
+    expect(wrapper.find('.skeleton').exists()).toBe(false)
+    expect(wrapper.get('[data-action="refresh"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('keeps public rows readable when another tab replaces or removes its saved public token', async () => {
+    mocks.token.mockResolvedValue({ token: 'public-one', accessKind: 'public' })
+    const wrapper = mount(BulkCodeView, { props: { fetchSeconds: 20 } })
+    await wrapper.get('#bulk-code-addresses').setValue('one@example.com')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    for (const value of [JSON.stringify([{ address: 'one@example.com', token: 'public-two' }]), '[]']) {
+      localStorage.setItem('tmail.addresses', value)
+      window.dispatchEvent(new StorageEvent('storage', { key: 'tmail.addresses' }))
+      await flushPromises()
+      expect(wrapper.text()).toContain('123456')
+      expect(wrapper.find('a').exists()).toBe(false)
+    }
   })
 })

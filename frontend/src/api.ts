@@ -9,6 +9,7 @@ import type {
   HydraError,
   MessageResource,
   MessageSummary,
+  MailboxMetadata,
   SiteResource,
   SyncStatus,
   TokenResponse,
@@ -111,8 +112,13 @@ export const api = {
   domain: (id: string) => request<DomainResource>(`/domains/${encodeURIComponent(id)}`),
   account: (address: string, accessToken?: string) =>
     request<AccountResource>('/accounts', { method: 'POST', token: accessToken, ...json({ address }) }),
-  token: (address: string, accessToken?: string) =>
-    request<TokenResponse>('/token', { method: 'POST', token: accessToken, ...json({ address }) }),
+  token: (address: string, accessToken?: string, password?: string) =>
+    request<TokenResponse>('/token', { method: 'POST', token: accessToken, ...json({ address, password }) }),
+  setPassword: (token: string, password: string, currentPassword?: string) =>
+    request<TokenResponse>('/me/password', { method: 'PUT', token, ...json({ password, currentPassword }) }),
+  removePassword: (token: string, currentPassword: string) =>
+    request<TokenResponse>('/me/password', { method: 'DELETE', token, ...json({ currentPassword }) }),
+  logout: (token: string) => request<void>('/me/logout', { method: 'POST', token }),
   unlock: (credential: string) =>
     request<UnlockResponse>('/unlock', { method: 'POST', ...json({ credential }) }),
   lock: (accessToken: string) =>
@@ -138,6 +144,12 @@ export const api = {
   source: (token: string, messageId: string) =>
     request<Blob>(`/sources/${encodeURIComponent(messageId)}`, { token }),
   admin: {
+    mailboxToken: (address: string, csrf: string) =>
+      request<TokenResponse>('/admin/api/mailboxes/token', { method: 'POST', csrf, ...json({ address }) }),
+    setMailboxPassword: (address: string, password: string, csrf: string) =>
+      request<MailboxMetadata>('/admin/api/mailboxes/password', { method: 'PUT', csrf, ...json({ address, password }) }),
+    removeMailboxPassword: (address: string, csrf: string) =>
+      request<MailboxMetadata>('/admin/api/mailboxes/password', { method: 'DELETE', csrf, ...json({ address }) }),
     login: (password: string) =>
       request<{ csrfToken: string }>('/admin/api/login', { method: 'POST', ...json({ password }) }),
     session: () => request<{ csrfToken: string }>('/admin/api/session'),

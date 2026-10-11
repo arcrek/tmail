@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError, api, streamMessages } from '../api'
+import { authorizationFailed, openMailbox } from '../mailbox-access'
 import { copyText } from '../clipboard'
 import { randomDomain, randomLocalPart } from '../randomAddress'
 import { useToast } from '../toast'
@@ -16,9 +17,14 @@ const props = withDefaults(defineProps<{
   fetchSeconds: number
   accessToken?: string
 }>(), { accessToken: '' })
-const emit = defineEmits<{ create: [session: AddressSession] }>()
+const emit = defineEmits<{ create: [session: AddressSession]; login: [address: string]; invalid: []; manage: []; logout: [] }>()
 const { t, formatDate: localDate } = useI18n()
 const toast = useToast()
+const mailToasts = new Set<number>()
+function clearMailToasts(): void {
+  for (const id of mailToasts) toast.dismiss(id)
+  mailToasts.clear()
+}
 
 const collection = ref<HydraCollection<MessageSummary> | null>(null)
 const codeCache = ref(new Map<string, string>())
@@ -45,6 +51,8 @@ let countdownInterval: number | undefined
 let streamController: AbortController | undefined
 let requestVersion = 0
 let initialized = false
+let accessInvalid = false
+let sessionVersion = 0
 let knownIds = new Set<string>()
 let codeFetches = new Map<string, Promise<string>>()
 const remainingSeconds = ref(props.fetchSeconds)
@@ -110,17 +118,22 @@ async function loadCreateDomains(): Promise<void> {
 
 async function submitCreate(): Promise<void> {
   if (!createAddress.value) return
+  const submittedAddress = createAddress.value
+  const version = sessionVersion
   createSubmitting.value = true
   try {
-    const response = await api.token(createAddress.value, props.accessToken || undefined)
-    emit('create', { address: createAddress.value, token: response.token })
+    const session = await openMailbox(submittedAddress, props.accessToken || undefined)
+    if (version !== sessionVersion) return
+    emit('create', session)
     // The form stays visible after creating (it no longer closes), so leave the
     // domain select on a valid option instead of blanking it to '' — otherwise it
     // renders unselected until something else reloads the domain list.
     createLocalPart.value = ''
     createDomain.value = createDomains.value[0]?.domain ?? ''
   } catch (cause) {
-    toast.error(createFailure(cause))
+    if (version !== sessionVersion) return
+    if (authorizationFailed(cause)) emit('login', submittedAddress)
+    else toast.error(createFailure(cause))
   } finally {
     createSubmitting.value = false
   }
@@ -187,6 +200,7 @@ async function fetchCode(item: MessageSummary): Promise<string> {
   const cached = codeCache.value.get(item.id)
   if (cached !== undefined) return cached
   const session = props.session
+  const version = sessionVersion
   let fetch = codeFetches.get(item.id)
   if (!fetch) {
     fetch = api.message(session.token, item.id)
@@ -197,38 +211,50 @@ async function fetchCode(item: MessageSummary): Promise<string> {
     }
     void fetch.then(clearFetch, clearFetch)
   }
-  const code = await fetch
-  if (props.session.token === session.token) codeCache.value.set(item.id, code)
-  return code
+  try {
+    const code = await fetch
+    if (version !== sessionVersion || accessInvalid || props.session.token !== session.token) return ''
+    codeCache.value.set(item.id, code)
+    return code
+  } catch (cause) {
+    if (version === sessionVersion && authorizationFailed(cause)) invalidateAccess()
+    throw cause
+  }
 }
 
 async function announceToast(item: MessageSummary): Promise<void> {
   const address = props.session.address
+  const version = sessionVersion
   let code = ''
   try {
     code = await fetchCode(item)
   } catch {
     // best-effort — still show the toast with just the copy-email action
   }
+  if (version !== sessionVersion || accessInvalid) return
   const actions = [
     { label: t('inbox.copyEmailAction'), onClick: () => void copyAction(address) },
     ...(code ? [{ label: t('inbox.copyCodeAction'), onClick: () => void copyAction(code, 'inbox.codeCopied') }] : []),
   ]
-  toast.success(item.subject || t('inbox.noSubject'), actions)
+  const id = toast.success(item.subject || t('inbox.noSubject'), actions)
+  if (id !== undefined) mailToasts.add(id)
 }
 
 async function resolveCodes(items: MessageSummary[]): Promise<void> {
   const targets = items.filter((item) => !codeCache.value.has(item.id))
   const concurrency = 2
+  const version = sessionVersion
   for (let i = 0; i < targets.length; i += concurrency) {
+    if (version !== sessionVersion || accessInvalid) return
     const chunk = targets.slice(i, i + concurrency)
     await Promise.allSettled(chunk.map((item) => fetchCode(item)))
   }
 }
 
 async function refresh(): Promise<void> {
-  if (refreshing.value) return
+  if (refreshing.value || accessInvalid) return
   const version = ++requestVersion
+  const session = sessionVersion
   const requestedPage = page.value
   refreshing.value = true
   error.value = ''
@@ -239,7 +265,9 @@ async function refresh(): Promise<void> {
     void resolveCodes(value['hydra:member'])
     if (requestedPage === 1) notifyNew(value['hydra:member'])
   } catch (cause) {
-    if (version === requestVersion) error.value = failure(cause)
+    if (session !== sessionVersion) return
+    if (authorizationFailed(cause)) invalidateAccess()
+    else if (version === requestVersion) error.value = failure(cause)
   } finally {
     if (version === requestVersion) {
       loading.value = false
@@ -258,6 +286,7 @@ function stopPolling(): void {
 
 function startPolling(): void {
   stopPolling()
+  if (accessInvalid) return
   if (!document.hidden) {
     remainingSeconds.value = Math.max(1, props.fetchSeconds)
     countdownInterval = window.setInterval(() => {
@@ -276,16 +305,27 @@ function startStream(): void {
   streamController?.abort()
   const controller = new AbortController()
   streamController = controller
-  const fallback = () => {
-    if (streamController === controller && !controller.signal.aborted) {
-      streamController = undefined
-      startPolling()
+  const session = props.session
+  const version = sessionVersion
+  const fallback = async (cause?: unknown) => {
+    if (streamController !== controller || controller.signal.aborted || version !== sessionVersion) return
+    streamController = undefined
+    if (authorizationFailed(cause)) { invalidateAccess(); return }
+    try {
+      const account = await api.me(session.token)
+      if (version !== sessionVersion || accessInvalid) return
+      if (account.address !== session.address) { invalidateAccess(); return }
+      if (session.accessKind === 'admin' && account.accessKind !== 'admin') { invalidateAccess(); return }
+    } catch (error) {
+      if (version !== sessionVersion || accessInvalid) return
+      if (authorizationFailed(error)) { invalidateAccess(); return }
     }
+    if (version === sessionVersion && !accessInvalid) startPolling()
   }
   // Both a rejected stream (network error, non-OK response) and a stream that
   // simply ends (server closed the connection, proxy killed it) must fall
   // back to polling — only an intentional abort() should not.
-  void streamMessages(props.session.token, () => void refresh(), controller.signal).then(fallback, fallback)
+  void streamMessages(props.session.token, () => void refresh(), controller.signal).then(() => fallback(), fallback)
 }
 
 function restartRefresh(): void {
@@ -295,6 +335,7 @@ function restartRefresh(): void {
 }
 
 function handleVisibility(): void {
+  if (accessInvalid) return
   if (streamController) return
   if (document.hidden) stopPolling()
   else {
@@ -346,7 +387,31 @@ function removeStale(): void {
   void refresh()
 }
 
+function invalidateAccess(): void {
+  if (accessInvalid) return
+  accessInvalid = true
+  clearMailToasts()
+  ++sessionVersion
+  ++requestVersion
+  collection.value = null
+  selectedId.value = null
+  codeCache.value = new Map()
+  codeFetches = new Map()
+  knownIds.clear()
+  showQrModal.value = false
+  streamController?.abort()
+  streamController = undefined
+  stopPolling()
+  refreshing.value = false
+  loading.value = false
+  error.value = t('password.changed')
+  emit('invalid')
+}
+
 function resetSession(): void {
+  clearMailToasts()
+  ++sessionVersion
+  accessInvalid = false
   requestVersion += 1
   page.value = 1
   collection.value = null
@@ -383,6 +448,10 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  clearMailToasts()
+  ++sessionVersion
+  ++createDomainsVersion
+  accessInvalid = true
   requestVersion += 1
   streamController?.abort()
   streamController = undefined
@@ -457,6 +526,13 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
+      <div class="mailbox-security">
+        <p v-if="session.accessKind === 'admin'">{{ t('password.admin') }}</p>
+        <p v-if="session.protectedUntil">{{ t('password.deadline', { date: localDate(session.protectedUntil, { dateStyle: 'long', timeStyle: 'short' }) }) }}</p>
+        <p v-else-if="!session.protected">{{ t('password.public') }}</p>
+        <button class="secondary-button" type="button" data-action="password" :disabled="accessInvalid" @click="emit('manage')">{{ !session.protected ? t('password.set') : session.accessKind === 'admin' ? t('password.reset') : t('password.change') }}</button>
+        <button v-if="session.accessKind === 'visitor' || session.accessKind === 'admin'" class="text-button" type="button" data-action="mailbox-logout" @click="emit('logout')">{{ t('password.logout') }}</button>
+      </div>
       <p v-if="notice" class="toolbar-notice" aria-live="polite">{{ notice }}</p>
       <div class="auto-refresh-indicator">
         <span class="refresh-countdown-pill" aria-live="polite">
@@ -532,6 +608,7 @@ onBeforeUnmount(() => {
       @seen="markSeen"
       @deleted="removeMessage"
       @stale="removeStale"
+      @invalid="invalidateAccess"
       @close="selectedId = null"
     />
 

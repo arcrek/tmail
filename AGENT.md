@@ -7,7 +7,7 @@ This file provides guidance to autonomous and coding agents when working with co
 TMail: a temporary-mail service that sits in front of Postfix and Stalwart. Three cooperating pieces:
 
 - **`policy_daemon`** (`src/policy_daemon.py`) — a tiny TCP line-protocol server Postfix's `check_recipient_access` calls per recipient. Looks up the domain's MX, and if it points at this server, provisions the domain in Stalwart via JMAP and caches it so future lookups skip the MX check.
-- **`api_server`** (`src/api_server.py`, `src/admin_api.py`) — a FastAPI app serving both a public JMAP-flavored ("Hydra") REST API for the passwordless inbox and an `/admin/api/*` console for site settings, domain blocking, and access credentials. Also serves the built Vue SPA as static files and has a catch-all SPA route.
+- **`api_server`** (`src/api_server.py`, `src/admin_api.py`) — a FastAPI app serving both a public JMAP-flavored ("Hydra") REST API for public-by-default inboxes with optional password protection and an `/admin/api/*` console for site settings, domain blocking, and access credentials. Also serves the built Vue SPA as static files and has a catch-all SPA route.
 - **`email_janitor`** (`src/email_janitor.py`) — a standalone script (run via systemd timer, see `deploy/`) that deletes messages past `retention_days` from Stalwart.
 
 Frontend is a Vue 3 + TypeScript SPA (`frontend/`) built with Vite, covering both the public inbox (`/`, `/{address}`) and the admin console (`/admin`).
@@ -53,6 +53,7 @@ npm run test      # vitest run — single-run unit tests in frontend/src/tests/
 npx vitest run frontend/src/tests/InboxView.test.ts   # single test file
 npx playwright install --with-deps chromium
 PYTHON=../.venv/bin/python npm run test:sandbox-browser
+PYTHON=../.venv/bin/python npm run test:mailbox-browser
 ```
 
 The browser check owns a headless Chromium instance and an isolated fake-JMAP app on
@@ -64,7 +65,7 @@ and message, then verifies the embedded iframe's opaque origin, permitted stylin
 blocked scripts/forms/navigation, and denied parent DOM/storage access.
 
 CI runs the full backend suite and the clean frontend install, full tests, build, and
-browser check for pull requests and all publication events. Both Docker image jobs
+both browser checks for pull requests and all publication events. Both Docker image jobs
 require successful checks. Only push/manual publication jobs receive package-write
 permission and authenticate to GHCR; pull requests cannot publish.
 
@@ -83,9 +84,9 @@ docker compose up -d --build   # serves at http://127.0.0.1:8080 (TMAIL_HTTP_POR
 
 **Config is file-based and hot-reloaded, not env-based.** `ConfigStore` (`src/config.py`) reloads `config.json` whenever its mtime changes; only the keys in `ConfigStore._EDITABLE` (`jmap_url`, `jmap_token`, `catchall_address`, `mail_account_id`, `retention_days`) can be changed via `ConfigStore.update()` (used by the admin "Mail Server" settings), written back atomically (tempfile + `os.replace` + fsync). `policy_daemon._runtime()` rebuilds the `JmapClient` whenever the JMAP connection fields change. In production the *release* directory is read-only; the *runtime* config lives in a separate writable path installed/removed via `src.config install-runtime`/`remove-runtime`, which pins the file by `(dev, inode)` identity to detect tampering — see `deploy/install.sh` and `deploy/deploy.sh` for how that's wired up.
 
-**Two separate persistence layers.** `DomainCache` (`src/domain_cache.py`) is a simple JSON set of MX-verified accepted domains, consulted by the policy daemon on every SMTP recipient check — keep it fast. `StateStore` (`src/api_state.py`) is SQLite (`state.db`) and owns everything else: site settings (`DEFAULT_SETTINGS`), frozen/blacklisted/manual domain lists, admin sessions, access credentials + access sessions (the optional site-wide unlock gate), and an `activity` event log the policy daemon and API both write to (`record_event`). Both daemon and API process open their own handle to the same `state_db`/`cache_file` paths from `config.json` — they're independent OS processes, not sharing memory.
+**Two separate persistence layers.** `DomainCache` (`src/domain_cache.py`) is a simple JSON set of MX-verified accepted domains, consulted by the policy daemon on every SMTP recipient check — keep it fast. `StateStore` (`src/api_state.py`) is SQLite (`state.db`) and owns everything else: site settings (`DEFAULT_SETTINGS`), frozen/blacklisted/manual domain lists, admin sessions, access credentials + access sessions (the optional site-wide unlock gate), mailbox security generations/password hashes and hashed secured mailbox sessions, and an `activity` event log the policy daemon and API both write to (`record_event`). Both daemon and API process open their own handle to the same `state_db`/`cache_file` paths from `config.json` — they're independent OS processes, not sharing memory.
 
-**Address/domain validation is centralized in `src/api_auth.py`.** `normalize_address()` is the single gate for turning a user-supplied address into a canonical `local@domain`, enforcing local-part length rules, domain matching against active/blocked/manual-domain lists (`_domain_matches_rule` supports `*.` wildcard rules), and IDNA. `AddressToken` in the same file is the stateless bearer token scheme for the public inbox — no server-side session per mailbox, the token itself encodes and HMAC-signs the address so any process holding the config secret can validate it.
+**Address/domain validation is centralized in `src/api_auth.py`.** `normalize_address()` is the single gate for turning a user-supplied address into a canonical `local@domain`, enforcing local-part length rules, domain matching against active/blocked/manual-domain lists (`_domain_matches_rule` supports `*.` wildcard rules), and IDNA. `AddressToken` signs public mailbox tokens with their current generation. `MailboxAuth` checks SQLite security state on every authorization; protected visitor and administrator tokens are opaque and stored only as hashes. Administrator mailbox sessions depend on their parent session. Site unlock never bypasses mailbox protection.
 
 **The public API mimics JMAP/Hydra shapes** (`src/api_models.py`: `HydraDomains`, `HydraMessages`, `HydraSearch`, etc.) even though it's a bespoke REST API, not literal JMAP — this is deliberate API design, not a JMAP passthrough. `admin_api.py`'s `/admin/api/*` router is separate, session-cookie-authenticated (`_session`/`_csrf` dependencies), and covers site config, domain sync/blocking, access credentials, and the dashboard.
 
