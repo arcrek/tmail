@@ -6,6 +6,7 @@ TMail uses a Google-inspired product interface: cool neutral backgrounds, white 
 
 - [Shared tokens and responsive styles](../frontend/src/styles.css) own both public and admin styling.
 - [Application header](../frontend/src/components/AppHeader.vue) owns navigation, locale, theme, and unlock controls.
+- [Home address panel](../frontend/src/components/AddressPanel.vue) owns quick email access, address creation, random addresses, and saved inbox actions; [mailbox access](../frontend/src/mailbox-access.ts) owns their shared authorization flow, and [server address normalization](../src/api_auth.py) validates receiving domains.
 - [Admin shell](../frontend/src/admin/AdminApp.vue) groups settings navigation and account controls in one sidebar beside the content workspace.
 - [Default site settings](../src/api_state.py) supply default brand colors. [Site customization](../frontend/src/App.vue) applies administrator colors at runtime.
 - [QR dialog](../frontend/src/components/QrCodeModal.vue) uses the native modal dialog for keyboard containment, Escape, and focus restoration.
@@ -33,7 +34,7 @@ Use the radius tokens: 8px for small elements, 12px for fields and inner cards, 
 
 ## Layout and interaction
 
-- Home centers the address form and saved inboxes. The main action is opening an inbox.
+- Home centers quick email access above the address form and saved inboxes. Quick access accepts a full email address and opens it without a domain-selection step; the existing create and random-address flows remain available. Both forms use the same mailbox authorization and password flow, with the server validating receiving domains.
 - Inbox keeps address tools beside the message workspace on larger screens and stacks them at 640px and below. Its rail sticks below the header.
 - Admin uses a sidebar and content column, narrows the sidebar at 952px, and switches to horizontally scrollable tabs at 640px. Account controls remain available above mobile content.
 - Public navigation becomes a menu at 952px. Active destinations use a tinted pill and `aria-current`.

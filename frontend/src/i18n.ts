@@ -5,6 +5,9 @@ type Params = Record<string, string | number>
 const STORAGE_KEY = 'tmail.locale'
 
 export const en = {
+  'address.quickAccess': 'Quick email access',
+  'address.email': 'Email address',
+  'address.openMailbox': 'Open mailbox',
   'password.title': 'Mailbox password',
   'password.login': 'Sign in to this mailbox',
   'password.label': 'Mailbox password',
@@ -68,6 +71,9 @@ export const en = {
 } as const
 
 export const vi: Record<keyof typeof en, string> = {
+  'address.quickAccess': 'Mở nhanh hộp thư',
+  'address.email': 'Địa chỉ email',
+  'address.openMailbox': 'Mở hộp thư',
   'password.title': 'Mật khẩu hộp thư',
   'password.login': 'Đăng nhập hộp thư',
   'password.label': 'Mật khẩu hộp thư',
