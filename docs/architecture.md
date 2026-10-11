@@ -1,20 +1,20 @@
-# TMail Architecture & System Invariants
+# Architecture and security constraints
 
-This document outlines the system architecture, component boundaries, persistence separation, security invariants, and the architectural decision ledger for TMail.
+TMail coordinates domain provisioning and web access while Postfix owns SMTP transport and Stalwart owns message storage. This guide records the boundaries and decisions that maintainers must preserve.
 
-For operational deployment procedures and setup instructions, see the root [README.md](../README.md). For contributor guidelines and testing, see [AGENT.md](../AGENT.md).
+For setup, see the [README](../README.md). For host operations and upgrades, see [deployment and operations](deployment.md). For access policy, see [mailbox access](mailbox-access.md). Contributor commands live in [AGENT.md](../AGENT.md).
 
 ---
 
-## 1. System Topology & Boundaries
+## System topology and boundaries
 
 TMail acts as an orchestration and access layer in front of Postfix (the Mail Transfer Agent) and Stalwart (the Mail Delivery Agent and JMAP store).
 
 ```mermaid
 flowchart TD
     InternetInbound["Inbound SMTP Port 25"] --> Postfix["Postfix MTA"]
-    Postfix -->|"check_recipient_access: 127.0.0.1:10030"| PolicyDaemon["Policy Daemon\nsrc/policy_daemon.py"]
-    
+    Postfix -->|"check_policy_service: 127.0.0.1:10030"| PolicyDaemon["Policy Daemon\nsrc/policy_daemon.py"]
+
     PolicyDaemon -->|"Fast Cache Hit"| DomainCache[("DomainCache\ndomains.json")]
     PolicyDaemon -->|"Cache Miss: DNS Check"| DNS["DNS Nameservers\nsrc/mx_checker.py"]
     PolicyDaemon -->|"Provision Domain: JMAP"| Stalwart["Stalwart Mail Server\nPort 2525 SMTP / HTTP JMAP"]
@@ -25,12 +25,12 @@ flowchart TD
     Client["Web Browser / API Client"] -->|"HTTPS"| Cloudflare["Cloudflare Edge Proxy"]
     Cloudflare -->|"CF-Connecting-IP"| Nginx["Origin Reverse Proxy\ncloudflare-nginx-allowlist.sh"]
     Nginx --> ApiServer["FastAPI Server\nsrc/api_server.py"]
-    
+
     ApiServer --> StateStore
     ApiServer --> DomainCache
     ApiServer -->|"Read Mail / Tokens"| Stalwart
     ApiServer -->|"Serve Static SPA"| Frontend["Vue 3 SPA\nfrontend/dist"]
-    
+
     Janitor["Retention Janitor\nsrc/email_janitor.py"] -->|"Purge Expired: JMAP"| Stalwart
 ```
 
@@ -39,7 +39,7 @@ flowchart TD
 - **Postfix Policy Daemon ([`src/policy_daemon.py`](../src/policy_daemon.py))**:
   - Listens on `127.0.0.1:10030` via TCP line protocol, registered as a recipient restriction in [`deploy/postfix_main_snippet.cf`](../deploy/postfix_main_snippet.cf).
   - Executed synchronously on incoming SMTP `RCPT TO` commands.
-  - A fast cache hit against [`src/domain_cache.py:DomainCache`](../src/domain_cache.py) returns `action=OK` in microseconds.
+  - A cache hit against [`src/domain_cache.py:DomainCache`](../src/domain_cache.py) returns `action=OK` without repeating MX verification.
   - A cache miss triggers an MX lookup via [`src/mx_checker.py`](../src/mx_checker.py). If the domain's MX points to `mx_hostname`, the daemon dynamically provisions the domain in Stalwart via JMAP ([`src/jmap_client.py`](../src/jmap_client.py)), updates `DomainCache`, and emits an audit event to [`src/api_state.py:StateStore`](../src/api_state.py).
 - **Web & Admin API ([`src/api_server.py`](../src/api_server.py), [`src/admin_api.py`](../src/admin_api.py))**:
   - FastAPI application providing public Hydra REST endpoints ([`src/api_models.py`](../src/api_models.py)), administrator endpoints (`/admin/api/*`), static asset delivery, and SPA routing.
@@ -49,7 +49,7 @@ flowchart TD
   - Independent maintenance utility triggered by [`deploy/tmail-janitor.timer`](../deploy/tmail-janitor.timer).
   - Queries Stalwart via JMAP for messages older than `retention_days` and batches their deletion.
 - **Frontend SPA ([`frontend/`](../frontend/))**:
-  - Vue 3 + TypeScript single-page application governed by the *Ember on Bone* design system ([`docs/design-guidelines.md`](design-guidelines.md)).
+  - Vue 3 + TypeScript single-page application governed by the [frontend design guidelines](design-guidelines.md).
 
 ### The Stalwart & Postfix Boundary
 
@@ -60,7 +60,7 @@ TMail intentionally avoids managing low-level mail transport:
 
 ---
 
-## 2. Persistence Layers (Dual Store Model)
+## Persistence layers
 
 TMail partitions persistence between two independent stores with distinct performance profiles:
 
@@ -80,11 +80,8 @@ backup. Additive schema changes and `PRAGMA user_version` commit together; backu
 migration failure aborts startup. A retry may make another backup and preserves
 previous backups. Backup files contain credentials and must stay private.
 
-For an upgrade, stop old API workers before starting the new release. Confirm the
-configured path and retain the verified backup; never copy only a live WAL main
-file. Do not restore a backup without separate authorization: old credentials may
-become valid again. Once mailbox protection is enabled, rollback must retain
-password enforcement or stop the service.
+See [upgrades and rollback](deployment.md#upgrades-and-rollback) for worker
+shutdown, backup handling, and the password-enforcement rollback boundary.
 
 The storage/authentication layer in [`api_state.py`](../src/api_state.py) and
 [`api_auth.py`](../src/api_auth.py) enforces mailbox password protection through the shared `mailbox_access` dependency
@@ -127,12 +124,12 @@ returns `409 mailbox_conflict`; database/hash failures remain sanitized `503` er
 
 ### Why Persistence Is Partitioned
 
-1. **Zero Contention on the SMTP Path**: Postfix queries the policy daemon synchronously for every recipient. Storing accepted domains in SQLite would introduce lock contention and transaction overhead during inbound traffic spikes. `DomainCache` allows the daemon to serve lookups entirely from memory, refreshing only when the file generation tuple `(st_dev, st_ino, st_mtime_ns, st_size)` changes.
+1. **Keep domain lookup independent of database transactions**: Postfix queries the policy daemon synchronously for every recipient. Storing accepted domains in SQLite would introduce lock contention and transaction overhead during inbound traffic spikes. `DomainCache` allows the daemon to serve lookups entirely from memory, refreshing only when the file generation tuple `(st_dev, st_ino, st_mtime_ns, st_size)` changes.
 2. **Process Independence**: The policy daemon and API server run as decoupled OS processes. Neither process shares memory or coordinates via IPC sockets; coordination relies exclusively on POSIX atomic filesystem semantics and SQLite WAL mode.
 
 ---
 
-## 3. Security Invariants
+## Security constraints
 
 ### Invariant 1: Untrusted Email Content Sandboxing
 - **Invariant**: Arbitrary email HTML is treated as hostile and must never be rendered within the primary DOM context.
@@ -158,8 +155,8 @@ returns `409 mailbox_conflict`; database/hash failures remain sanitized `503` er
 ### Invariant 4: Runtime Config Immutability and Device/Inode Pinning
 - **Invariant**: Code releases must be immutable, and runtime configuration mutations must be guarded against race conditions or tampering.
 - **Enforcement**:
-  - In production, release artifacts under `/opt/tmail-policy` are read-only.
-  - Runtime configuration resides separately at `/var/lib/tmail-policy/config.json`.
+  - In the checkout-based systemd deployment, release artifacts under `/opt/tmail-policy` are read-only.
+  - That deployment keeps runtime configuration separately at `/var/lib/tmail-policy/config.json`.
   - [`src/config.py:ConfigStore`](../src/config.py) applies updates via atomic temporary files with fsync, directory fsync, and `os.replace`.
   - [`deploy/install.sh`](../deploy/install.sh) and [`deploy/release.sh`](../deploy/release.sh) execute `python3 -m src.config install-runtime` and `remove-runtime` to record and verify the physical filesystem identity `(dev, inode)`, preventing accidental overwrites or symlink manipulation during promotions and rollbacks.
 
@@ -174,10 +171,10 @@ returns `409 mailbox_conflict`; database/hash failures remain sanitized `503` er
 - **Enforcement**:
   - **Port 25**: Postfix MTA (exclusive public SMTP listener).
   - **Port 2525**: Stalwart internal SMTP listener (receives relays from Postfix).
-  - **Port 8080**: Stalwart internal JMAP HTTP API (`http://127.0.0.1:8080/jmap/` used by [`src/jmap_client.py`](../src/jmap_client.py)).
+  - **Stalwart JMAP listener**: Deployment-specific; [`config.example.json`](../config.example.json) uses `http://127.0.0.1:8080/jmap/`.
   - **Port 8443**: Stalwart WebUI HTTPS listener (isolated from public web ports).
   - **Port 80 & 443**: Host Nginx Reverse Proxy (terminates public HTTP and Let's Encrypt TLS with HTTP/2 negotiation and upstream keep-alive connection pooling; configured via [`deploy/nginx-tmail.conf.example`](../deploy/nginx-tmail.conf.example)).
-  - **Port 8081**: Docker `frontend` container bound to `127.0.0.1:8081` (specified in [`compose.yaml`](../compose.yaml)).
+  - **Web listener**: Defaults to `127.0.0.1:8081` in [`compose.yaml`](../compose.yaml). [`.env.example`](../.env.example) changes it to `0.0.0.0:8080`; select a port that does not conflict with Stalwart and match the host proxy upstream.
   - **Port 8000**: Docker `api` container (FastAPI backend exposed within the Docker bridge network).
   - **Port 10030**: Postfix policy daemon bound to `127.0.0.1:10030`.
 
@@ -193,22 +190,22 @@ returns `409 mailbox_conflict`; database/hash failures remain sanitized `503` er
   - [`src/api_server.py:mail_runtime`](../src/api_server.py) acquires `app.state.jmap_lock` exclusively, decoupling high-throughput mailbox and token readers from `app.state.admin_lock`.
   - [`src/admin_api.py:refresh_domains`](../src/admin_api.py) performs the synchronous `jmap.list_domains()` call strictly outside `admin_lock` to prevent blocking concurrent admin handlers during network latency.
   - A double-checked 60-second debounce window inside `admin_lock` prevents thundering-herd JMAP queries during concurrent traffic spikes.
-  - [`src/api_auth.py:active_domains`](../src/api_auth.py) falls back to `state.get_frozen_domains()` whenever `cache.domains()` is temporarily empty, ensuring transient cache invalidations never surface empty domain lists or spurious "No receiving domains available" states to visitors.
+  - [`src/api_auth.py:active_domains`](../src/api_auth.py) falls back to `state.get_frozen_domains()` whenever `cache.domains()` is temporarily empty, reducing empty domain responses when a saved list is available.
 
 ---
 
-## 4. Architectural Decision Ledger
+## Design decisions
 
 | Decision | Context & Problem | Rejected Alternatives | Chosen Solution & Trade-offs |
 |---|---|---|---|
-| **Split Persistence Model** | Synchronous SMTP recipient validation requires sub-millisecond response latency during heavy connection floods. | Storing domains in SQLite (`state.db`) alongside site settings and activity logs. | Partitioned storage: `DomainCache` (`domains.json`) for instant in-memory sets; `StateStore` (`state.db`) for relational data. *Trade-off:* Requires managing two distinct files, but eliminates database locks on the SMTP hot path. |
+| **Split Persistence Model** | Synchronous SMTP recipient validation must avoid repeated DNS and provisioning work for accepted domains. | Storing domains in SQLite (`state.db`) alongside site settings and activity logs. | Partitioned storage: `DomainCache` (`domains.json`) for instant in-memory sets; `StateStore` (`state.db`) for relational data. *Trade-off:* Requires managing two distinct files, but avoids a database transaction for the accepted-domain lookup. |
 | **Web-Only Domain Suppression** | Administrators need to hide retired or problematic domains from the temporary mail interface without dropping existing inbound mail. | Propagating domain bans to Postfix transport maps or rejecting them at port 25. | Suppressing blacklisted domains exclusively in the public API and UI (`blacklisted_domains`). *Trade-off:* Inbound mail continues reaching Stalwart, but existing user workflows and administrative forwards do not suffer hard bounces. |
 | **Generation-checked public tokens and revocable secured sessions** | Public inbox churn must stay cheap while password protection requires persistent revocation. | Per-public-token session rows or HMAC validation without security-state checks. | Signed public tokens allocate no session row; every authorization checks SQLite generation/protection. Protected visitor/admin sessions store only bearer hashes. Tombstones persist after removal/expiry, preventing old public tokens from regaining access. *Trade-off:* Reads require SQLite and fail closed on storage errors. |
-| **Iframe Content Sandboxing** | Inbound emails contain arbitrary, untrusted HTML, SVG, and CSS from external senders that could exploit the web client. | HTML sanitization libraries (e.g., Bleach or DOMPurify) rendered directly into the host DOM. | Isolated sandbox `<iframe>` communicating solely through `postMessage`, combined with `assetsInlineLimit: 0` in Vite. *Trade-off:* Added asynchronous frame messaging complexity, but provides ironclad script and CSS isolation. |
+| **Iframe Content Sandboxing** | Inbound emails contain arbitrary, untrusted HTML, SVG, and CSS from external senders that could exploit the web client. | HTML sanitization libraries (e.g., Bleach or DOMPurify) rendered directly into the host DOM. | Isolated sandbox `<iframe>` communicating solely through `postMessage`, combined with `assetsInlineLimit: 0` in Vite. *Trade-off:* Added asynchronous frame messaging complexity, but keeps untrusted content outside the application DOM. |
 | **Origin IP Allowlisting for Cloudflare** | Rate-limiting buckets trust `CF-Connecting-IP` directly to track visitor request quotas. | Relying solely on edge WAF rules without origin port firewalling. | Enforcing origin-level IP allowlisting ([`deploy/cloudflare-nginx-allowlist.sh`](../deploy/cloudflare-nginx-allowlist.sh)) for all Cloudflare proxy deployments. *Trade-off:* Requires recurring cron synchronization of Cloudflare CIDRs, but prevents IP spoofing against origin ports. |
-| **Filesystem Device/Inode Config Pinning** | Deployments and rollbacks must guarantee configuration integrity without downtime or file corruption. | In-place file edits or unpinned symlink directory switching. | CLI-managed atomic installs (`src.config install-runtime`) pinning `(dev, inode)` pairs. *Trade-off:* Deployment scripts require strict error handling and cleanup, but invalid configurations or half-written files never reach production services. |
-| **Stalwart Port 8443 Web Isolation & Host Nginx SSL** | Stalwart by default binds port 443, conflicting with public web reverse proxies and intercepting HTTPS traffic. | Running Nginx only on port 80 (Flexible SSL) without origin port 443 listener. | Relocating Stalwart HTTPS listener to port 8443 and terminating Let's Encrypt SSL on host Nginx ports 80/443. *Trade-off:* Requires managing SSL certificates on both Cloudflare and host Nginx, but eliminates port conflicts, 521/522 fallback timeouts, and direct connection errors. |
-| **Host MTU 1500 Pinning on Cloud VPS** | Cloud hypervisors (Oracle Cloud) assign MTU 9000, creating PMTUD black holes with Cloudflare Anycast edge nodes. | Relying on TCP MSS clamping at the firewall level. | Pinned host MTU 1500 via Netplan override and disabling cloud-init network updates. *Trade-off:* Slightly lower intra-VPC throughput, but guarantees 100% reliable packet transit across public internet gateways. |
-| **Decoupled JMAP Locks & Debounced Domain Sync** | Synchronous JMAP domain listings (141KB payload) held `admin_lock`, stalling public mailbox readers and token checks, causing Cloudflare 522 timeouts. | Running unbounded background threads without locks or increasing proxy timeouts. | Partition `jmap_lock` from `admin_lock`, perform JMAP calls outside locks, and use double-checked 60s debounce in `refresh_domains`. *Trade-off:* Domain listing changes can take up to 60s to reflect automatically, but readers never experience latency spikes. |
-| **Frontend Verification Code Throttling** | Opening inboxes with multiple messages fired up to 15 concurrent `/messages/<id>` requests, flooding single-worker backends. | Unbounded parallel `Promise.allSettled` or disabling automated verification-code extraction entirely. | Chunked client concurrency (`chunkSize = 2`) in [`frontend/src/components/InboxView.vue`](../frontend/src/components/InboxView.vue). *Trade-off:* Slightly staggered badge population, but eliminates origin queue buildup and Cloudflare 520 stream drops. |
-| **Non-blocking Domain Availability Fallback** | Cold cache reloads or file updates temporarily returned empty domain lists, presenting false "no domains" errors to visitors. | Blocking the HTTP thread until the domain cache is refreshed from disk. | Fallback to `StateStore.get_frozen_domains()` in [`src/api_auth.py:active_domains`](../src/api_auth.py) when cache is empty. *Trade-off:* May momentarily serve frozen domain lists during a cold-start, but guarantees 100% availability without empty responses. |
+| **Filesystem Device/Inode Config Pinning** | Deployments and rollbacks must guarantee configuration integrity without downtime or file corruption. | In-place file edits or unpinned symlink directory switching. | CLI-managed atomic installs (`src.config install-runtime`) pinning `(dev, inode)` pairs. *Trade-off:* Deployment scripts require strict error handling and cleanup, but promotion can validate configuration and clean up failed installs. |
+| **Stalwart Port 8443 Web Isolation & Host Nginx SSL** | Stalwart by default binds port 443, conflicting with public web reverse proxies and intercepting HTTPS traffic. | Running Nginx only on port 80 (Flexible SSL) without origin port 443 listener. | Relocating Stalwart HTTPS listener to port 8443 and terminating Let's Encrypt SSL on host Nginx ports 80/443. *Trade-off:* Requires managing SSL certificates on both Cloudflare and host Nginx, but separates public web traffic from Stalwart administration. |
+| **Host MTU 1500 Pinning on Cloud VPS** | Cloud hypervisors (Oracle Cloud) assign MTU 9000, creating PMTUD black holes with Cloudflare Anycast edge nodes. | Relying on TCP MSS clamping at the firewall level. | Pinned host MTU 1500 via Netplan override and disabling cloud-init network updates. *Trade-off:* Slightly lower intra-VPC throughput, but addresses the recorded path-MTU failure on that host. |
+| **Decoupled JMAP Locks & Debounced Domain Sync** | Synchronous JMAP domain listings (141KB payload) held `admin_lock`, stalling public mailbox readers and token checks, causing Cloudflare 522 timeouts. | Running unbounded background threads without locks or increasing proxy timeouts. | Partition `jmap_lock` from `admin_lock`, perform JMAP calls outside locks, and use double-checked 60s debounce in `refresh_domains`. *Trade-off:* Domain listing changes can take up to 60s to reflect automatically, but public readers do not wait on the administrative lock. |
+| **Frontend Verification Code Throttling** | Opening inboxes with multiple messages fired up to 15 concurrent `/messages/<id>` requests, flooding single-worker backends. | Unbounded parallel `Promise.allSettled` or disabling automated verification-code extraction entirely. | Chunked client concurrency (`chunkSize = 2`) in [`frontend/src/components/InboxView.vue`](../frontend/src/components/InboxView.vue). *Trade-off:* Slightly staggered badge population, but limits concurrent message inspection requests. |
+| **Non-blocking Domain Availability Fallback** | Cold cache reloads or file updates temporarily returned empty domain lists, presenting false "no domains" errors to visitors. | Blocking the HTTP thread until the domain cache is refreshed from disk. | Fallback to `StateStore.get_frozen_domains()` in [`src/api_auth.py:active_domains`](../src/api_auth.py) when cache is empty. *Trade-off:* May momentarily serve frozen domain lists during a cold-start, but reduces empty responses during cache refresh. |
