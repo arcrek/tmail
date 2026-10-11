@@ -1108,7 +1108,8 @@ main {
   background: transparent;
 }
 
-.qr-modal {
+.qr-modal,
+.mailbox-password-dialog {
   width: min(100%, 24rem);
   display: grid;
   max-height: calc(100dvh - 2 * var(--space-4));
@@ -1120,6 +1121,19 @@ main {
   border-radius: var(--radius-lg);
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
 }
+
+.mailbox-password-dialog { width: min(100%, 32rem); }
+.mailbox-password-dialog .field,
+.mailbox-login .field { min-width: 0; }
+.mailbox-password-dialog input,
+.mailbox-login input { width: 100%; min-width: 0; }
+.mailbox-password-actions button,
+.mailbox-login .text-button,
+.mailbox-security .text-button { min-width: 44px; min-height: 44px; }
+.mailbox-password-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.mailbox-address { overflow-wrap: anywhere; font-family: var(--font-mono); }
+.mailbox-security { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.mailbox-security p { width: 100%; margin: 0; }
 
 .qr-modal-header {
   display: flex;

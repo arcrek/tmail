@@ -34,7 +34,7 @@ server {
         proxy_set_header X-Forwarded-Proto $tmail_forwarded_proto;
     }
 
-    location ~ ^/(?:domains(?:/|$)|accounts$|token$|unlock$|lock$|me$|messages(?:/|$)|sources(?:/|$)|site$|admin/api(?:/|$)|docs(?:/|$)|redoc$|openapi\.json$|sandbox$|message-sandbox$|robots\.txt$|sitemap\.xml$|llms\.txt$|llms-full\.txt$|index\.md$|index\.html\.md$) {
+    location ~ ^/(?:domains(?:/|$)|accounts$|token$|unlock$|lock$|me(?:/|$)|messages(?:/|$)|sources(?:/|$)|site$|admin/api(?:/|$)|docs(?:/|$)|redoc$|openapi\.json$|sandbox$|message-sandbox$|robots\.txt$|sitemap\.xml$|llms\.txt$|llms-full\.txt$|index\.md$|index\.html\.md$) {
         proxy_pass http://api:8000;
         proxy_http_version 1.1;
         proxy_set_header Host $http_host;

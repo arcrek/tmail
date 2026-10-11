@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 import hashlib
 import logging
@@ -8,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import sqlite3
 import threading
 import time
 from urllib.parse import quote
@@ -24,7 +26,19 @@ from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
-from src.api_auth import AddressToken, AddressValidationError, _domain, _domain_matches_rule, active_domains, normalize_address
+from src.api_auth import (
+    AddressToken,
+    AddressValidationError,
+    MailboxAuth,
+    MailboxConflict,
+    PasswordBusy,
+    PasswordServiceError,
+    _domain,
+    _domain_matches_rule,
+    active_domains,
+    mailbox_operation,
+    normalize_address,
+)
 from src.admin_api import _rebuild_jmap_if_stale, refresh_domains, router as admin_router
 from src.api_models import (
     AccountResource,
@@ -39,8 +53,11 @@ from src.api_models import (
     HydraView,
     MessageResource,
     MessageSummary,
+    PasswordRequest,
+    RemovePasswordRequest,
     SeenPatch,
     SiteResource,
+    TokenRequest,
     TokenResponse,
 )
 from src.api_state import StateStore
@@ -50,6 +67,10 @@ from src.jmap_client import JmapClient
 
 
 _BEARER = HTTPBearer(auto_error=False)
+_STREAM_SLOTS = threading.BoundedSemaphore(8)
+_STREAM_AUTH_SLOTS = threading.BoundedSemaphore(8)
+_STREAM_AUTH_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix="stream-auth")
+_STREAM_TICK = 5.0
 _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 _SPA_RESERVED = {
     "accounts", "admin", "api", "assets", "docs", "domains", "favicon.ico", "me",
@@ -60,10 +81,13 @@ _POST_ONLY_ROUTES = {"accounts", "token"}
 _ERROR_RESPONSES = {
     401: {"model": HydraError},
     404: {"model": HydraError},
+    409: {"model": HydraError},
     422: {"model": HydraError},
+    429: {"model": HydraError},
     502: {"model": HydraError},
+    503: {"model": HydraError},
 }
-_TOKEN_RESPONSES = {**_ERROR_RESPONSES, 413: {"model": HydraError}, 429: {"model": HydraError}}
+_TOKEN_RESPONSES = {**_ERROR_RESPONSES, 413: {"model": HydraError}}
 _ATTACHMENT_RESPONSES = {
     **_ERROR_RESPONSES,
     200: {"description": "Attachment bytes", "content": {
@@ -219,6 +243,7 @@ class _BodyLimitMiddleware:
             response = JSONResponse({"detail": "Request body too large"}, status_code=413)
         else:
             response = _error(413, "Request too large", "Request body too large")
+        _set_security_headers(Request(scope), response)
         await response(scope, receive, send)
 
 
@@ -305,30 +330,50 @@ def _address(
     return normalize_address(value, domains, settings)
 
 
-def bearer_address(
-    request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Depends(_BEARER),
-) -> str:
-    if credentials is None or credentials.scheme.lower() != "bearer":
-        raise HTTPException(401, "Bearer token required")
+def _resolve_mailbox_access(request: Request, token: str) -> dict:
     try:
-        address, elevated = request.app.state.signer.read(credentials.credentials)
-        return _address(request, address, elevated=elevated)
+        access = request.app.state.mailbox_auth.resolve(token)
+        access["address"] = _address(request, access["address"], elevated=access["elevated"])
+        access["token"] = token
+        return access
     except (AddressValidationError, ValueError):
-        raise HTTPException(401, "Invalid bearer token") from None
+        raise HTTPException(401, {"code": "invalid_token", "description": "Invalid bearer token"}) from None
 
 
-def bearer_elevated(
-    request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Depends(_BEARER),
-) -> bool:
-    if credentials is None:
-        return False
+def mailbox_access(request: Request, credentials: HTTPAuthorizationCredentials | None = Depends(_BEARER)) -> dict:
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise HTTPException(401, {"code": "invalid_token", "description": "Bearer token required"})
+    return _resolve_mailbox_access(request, credentials.credentials)
+
+
+def bearer_address(access: dict = Depends(mailbox_access)) -> str:
+    return access["address"]
+
+
+def bearer_elevated(access: dict = Depends(mailbox_access)) -> bool:
+    return access["elevated"]
+
+
+def mailbox_metadata(request: Request, address: str, access: dict | None = None) -> dict:
+    security = request.app.state.state_store.mailbox_security(address)
+    return {
+        "protected": security["password_hash"] is not None,
+        "protectedUntil": security["protected_until"],
+        "accessKind": access["kind"] if access else None,
+        "sessionExpiresAt": access["expires_at"] if access else None,
+    }
+
+
+def mailbox_token_response(request: Request, address: str, token: str) -> TokenResponse:
     try:
-        _addr, elevated = request.app.state.signer.read(credentials.credentials)
+        access = request.app.state.mailbox_auth.resolve(token)
     except ValueError:
-        return False
-    return elevated
+        raise MailboxConflict("Mailbox protection changed") from None
+    return TokenResponse(
+        id=_stable_id("account", address),
+        token=token,
+        **mailbox_metadata(request, address, access),
+    )
 
 
 def _elevated_token_hash(request: Request, token: str | None) -> str | None:
@@ -499,21 +544,22 @@ def _message(message: dict, account_id: str, blocked_domains: set[str]) -> Messa
     )
 
 
-def _account(address: str) -> AccountResource:
+def _account(address: str, **metadata) -> AccountResource:
     account_id = _stable_id("account", address)
     return AccountResource(
         iri=f"/accounts/{account_id}",
         type="Account",
         id=account_id,
         address=address,
+        **metadata,
         created_at=_EPOCH,
         updated_at=_EPOCH,
     )
 
 
-def _error(status_code: int, title: str, description: str) -> JSONResponse:
-    body = HydraError(title=title, description=description).model_dump(by_alias=True, mode="json")
-    return JSONResponse(status_code=status_code, content=body)
+def _error(status_code: int, title: str, description: str, code: str | None = None) -> JSONResponse:
+    body = HydraError(title=title, description=description, code=code).model_dump(by_alias=True, mode="json")
+    return JSONResponse(status_code=status_code, content=body, headers={"Cache-Control": "no-store"})
 
 
 def _download_headers(filename: str) -> dict[str, str]:
@@ -550,11 +596,28 @@ def register_public_routes(app: FastAPI) -> None:
     async def http_error(_request: Request, exc: StarletteHTTPException):
         descriptions = {401: "Authentication required", 404: "Resource not found", 429: "Too many requests"}
         description = exc.detail if isinstance(exc.detail, str) else descriptions.get(exc.status_code, "Request failed")
-        return _error(exc.status_code, descriptions.get(exc.status_code, "Request error"), description)
+        code = None
+        if isinstance(exc.detail, dict):
+            code = exc.detail.get("code")
+            description = exc.detail.get("description", "Request failed")
+        return _error(exc.status_code, descriptions.get(exc.status_code, "Request error"), description, code)
 
     @app.exception_handler(Exception)
     async def upstream_error(_request: Request, _exc: Exception):
         return _error(502, "Mail service error", "The mail service is unavailable")
+
+    @app.exception_handler(MailboxConflict)
+    async def mailbox_conflict(_request: Request, _exc: MailboxConflict):
+        return _error(409, "Conflict", "Mailbox protection changed", "mailbox_conflict")
+
+    @app.exception_handler(PasswordBusy)
+    async def password_busy(_request: Request, _exc: PasswordBusy):
+        return _error(429, "Too many requests", "Password service busy", "password_busy")
+
+    @app.exception_handler(PasswordServiceError)
+    @app.exception_handler(sqlite3.Error)
+    async def password_error(_request: Request, _exc: Exception):
+        return _error(503, "Service unavailable", "Mailbox service unavailable")
 
     @app.get(
         "/domains", response_model=HydraDomains, response_model_exclude_none=True,
@@ -606,7 +669,8 @@ def register_public_routes(app: FastAPI) -> None:
     @app.post("/accounts", status_code=201, response_model=AccountResource, responses=_TOKEN_RESPONSES)
     def accounts(body: AddressRequest, request: Request, elevated: bool = Depends(elevated_access)):
         try:
-            return _account(_address(request, body.address, elevated=elevated))
+            address = _address(request, body.address, elevated=elevated)
+            return _account(address, **mailbox_metadata(request, address))
         except AddressValidationError as exc:
             raise HTTPException(422, str(exc)) from None
 
@@ -614,17 +678,25 @@ def register_public_routes(app: FastAPI) -> None:
         "/token",
         response_model=TokenResponse,
         responses=_TOKEN_RESPONSES,
-        summary="Issue a passwordless address token",
-        description="Validates a whitelisted address and returns a stateless bearer token; no account or password is stored.",
+        summary="Issue a mailbox token",
+        description="Public mailboxes use signed tokens; protected mailboxes require their password.",
     )
-    def token(body: AddressRequest, request: Request, elevated: bool = Depends(elevated_access)):
+    async def token(body: TokenRequest, request: Request, elevated: bool = Depends(elevated_access)):
         try:
-            address = _address(request, body.address, elevated=elevated)
+            address = await run_in_threadpool(_address, request, body.address, elevated=elevated)
         except AddressValidationError as exc:
             raise HTTPException(422, str(exc)) from None
-        return TokenResponse(
-            id=_stable_id("account", address), token=request.app.state.signer.issue(address, elevated=elevated),
-        )
+        try:
+            if body.password is None:
+                value = await run_in_threadpool(request.app.state.mailbox_auth.login, address, elevated=elevated)
+            else:
+                value = await mailbox_operation(request.app.state.mailbox_auth.login, address, body.password, elevated=elevated)
+        except MailboxConflict:
+            raise
+        except ValueError:
+            code = "password_required" if body.password is None else "invalid_credentials"
+            raise HTTPException(401, {"code": code, "description": "Mailbox password required" if body.password is None else "Invalid mailbox credentials"}) from None
+        return await run_in_threadpool(mailbox_token_response, request, address, value)
 
     @app.post("/unlock")
     def unlock(request: Request, body: dict[str, object]):
@@ -653,8 +725,44 @@ def register_public_routes(app: FastAPI) -> None:
         return Response(status_code=204)
 
     @app.get("/me", response_model=AccountResource, responses=_ERROR_RESPONSES)
-    def me(address: str = Depends(bearer_address)):
-        return _account(address)
+    def me(request: Request, access: dict = Depends(mailbox_access)):
+        return _account(access["address"], **mailbox_metadata(request, access["address"], access))
+
+    @app.put("/me/password", response_model=TokenResponse, responses=_TOKEN_RESPONSES)
+    async def set_password(body: PasswordRequest, request: Request, access: dict = Depends(mailbox_access)):
+        if access["kind"] == "admin":
+            raise HTTPException(401, "Use the admin password endpoint")
+        security = await run_in_threadpool(request.app.state.state_store.mailbox_security, access["address"])
+        if security["password_hash"] is not None and body.current_password is None:
+            raise HTTPException(401, {"code": "password_required", "description": "Current password required"})
+        try:
+            value = await mailbox_operation(request.app.state.mailbox_auth.set_password,
+                access["address"], body.password, body.current_password, elevated=access["elevated"])
+        except MailboxConflict:
+            raise
+        except ValueError:
+            raise HTTPException(401, "Invalid mailbox credentials") from None
+        return await run_in_threadpool(mailbox_token_response, request, access["address"], value)
+
+    @app.delete("/me/password", response_model=TokenResponse, responses=_TOKEN_RESPONSES)
+    async def remove_password(body: RemovePasswordRequest, request: Request, access: dict = Depends(mailbox_access)):
+        if access["kind"] != "visitor" or body.current_password is None:
+            raise HTTPException(401, {"code": "password_required", "description": "Current password required"})
+        try:
+            value = await mailbox_operation(request.app.state.mailbox_auth.remove_password,
+                access["address"], body.current_password, elevated=access["elevated"])
+        except MailboxConflict:
+            raise
+        except ValueError:
+            raise HTTPException(401, "Invalid mailbox credentials") from None
+        return await run_in_threadpool(mailbox_token_response, request, access["address"], value)
+
+    @app.post("/me/logout", status_code=204)
+    def mailbox_logout(request: Request, access: dict = Depends(mailbox_access)):
+        if access["kind"] == "public":
+            raise HTTPException(401, "Secured session required")
+        request.app.state.mailbox_auth.logout(access["token"])
+        return Response(status_code=204)
 
     @app.get(
         "/messages", response_model=HydraMessages, response_model_exclude_none=True,
@@ -684,36 +792,79 @@ def register_public_routes(app: FastAPI) -> None:
         )
 
     @app.get("/messages/stream", responses=_ERROR_RESPONSES)
-    async def messages_stream(
-        request: Request, address: str = Depends(bearer_address),
-        elevated: bool = Depends(bearer_elevated),
-    ):
-        config, jmap = mail_runtime(request)
-        interval = int(request.app.state.state_store.get_settings()["fetch_seconds"])
+    async def messages_stream(request: Request, access: dict = Depends(mailbox_access)):
+        config, jmap = await run_in_threadpool(mail_runtime, request)
+        settings = await run_in_threadpool(request.app.state.state_store.get_settings)
+        interval = int(settings["fetch_seconds"])
+
+        def poll():
+            try:
+                account_id = mail_account_id(config, jmap)
+                return jmap.list_messages(account_id, access["address"], 1, 0)
+            finally:
+                # Disconnecting cannot cancel a thread: capacity belongs to the real worker.
+                _STREAM_SLOTS.release()
+
+        async def authorized() -> bool:
+            slots = _STREAM_AUTH_SLOTS
+            if not slots.acquire(blocking=False):
+                return False
+
+            def check():
+                try:
+                    return _resolve_mailbox_access(request, access["token"])
+                finally:
+                    # Timeout/disconnect leaves capacity with the actual worker.
+                    slots.release()
+
+            try:
+                future = _STREAM_AUTH_POOL.submit(check)
+            except Exception:
+                slots.release()
+                return False
+            pending = asyncio.wrap_future(future)
+            pending.add_done_callback(lambda done: None if done.cancelled() else done.exception())
+            try:
+                current = await asyncio.wait_for(asyncio.shield(pending), _STREAM_TICK)
+                return current["address"] == access["address"]
+            except Exception:
+                return False
 
         async def events():
-            account_id = await run_in_threadpool(mail_account_id, config, jmap)
+            pending = None
             last_id = None
             first_tick = True
-            tick = min(max(1, interval), 15)
-            since_check = float(interval)  # force an immediate check on the first loop
+            tick = min(_STREAM_TICK, max(1, interval))
+            since_check = float(interval)
             since_heartbeat = 0.0
             while True:
                 if await request.is_disconnected():
                     return
-                if since_check >= interval:
-                    since_check = 0.0
+                if not await authorized():
+                    return
+                if pending is None and since_check >= interval:
+                    if _STREAM_SLOTS.acquire(blocking=False):
+                        pending = asyncio.create_task(asyncio.to_thread(poll))
+                        pending.add_done_callback(lambda done: None if done.cancelled() else done.exception())
+                        since_check = 0.0
+                if pending is not None:
+                    done, _ = await asyncio.wait({pending}, timeout=tick)
+                    if not done:
+                        since_check += tick
+                        since_heartbeat += tick
+                        continue
                     try:
-                        _total, values = await run_in_threadpool(
-                            jmap.list_messages, account_id, address, 1, 0,
-                        )
+                        _total, values = pending.result()
                     except Exception:
-                        values = None  # transient JMAP error: skip this check, try again next
+                        values = None
+                    pending = None
+                    if not await authorized():
+                        return
                     if values is not None:
                         newest = values[0]["id"] if values else None
                         if first_tick:
-                            last_id = newest
                             first_tick = False
+                            last_id = newest
                         elif newest != last_id:
                             last_id = newest
                             yield b"event: update\ndata: \n\n"
@@ -726,7 +877,7 @@ def register_public_routes(app: FastAPI) -> None:
                 since_heartbeat += tick
 
         return StreamingResponse(events(), media_type="text/event-stream", headers={
-            "Cache-Control": "no-cache", "X-Accel-Buffering": "no",
+            "Cache-Control": "no-store", "X-Accel-Buffering": "no",
         })
 
     @app.get("/messages/{message_id}", response_model=MessageResource, responses=_ERROR_RESPONSES)
@@ -767,11 +918,17 @@ def register_public_routes(app: FastAPI) -> None:
         responses=_ATTACHMENT_RESPONSES,
     )
     def attachment(
-        message_id: str, blob_id: str, request: Request, address: str = Depends(bearer_address),
-        elevated: bool = Depends(bearer_elevated),
+        message_id: str, blob_id: str, request: Request, access: dict = Depends(mailbox_access),
     ):
         config, jmap = mail_runtime(request)
-        account_id, value = message_for_address(request, address, message_id, config, jmap, elevated=elevated)
+        account_id, value = message_for_address(
+            request,
+            access["address"],
+            message_id,
+            config,
+            jmap,
+            elevated=access["elevated"],
+        )
         match = next((item for item in value.get("attachments") or [] if item.get("blobId") == blob_id), None)
         if match is None:
             raise HTTPException(404, "Attachment not found")
@@ -780,6 +937,11 @@ def register_public_routes(app: FastAPI) -> None:
         content, _content_type = jmap.download_blob(
             account_id, blob_id, name, content_type
         )
+        try:
+            _resolve_mailbox_access(request, access["token"])
+        except Exception:
+            content.close()
+            raise
         return StreamingResponse(
             content, media_type=content_type, headers=_download_headers(name),
             background=BackgroundTask(content.close),
@@ -787,11 +949,17 @@ def register_public_routes(app: FastAPI) -> None:
 
     @app.get("/sources/{message_id}", response_class=StreamingResponse, responses=_SOURCE_RESPONSES)
     def source(
-        message_id: str, request: Request, address: str = Depends(bearer_address),
-        elevated: bool = Depends(bearer_elevated),
+        message_id: str, request: Request, access: dict = Depends(mailbox_access),
     ):
         config, jmap = mail_runtime(request)
-        account_id, value = message_for_address(request, address, message_id, config, jmap, elevated=elevated)
+        account_id, value = message_for_address(
+            request,
+            access["address"],
+            message_id,
+            config,
+            jmap,
+            elevated=access["elevated"],
+        )
         blob_id = value.get("blobId")
         if not blob_id:
             raise HTTPException(404, "Message source not found")
@@ -799,6 +967,11 @@ def register_public_routes(app: FastAPI) -> None:
         content, _content_type = jmap.download_blob(
             account_id, str(blob_id), name, "message/rfc822"
         )
+        try:
+            _resolve_mailbox_access(request, access["token"])
+        except Exception:
+            content.close()
+            raise
         return StreamingResponse(
             content, media_type="message/rfc822", headers=_download_headers(name),
             background=BackgroundTask(content.close),
@@ -857,8 +1030,8 @@ def _sitemap_content(base: str) -> str:
 def _llms_content(base: str) -> str:
     return (
         "# TMail\n\n"
-        "> Fast, passwordless temporary email service with custom domain support, automatic verification code extraction, and REST API access.\n\n"
-        "TMail provisions short-lived email addresses fronting Postfix and Stalwart JMAP. Inboxes require no registration or credentials, providing instant disposable mailboxes for testing, automated signups, and privacy.\n\n"
+        "> Temporary email service with optional mailbox password protection, custom domain support, automatic verification code extraction, and REST API access.\n\n"
+        "TMail provisions short-lived email addresses fronting Postfix and Stalwart JMAP. Inboxes are public by default without registration. Any visitor can claim the first password; protected inboxes require that password or explicit administrator access.\n\n"
         "## Documentation\n"
         f"- [Overview]({base}/index.md): System architecture, mailbox lifecycle, verification code extraction, and privacy policy.\n"
         f"- [API Documentation]({base}/docs): Interactive OpenAPI documentation for mailbox token issuance, message streaming, and domain management.\n"
@@ -868,7 +1041,7 @@ def _llms_content(base: str) -> str:
 def _llms_full_content(base: str) -> str:
     return (
         "# TMail — Full Documentation for Language Models\n\n"
-        "> Fast, passwordless temporary email service with custom domain support and instant verification code extraction.\n\n"
+        "> Temporary email service with optional mailbox password protection, custom domain support and instant verification code extraction.\n\n"
         "## Architecture Overview\n"
         "TMail sits in front of Postfix and Stalwart JMAP mail server. It consists of:\n"
         "1. Policy Daemon: A high-performance daemon Postfix checks on SMTP delivery to verify MX ownership and cache domains.\n"
@@ -877,13 +1050,18 @@ def _llms_full_content(base: str) -> str:
         "## Public Mailbox API\n"
         f"- Base URL: {base}\n"
         "- GET /domains: Lists active receiving domains available for address creation.\n"
-        "- POST /token: Issues a stateless HMAC-signed bearer token for an address (local@domain).\n"
+        "- POST /token: Issues a signed public token or, with a protected mailbox password, a revocable visitor token valid for 90 days.\n"
+        "- GET /me: Reports protected, protectedUntil, accessKind, and sessionExpiresAt.\n"
+        "- PUT /me/password: Claims or changes protection; protected visitors must supply currentPassword.\n"
+        "- DELETE /me/password: Removes protection with currentPassword.\n"
+        "- POST /me/logout: Revokes only the current secured mailbox session.\n"
+        "- Administrator exchange/reset/removal use CSRF-protected /admin/api/mailboxes routes. Site unlock never bypasses mailbox protection.\n"
         "- GET /messages: Retrieves message summaries for the authenticated address.\n"
         "- GET /messages/{id}: Retrieves message details with sandboxed HTML and plain text bodies.\n"
         "- GET /sources/{id}: Downloads raw RFC 822 message source (.eml).\n"
         "- GET /messages/stream: Real-time Server-Sent Events stream for new incoming messages.\n\n"
         "## Privacy & Retention Policy\n"
-        "- Inboxes are passwordless: anyone with the address name can view incoming mail.\n"
+        "- Inboxes are public by default. The first visitor to claim a password can lock out earlier visitors. Protection expires 90 days after creation, change, reset, or successful visitor password login; reads and administrator access do not renew it. Expiry makes the mailbox public without deleting mail.\n"
         "- Do not use temporary inboxes for sensitive, banking, or permanent personal accounts.\n"
         "- Messages are automatically expunged after server retention days expire.\n"
         "- No personal tracking or user profiling cookies are used.\n"
@@ -899,7 +1077,7 @@ def _index_md_content(base: str) -> str:
         "## Overview\n"
         "TMail is a privacy-first temporary email service designed for instant disposable mailboxes.\n\n"
         "### Key Features\n"
-        "- **Passwordless Inboxes**: Access inboxes directly by name without accounts or passwords.\n"
+        "- **Optional Password Protection**: Inboxes are public by default. Any visitor can claim the first password; protected inboxes require password or administrator access.\n"
         "- **Instant Verification Codes**: Automatically extracts OTP codes and confirmation links directly in the message overview.\n"
         "- **Custom Domain Support**: Multi-domain receiving backed by Postfix MX routing and Stalwart JMAP mail delivery.\n"
         "- **Developer REST API**: Full programmatic access to generate addresses, stream messages via Server-Sent Events (SSE), and download raw `.eml` sources.\n\n"
@@ -908,9 +1086,9 @@ def _index_md_content(base: str) -> str:
         "2. Provide the address to third-party services.\n"
         "3. Incoming emails appear immediately in the web inbox with one-click verification code copying.\n\n"
         "### Retention & Privacy Policy\n"
-        "- Mailboxes are public and accessible to anyone holding the address name.\n"
+        "- Unprotected mailboxes are public. Protection expires after 90 days without creation, change, reset, or successful visitor password login, making mail public again; reads do not renew it.\n"
         "- Messages are automatically deleted according to server retention policy.\n"
-        "- No personal data, tracking cookies, or persistent user profiles are retained.\n"
+        "- SQLite retains password hashes, hashed secured sessions, and revocation generations. Browsers remember visitor tokens; passwords are never stored in browser storage. No tracking cookies are used.\n"
     )
 
 
@@ -920,10 +1098,10 @@ def create_app(config_path: str) -> FastAPI:
     state = StateStore(cfg.state_db)
     signer = AddressToken(cfg.api_token_secret)
     app = FastAPI(title="Temporary Mail API", docs_url="/docs", redoc_url="/redoc")
-    app.add_middleware(_BodyLimitMiddleware)
     app.state.config_store = config_store
     app.state.state_store = state
     app.state.signer = signer
+    app.state.mailbox_auth = MailboxAuth(state, signer)
     jmap_fingerprint = (cfg.jmap_url, cfg.jmap_token, cfg.catchall_address)
     app.state.jmap = JmapClient(*jmap_fingerprint)
     app.state.jmap_fingerprint = jmap_fingerprint
@@ -941,10 +1119,17 @@ def create_app(config_path: str) -> FastAPI:
 
     @app.middleware("http")
     async def security(request: Request, call_next):
-        if request.url.path in {"/accounts", "/token", "/unlock", "/admin/login", "/admin/api/login"}:
+        if request.url.path in {"/accounts", "/token", "/unlock", "/me/password", "/me/logout", "/admin/api/mailboxes/token", "/admin/api/mailboxes/password", "/admin/login", "/admin/api/login"}:
             client_ip = _client_ip(request)
             key = (request.url.path, client_ip)
+            password_bearing = False
             if request.url.path == "/token":
+                try:
+                    payload = await request.json()
+                    password_bearing = isinstance(payload, dict) and payload.get("password") is not None
+                except ValueError:
+                    pass
+            if request.url.path == "/token" and not password_bearing:
                 scheme, raw_token = get_authorization_scheme_param(request.headers.get("Authorization"))
                 if scheme.lower() == "bearer":
                     token_hash = await run_in_threadpool(_elevated_token_hash, request, raw_token)
@@ -960,6 +1145,7 @@ def create_app(config_path: str) -> FastAPI:
         _set_security_headers(request, response)
         return response
 
+    app.add_middleware(_BodyLimitMiddleware)
     register_public_routes(app)
     app.include_router(admin_router)
 
@@ -1075,6 +1261,8 @@ def create_app(config_path: str) -> FastAPI:
 
 
 def _set_security_headers(request: Request, response: Response) -> None:
+    if request.url.path.split("/")[1] in {"accounts", "token", "me", "messages", "sources", "unlock", "lock", "admin"}:
+        response.headers["Cache-Control"] = "no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["X-Frame-Options"] = (

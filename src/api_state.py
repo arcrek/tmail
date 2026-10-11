@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from contextlib import closing, contextmanager
 from datetime import datetime, timedelta, timezone
+import fcntl
 import json
 import os
 import sqlite3
+import tempfile
+from typing import Callable
 
 
 DEFAULT_SETTINGS = {
@@ -44,11 +48,52 @@ _LEGACY_BRAND_COLORS = {
 
 
 class StateStore:
-    def __init__(self, path: str):
+    def __init__(self, path: str, clock: Callable[[], datetime] | None = None):
         self.path = path
+        self.clock = clock or (lambda: datetime.now(timezone.utc))
+        self.backup_path: str | None = None
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-        with self._connect() as conn:
-            conn.executescript("""
+        with open(f"{path}.migration.lock", "a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            with closing(sqlite3.connect(path)) as conn:
+                conn.row_factory = sqlite3.Row
+                version = conn.execute("PRAGMA user_version").fetchone()[0]
+                if version > 1:
+                    raise RuntimeError("Unsupported state database version")
+                if version == 0 and conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' LIMIT 1"
+                ).fetchone():
+                    self.backup_path = self._backup(conn)
+                conn.execute("PRAGMA journal_mode=WAL")
+                with conn:
+                    conn.execute("BEGIN IMMEDIATE")
+                    self._initialize(conn)
+
+    def _backup(self, conn: sqlite3.Connection) -> str:
+        directory = os.path.dirname(os.path.abspath(self.path))
+        fd, temporary = tempfile.mkstemp(prefix=".state-backup-", dir=directory)
+        os.close(fd)
+        published = temporary + ".sqlite3"
+        try:
+            with closing(sqlite3.connect(temporary)) as backup:
+                conn.backup(backup)
+                if backup.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                    raise RuntimeError("State database backup verification failed")
+            with open(temporary, "rb") as file:
+                os.fsync(file.fileno())
+            # Link publishes a complete backup without replacing a prior one.
+            os.link(temporary, published)
+            directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+            return published
+        finally:
+            os.unlink(temporary)
+
+    def _initialize(self, conn: sqlite3.Connection) -> None:
+        schema = """
                 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS frozen_domains (domain TEXT PRIMARY KEY);
                 CREATE TABLE IF NOT EXISTS admin_sessions (
@@ -74,12 +119,35 @@ class StateStore:
                   detail TEXT,
                   created_at TEXT NOT NULL
                 );
-            """)
-            conn.executemany(
-                "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
-                ((key, json.dumps(value)) for key, value in DEFAULT_SETTINGS.items()),
-            )
-            self._migrate_legacy_brand_colors(conn)
+                CREATE TABLE IF NOT EXISTS mailbox_security (
+                  address TEXT PRIMARY KEY,
+                  password_hash TEXT,
+                  generation INTEGER NOT NULL CHECK (generation >= 0),
+                  protected_until TEXT,
+                  CHECK ((password_hash IS NULL) = (protected_until IS NULL))
+                );
+                CREATE TABLE IF NOT EXISTS mailbox_sessions (
+                  token_hash TEXT PRIMARY KEY,
+                  address TEXT NOT NULL,
+                  generation INTEGER NOT NULL,
+                  expires_at TEXT NOT NULL,
+                  elevated INTEGER NOT NULL,
+                  admin_session_hash TEXT
+                );
+                CREATE INDEX IF NOT EXISTS mailbox_sessions_expires_at
+                  ON mailbox_sessions(expires_at);
+                CREATE INDEX IF NOT EXISTS mailbox_sessions_address
+                  ON mailbox_sessions(address);
+        """
+        for statement in schema.split(";"):
+            if statement.strip():
+                conn.execute(statement)
+        conn.execute("PRAGMA user_version=1")
+        conn.executemany(
+            "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+            ((key, json.dumps(value)) for key, value in DEFAULT_SETTINGS.items()),
+        )
+        self._migrate_legacy_brand_colors(conn)
 
     def _migrate_legacy_brand_colors(self, conn: sqlite3.Connection) -> None:
         rows = conn.execute(
@@ -95,11 +163,162 @@ class StateStore:
                 ),
             )
 
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
-        return conn
+    @contextmanager
+    def _connect(self):
+        with closing(sqlite3.connect(self.path)) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA journal_mode=WAL")
+            with conn:
+                yield conn
+
+    def _mailbox(self, conn: sqlite3.Connection, address: str, now: datetime) -> dict:
+        row = conn.execute(
+            "SELECT * FROM mailbox_security WHERE address = ?", (address,)
+        ).fetchone()
+        if row is None:
+            return {"address": address, "password_hash": None, "generation": 0,
+                    "protected_until": None}
+        security = dict(row)
+        if security["protected_until"] is not None and datetime.fromisoformat(
+            security["protected_until"]
+        ) <= now:
+            conn.execute(
+                "UPDATE mailbox_security SET password_hash=NULL, protected_until=NULL, "
+                "generation=generation+1 WHERE address=?", (address,)
+            )
+            conn.execute("DELETE FROM mailbox_sessions WHERE address=?", (address,))
+            security.update(password_hash=None, protected_until=None,
+                            generation=security["generation"] + 1)
+        return security
+
+    def mailbox_security(self, address: str) -> dict:
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            return self._mailbox(conn, address, self.clock())
+
+    @staticmethod
+    def _same_mailbox(current: dict, observed: dict) -> bool:
+        # Login renewal can change the deadline without invalidating verification.
+        return (current["generation"], current["password_hash"]) == (
+            observed["generation"], observed["password_hash"]
+        )
+
+    @staticmethod
+    def _parent(conn: sqlite3.Connection, token_hash: str, now: datetime) -> datetime:
+        row = conn.execute(
+            "SELECT expires_at FROM admin_sessions WHERE token_hash=?", (token_hash,)
+        ).fetchone()
+        if row is None:
+            raise ValueError("Invalid administrator session")
+        expires_at = datetime.fromisoformat(row["expires_at"])
+        if expires_at <= now:
+            raise ValueError("Invalid administrator session")
+        return expires_at
+
+    @staticmethod
+    def _insert_mailbox_session(conn, token_hash, security, expires_at,
+                                elevated=False, admin_session_hash=None):
+        conn.execute(
+            "INSERT INTO mailbox_sessions "
+            "(token_hash,address,generation,expires_at,elevated,admin_session_hash) "
+            "VALUES (?,?,?,?,?,?)",
+            (token_hash, security["address"], security["generation"],
+             expires_at.isoformat(), elevated, admin_session_hash),
+        )
+        return {"address": security["address"], "generation": security["generation"],
+                "expires_at": expires_at.isoformat(), "elevated": elevated,
+                "admin_session_hash": admin_session_hash}
+
+    def mutate_mailbox(self, observed: dict, password_hash: str | None,
+                       token_hash: str | None = None,
+                       admin_session_hash: str | None = None, *, elevated: bool = False) -> dict | None:
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            now = self.clock()
+            current = self._mailbox(conn, observed["address"], now)
+            if admin_session_hash is not None:
+                self._parent(conn, admin_session_hash, now)
+            if not self._same_mailbox(current, observed):
+                return None
+            deadline = now + timedelta(days=90) if password_hash is not None else None
+            security = {"address": current["address"], "generation": current["generation"] + 1,
+                        "password_hash": password_hash,
+                        "protected_until": deadline.isoformat() if deadline else None}
+            conn.execute(
+                "INSERT INTO mailbox_security VALUES (?,?,?,?) "
+                "ON CONFLICT(address) DO UPDATE SET password_hash=excluded.password_hash, "
+                "generation=excluded.generation, protected_until=excluded.protected_until",
+                (security["address"], password_hash, security["generation"],
+                 security["protected_until"]),
+            )
+            conn.execute("DELETE FROM mailbox_sessions WHERE address=?", (security["address"],))
+            if token_hash is not None:
+                self._insert_mailbox_session(conn, token_hash, security, now + timedelta(days=90),
+                                             elevated=elevated)
+            return security
+
+    def login_mailbox(self, observed: dict, token_hash: str,
+                      upgraded_hash: str | None = None, *, elevated: bool = False) -> dict | None:
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            now = self.clock()
+            current = self._mailbox(conn, observed["address"], now)
+            if current["password_hash"] is None or not self._same_mailbox(current, observed):
+                return None
+            deadline = max(datetime.fromisoformat(current["protected_until"]),
+                           now + timedelta(days=90))
+            conn.execute(
+                "UPDATE mailbox_security SET protected_until=?, password_hash=? WHERE address=?",
+                (deadline.isoformat(), upgraded_hash or current["password_hash"], current["address"]),
+            )
+            return self._insert_mailbox_session(conn, token_hash, current, now + timedelta(days=90),
+                                                elevated=elevated)
+
+    def admin_mailbox_session(self, observed: dict, token_hash: str,
+                              admin_session_hash: str) -> dict | None:
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            now = self.clock()
+            current = self._mailbox(conn, observed["address"], now)
+            expires_at = self._parent(conn, admin_session_hash, now)
+            if not self._same_mailbox(current, observed):
+                return None
+            return self._insert_mailbox_session(
+                conn, token_hash, current, min(expires_at, now + timedelta(hours=12)),
+                elevated=True, admin_session_hash=admin_session_hash,
+            )
+
+    def mailbox_session(self, token_hash: str) -> dict | None:
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            now = self.clock()
+            conn.execute(
+                "DELETE FROM mailbox_sessions WHERE token_hash IN "
+                "(SELECT token_hash FROM mailbox_sessions WHERE expires_at<=? "
+                "ORDER BY expires_at LIMIT 100)", (now.isoformat(),)
+            )
+            row = conn.execute(
+                "SELECT * FROM mailbox_sessions WHERE token_hash=?", (token_hash,)
+            ).fetchone()
+            if row is None:
+                return None
+            session = dict(row)
+            current = self._mailbox(conn, session["address"], now)
+            if (session["generation"] != current["generation"] or
+                    datetime.fromisoformat(session["expires_at"]) <= now):
+                return None
+            if session["admin_session_hash"] is not None:
+                try:
+                    self._parent(conn, session["admin_session_hash"], now)
+                except ValueError:
+                    return None
+            elif current["password_hash"] is None:
+                return None
+            return session
+
+    def delete_mailbox_session(self, token_hash: str) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM mailbox_sessions WHERE token_hash=?", (token_hash,))
 
     def get_settings(self) -> dict[str, object]:
         with self._connect() as conn:

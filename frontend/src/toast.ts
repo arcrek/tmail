@@ -13,11 +13,12 @@ function dismiss(id: number): void {
   toasts.value = toasts.value.filter((entry) => entry.id !== id)
 }
 
-function push(kind: ToastKind, message: string, actions?: ToastAction[]): void {
+function push(kind: ToastKind, message: string, actions?: ToastAction[]): number | undefined {
   if (!message) return
   const id = ++nextId
   toasts.value = [...toasts.value, { id, kind, message, actions }]
   setTimeout(() => dismiss(id), actions?.length ? ACTION_DURATION_MS : DEFAULT_DURATION_MS)
+  return id
 }
 
 export function useToast() {

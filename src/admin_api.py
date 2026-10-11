@@ -13,8 +13,18 @@ from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 
-from src.api_auth import AddressValidationError, _LOCAL_PART, _domain, _domain_rule, active_domains
+from src.api_auth import (
+    AddressValidationError,
+    MailboxConflict,
+    _LOCAL_PART,
+    _domain,
+    _domain_rule,
+    active_domains,
+    mailbox_operation,
+)
+from src.api_models import AddressRequest, AdminPasswordRequest, HydraError, MailboxMetadata, TokenResponse
 from src.config import Config
 from src.jmap_client import JmapClient
 
@@ -33,6 +43,10 @@ MAX_CONTENT_LENGTH = 100_000
 MAX_SETTINGS_PAYLOAD_BYTES = 3_750_000
 
 router = APIRouter(prefix="/admin/api", tags=["admin"])
+_MAILBOX_RESPONSES = {
+    status: {"model": HydraError}
+    for status in (401, 403, 409, 413, 422, 429, 503)
+}
 
 
 def _rebuild_jmap_if_stale(request: Request) -> tuple[Config, JmapClient]:
@@ -258,6 +272,67 @@ def logout(request: Request, session: dict[str, object] = Depends(_csrf)):
     response = Response(status_code=204)
     response.delete_cookie("tmail_admin", path="/admin")
     return response
+
+
+@router.post("/mailboxes/token", response_model=TokenResponse, responses=_MAILBOX_RESPONSES)
+def mailbox_token(
+    body: AddressRequest, request: Request, session: dict[str, object] = Depends(_csrf)
+):
+    from src.api_server import _address, mailbox_token_response
+
+    try:
+        address = _address(request, body.address, elevated=True)
+        token = request.app.state.mailbox_auth.admin_token(address, session["token_hash"])
+    except AddressValidationError as exc:
+        raise HTTPException(422, str(exc)) from None
+    except MailboxConflict:
+        raise
+    except ValueError:
+        raise HTTPException(401, "Invalid administrator session") from None
+    return mailbox_token_response(request, address, token)
+
+
+@router.put("/mailboxes/password", response_model=MailboxMetadata, responses=_MAILBOX_RESPONSES)
+async def reset_mailbox_password(
+    body: AdminPasswordRequest,
+    request: Request,
+    session: dict[str, object] = Depends(_csrf),
+):
+    from src.api_server import _address, mailbox_metadata
+
+    try:
+        address = await run_in_threadpool(_address, request, body.address, elevated=True)
+        await mailbox_operation(
+            request.app.state.mailbox_auth.set_password,
+            address,
+            body.password,
+            admin_session_hash=session["token_hash"],
+        )
+    except AddressValidationError as exc:
+        raise HTTPException(422, str(exc)) from None
+    except MailboxConflict:
+        raise
+    except ValueError:
+        raise HTTPException(401, "Invalid administrator session") from None
+    return await run_in_threadpool(mailbox_metadata, request, address)
+
+
+@router.delete("/mailboxes/password", response_model=MailboxMetadata, responses=_MAILBOX_RESPONSES)
+def remove_mailbox_password(
+    body: AddressRequest, request: Request, session: dict[str, object] = Depends(_csrf)
+):
+    from src.api_server import _address, mailbox_metadata
+
+    try:
+        address = _address(request, body.address, elevated=True)
+        request.app.state.mailbox_auth.remove_password(address, admin_session_hash=session["token_hash"])
+    except AddressValidationError as exc:
+        raise HTTPException(422, str(exc)) from None
+    except MailboxConflict:
+        raise
+    except ValueError:
+        raise HTTPException(401, "Invalid administrator session") from None
+    return mailbox_metadata(request, address)
 
 
 @router.get("/settings")

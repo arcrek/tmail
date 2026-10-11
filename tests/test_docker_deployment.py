@@ -127,3 +127,14 @@ def test_images_build_without_copying_runtime_secrets():
     assert "FROM nginx:1.30.4-alpine" in frontend
     assert "COPY docker/nginx.conf.template /etc/nginx/templates/default.conf.template" in frontend
     assert "config.json" in ignored
+
+
+def test_nested_mailbox_routes_reach_api_instead_of_spa():
+    import re
+    nginx = (ROOT / "docker/nginx.conf.template").read_text()
+    pattern = re.search(r"location ~ (.+?) \{", nginx).group(1)
+    for path in ("/me", "/me/password", "/me/logout", "/admin/api/mailboxes/token"):
+        assert re.match(pattern, path), path
+    assert not re.match(pattern, "/meet")
+    vite = (ROOT / "frontend/vite.config.ts").read_text()
+    assert "'/me': proxy" in vite and "'/admin/api': proxy" in vite

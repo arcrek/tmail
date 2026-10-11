@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError, api } from '../api'
+import { authorizationFailed } from '../mailbox-access'
 import { copyText } from '../clipboard'
 import type { AttachmentResource, MessageResource } from '../types'
 import { extractVerificationCode } from '../verificationCode'
@@ -11,6 +12,7 @@ import { useToast } from '../toast'
 
 const props = defineProps<{ token: string; id: string }>()
 const emit = defineEmits<{
+  invalid: []
   close: []
   deleted: [id: string]
   seen: [id: string]
@@ -27,6 +29,8 @@ const bodyMode = ref<'html' | 'text'>('html')
 const busy = ref('')
 const backButton = ref<HTMLButtonElement | null>(null)
 let requestVersion = 0
+let sessionVersion = 0
+let accessInvalid = false
 
 const verificationCode = computed(() => {
   const current = message.value
@@ -62,8 +66,23 @@ function formatBytes(value: number): string {
   return `${formatNumber(Number((value / (1024 * 1024)).toFixed(1)), { maximumFractionDigits: 1 })} MB`
 }
 
+function invalidateAccess(cause: unknown, session: number): boolean {
+  if (session !== sessionVersion || !authorizationFailed(cause)) return false
+  accessInvalid = true
+  ++sessionVersion
+  ++requestVersion
+  message.value = null
+  busy.value = ''
+  loading.value = false
+  error.value = t('password.changed')
+  emit('invalid')
+  return true
+}
+
 async function loadMessage(): Promise<void> {
+  if (accessInvalid) return
   const version = ++requestVersion
+  const session = sessionVersion
   const token = props.token
   const id = props.id
   loading.value = true
@@ -81,12 +100,14 @@ async function loadMessage(): Promise<void> {
         await api.setSeen(token, id, true)
         if (version === requestVersion) emit('seen', id)
       } catch (cause) {
+        if (invalidateAccess(cause, session)) return
         if (version === requestVersion) {
           actionError.value = cause instanceof ApiError ? cause.message : t('error.seen')
         }
       }
     }
   } catch (cause) {
+    if (invalidateAccess(cause, session)) return
     if (version !== requestVersion) return
     if (cause instanceof ApiError && cause.status === 404) {
       error.value = t('error.stale')
@@ -134,6 +155,7 @@ async function downloadAttachment(attachment: AttachmentResource): Promise<void>
   const current = message.value
   if (!current) return
   const version = requestVersion
+  const session = sessionVersion
   const token = props.token
   const messageId = current.id
   const attachmentId = attachment.id
@@ -145,6 +167,7 @@ async function downloadAttachment(attachment: AttachmentResource): Promise<void>
     const blob = await api.attachment(token, messageId, attachmentId)
     if (version === requestVersion) saveBlob(blob, filename)
   } catch (cause) {
+    if (invalidateAccess(cause, session)) return
     if (version === requestVersion) {
       actionError.value = cause instanceof ApiError ? cause.message : t('error.download')
     }
@@ -157,6 +180,7 @@ async function downloadSource(): Promise<void> {
   const current = message.value
   if (!current) return
   const version = requestVersion
+  const session = sessionVersion
   const token = props.token
   const messageId = current.id
   const filename = `${safeFilename(messageId, 'message', 116)}.eml`
@@ -167,6 +191,7 @@ async function downloadSource(): Promise<void> {
     const blob = await api.source(token, messageId)
     if (version === requestVersion) saveBlob(blob, filename)
   } catch (cause) {
+    if (invalidateAccess(cause, session)) return
     if (version === requestVersion) {
       actionError.value = cause instanceof ApiError ? cause.message : t('error.source')
     }
@@ -179,6 +204,7 @@ async function deleteCurrent(): Promise<void> {
   const current = message.value
   if (!current || !window.confirm(t('reader.deleteConfirm'))) return
   const version = requestVersion
+  const session = sessionVersion
   const token = props.token
   const messageId = current.id
   const action = 'delete'
@@ -188,6 +214,7 @@ async function deleteCurrent(): Promise<void> {
     await api.deleteMessage(token, messageId)
     if (version === requestVersion) emit('deleted', messageId)
   } catch (cause) {
+    if (invalidateAccess(cause, session)) return
     if (version === requestVersion) {
       if (cause instanceof ApiError && cause.status === 404) emit('deleted', messageId)
       else actionError.value = cause instanceof ApiError ? cause.message : t('error.delete')
@@ -197,12 +224,18 @@ async function deleteCurrent(): Promise<void> {
   }
 }
 
-watch(() => [props.token, props.id], () => void loadMessage(), { immediate: true })
+watch(() => [props.token, props.id], (current, previous) => {
+  if (current[0] !== previous?.[0]) {
+    ++sessionVersion
+    accessInvalid = false
+  }
+  void loadMessage()
+}, { immediate: true })
 // The reader replaces the message list in-place, so the click that opened it unmounts the
 // previously focused row; move focus onto the back button so keyboard/AT users land somewhere
 // meaningful instead of dropping to <body>.
 onMounted(() => backButton.value?.focus())
-onBeforeUnmount(() => { requestVersion += 1 })
+onBeforeUnmount(() => { ++requestVersion; ++sessionVersion })
 </script>
 
 <template>

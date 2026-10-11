@@ -1,12 +1,12 @@
 # TMail
 
-Temporary-mail service for domains handled by Postfix and Stalwart. It provisions domains whose MX points to this server, then provides a passwordless public inbox and an administrator console.
+Temporary-mail service for domains handled by Postfix and Stalwart. It provisions domains whose MX points to this server, then provides an inbox that is public by default, optional mailbox password protection, and an administrator console.
 
 ## Scope
 
 - Postfix calls the policy daemon for each recipient domain.
 - The daemon verifies the domain's MX record and provisions accepted domains in Stalwart.
-- Visitors choose an active domain and open an address-scoped inbox without creating an account or password.
+- Visitors choose an active domain and open a public address-scoped inbox without creating an account. Optional password protection is available on the mailbox page and through the API.
 - Administrators manage website settings, the public domain list, and web-only domain blocks.
 
 This project does not manage DNS, configure TLS, or replace Postfix/Stalwart. A domain blocked in the admin console remains configured for mail delivery; it is only unavailable through the public website and API.
@@ -173,7 +173,76 @@ which doesn't depend on the IP list staying current, and set the Cloudflare SSL/
 - `/{address}` — open an active address directly.
 - `/docs` — API documentation.
 
-`POST /token` validates an active address and issues its stateless bearer token. The token can access only that address's messages; no mailbox password or account record is created.
+`POST /token` validates an active address and issues a signed bearer for a public
+mailbox. A protected mailbox requires `password` in that JSON body
+and returns a revocable visitor token valid for 90 days. `POST /accounts` only
+validates the address and reports protection metadata; it does not authenticate.
+
+The API supports `PUT /me/password` to claim or change protection and
+`DELETE /me/password` to remove it. Protected visitor changes/removal require
+`currentPassword`; claim/change supplies the new `password`. Passwords contain 12–128 Unicode characters, preserving spaces.
+Successful mutations return a replacement token. `POST /me/logout` revokes only
+that secured session. `GET /me` and token responses report `protected`,
+`protectedUntil`, `accessKind`, and `sessionExpiresAt`.
+
+Any visitor can claim the first password on a public address, including an
+existing address; the first successful claim wins and can lock out earlier
+visitors. There is no self-service password recovery.
+
+Visitor sessions expire exactly 90 days after issuance. A successful password
+login renews protection and creates another session without extending older
+sessions or signing out other devices.
+
+Protection expires 90 days after creation, change, reset, or successful password
+login. At expiry the mailbox becomes public; reading mail does not renew it.
+Protection changes and expiry invalidate earlier mailbox tokens without deleting
+mail. Site unlock never bypasses a mailbox password.
+
+Administrators explicitly exchange their existing `/admin` cookie and CSRF token
+through `POST /admin/api/mailboxes/token` with an `address`. Admin password
+reset/removal use `PUT`/`DELETE /admin/api/mailboxes/password`; reset adds
+`password`. These operations require `X-CSRF-Token`. Admin mailbox tokens expire
+no later than their 12-hour parent session and never renew protection. These routes are available
+in `/docs`. Missing/wrong credentials return 401, invalid inputs 422, lost
+claims or mutation races 409, and throttling/hash-capacity exhaustion 429.
+Hydra errors can include a stable `code` such as `password_required`,
+`invalid_credentials`, `invalid_token`, or `password_busy`. Storage/hash failures
+return sanitized service errors and deny access.
+
+On the normal mailbox page, use **Set password**, **Change password**, or
+**Remove password**. The form shows the protection deadline and explains the
+90-day expiry. Protected visitors supply their current password to change or
+remove protection. Signed-in administrators can reset or remove it there without
+the current mailbox password. Administrator mailbox logout signs out the parent
+administrator session too.
+
+Saved visitor tokens are validated before displaying mail. Passwords, CSRF
+values, and administrator mailbox tokens are never persisted in browser storage.
+Visitor logout clears this browser's saved token and requests server revocation;
+an offline logout reports when server revocation cannot be confirmed. Revocation
+in other browsers is detected on the next server authorization check. Bulk code
+reading uses valid saved visitor access or an administrator exchange; locked
+rows link to the normal mailbox login page.
+
+## Password-protection upgrades and rollback
+
+Keep the configured SQLite path (production `/var/lib/tmail-policy/state.db`
+in the persistent `tmail-data` volume). Stop old API workers before upgrading.
+Startup takes and verifies a consistent SQLite backup beside an existing
+unversioned database, then applies additive schema changes atomically. Keep
+backups private and verify them; copying only a live WAL database file is unsafe.
+See [migration and authorization details](docs/architecture.md#state-database-upgrades-and-mailbox-lifecycle).
+
+Once protection is used, rollback must retain password enforcement or stop the
+service. Never run the old passwordless application against protected state or
+delete security records. A separately authorized backup restore can revive old
+passwords and sessions. SMTP delivery and message retention are unchanged.
+
+Before release, calibrate Argon2id on deployment-equivalent CPU, RAM, and worker
+count. Current settings are 64 MiB, three passes, one lane, and two concurrent
+hash slots per process; size aggregate memory across workers and verify overload
+rejection. Record latency and peak memory with headroom before tuning; do not go
+below 19 MiB, two passes, and one lane. Local timings do not certify production.
 
 ## License
 

@@ -45,4 +45,14 @@ describe('address sessions', () => {
       { address: 'box@example.com', token: 'signed' },
     ])
   })
+
+  it('never persists admin tokens or extra secrets and filters old admin records', () => {
+    saveSession({ address: 'box@example.com', token: 'admin', accessKind: 'admin', csrf: 'csrf' })
+    expect(localStorage.getItem('tmail.addresses')).toBeNull()
+    const withSecrets = { address: 'box@example.com', token: 'visitor', accessKind: 'visitor' as const, csrf: 'secret', password: 'secret', hash: 'secret' }
+    saveSession(withSecrets)
+    expect(JSON.parse(localStorage.getItem('tmail.addresses')!)).toEqual([{ address: 'box@example.com', token: 'visitor' }])
+    localStorage.setItem('tmail.addresses', JSON.stringify([{ address: 'admin@example.com', token: 'admin', accessKind: 'admin' }, withSecrets]))
+    expect(loadSessions()).toEqual([{ address: 'box@example.com', token: 'visitor' }])
+  })
 })

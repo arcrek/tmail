@@ -43,7 +43,7 @@ jobs:
         run: |
           python -m venv .venv
           .venv/bin/pip install -r requirements-dev.txt
-      - name: Install, test, build, and verify iframe boundary
+      - name: Install, test, build, and verify browser security
         working-directory: frontend
         env:
           PYTHON: ${{ github.workspace }}/.venv/bin/python
@@ -53,6 +53,7 @@ jobs:
           npm test
           npm run build
           npm run test:sandbox-browser
+          npm run test:mailbox-browser
 
   build-push:
     needs: [backend-checks, frontend-checks]

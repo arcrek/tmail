@@ -11,6 +11,7 @@ import { setLocale } from '../i18n'
 const styles = readFileSync(resolve(process.cwd(), 'src/styles.css'), 'utf8')
 
 const mocks = vi.hoisted(() => ({
+  me: vi.fn(), adminSession: vi.fn(), adminMailboxToken: vi.fn(), logout: vi.fn(),
   domains: vi.fn(),
   token: vi.fn(),
   messages: vi.fn(),
@@ -22,7 +23,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../api', async () => {
   const actual = await vi.importActual<typeof import('../api')>('../api')
-  return { ...actual, api: { ...actual.api, ...mocks }, streamMessages: mocks.streamMessages }
+  return { ...actual, api: { ...actual.api, ...mocks, admin: { ...actual.api.admin, session: mocks.adminSession, mailboxToken: mocks.adminMailboxToken } }, streamMessages: mocks.streamMessages }
 })
 
 vi.mock('../toast', async () => {
@@ -130,6 +131,11 @@ describe('InboxView polling', () => {
   let hidden = false
 
   beforeEach(() => {
+    mocks.adminSession.mockReset().mockRejectedValue(new ApiError(401, 'No administrator session'))
+    mocks.adminMailboxToken.mockReset()
+    mocks.logout.mockReset().mockResolvedValue(undefined)
+    mocks.me.mockReset().mockImplementation(async (token: string) => ({ address: token === 'old-token' ? 'old@example.com' : token === 'new-token' ? 'new@example.com' : 'box@example.com', accessKind: 'public', protected: false }))
+    localStorage.clear()
     vi.useFakeTimers()
     hidden = false
     vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden)
@@ -781,4 +787,115 @@ describe('InboxView polling', () => {
     const subjects = wrapper.findAll('.message-subject').map((el) => el.text())
     expect(subjects).toEqual(['Newer Mail', 'Older Mail'])
   })
+
+  it('clears the list and codes on authorization failure and suppresses a pending code response', async () => {
+    let finishCode!: (value: unknown) => void
+    mocks.messages.mockResolvedValueOnce(collection(['sensitive'])).mockRejectedValueOnce(new ApiError(401, 'Revoked'))
+    mocks.message.mockReturnValueOnce(new Promise((resolve) => { finishCode = resolve }))
+    mocks.streamMessages.mockReturnValue(new Promise(() => {}))
+    const wrapper = mount(InboxView, { props: { session: { address: 'box@example.com', token: 'visitor' }, fetchSeconds: 1 } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('Message sensitive')
+    await wrapper.get('[data-action="refresh"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('Message sensitive')
+    expect(wrapper.emitted('invalid')).toHaveLength(1)
+    finishCode({ subject: 'Your code 998877', text: '', html: [] })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('998877')
+    document.dispatchEvent(new Event('visibilitychange'))
+    await wrapper.get('[data-action="refresh"]').trigger('click')
+    expect(mocks.messages).toHaveBeenCalledTimes(2)
+  })
+
+  it('validates a closed SSE once, clears mail if revoked, and never starts polling', async () => {
+    mocks.me.mockRejectedValueOnce(new ApiError(401, 'Revoked'))
+    mocks.streamMessages.mockResolvedValueOnce(undefined)
+    const interval = vi.spyOn(window, 'setInterval')
+    const wrapper = mount(InboxView, { props: { session: { address: 'box@example.com', token: 'visitor' }, fetchSeconds: 1 } })
+    await flushPromises()
+    expect(mocks.me).toHaveBeenCalledOnce()
+    expect(wrapper.emitted('invalid')).toHaveLength(1)
+    expect(interval).not.toHaveBeenCalled()
+    expect(wrapper.find('.message-row').exists()).toBe(false)
+  })
+
+  it('opens protected inline addresses through the mailbox login flow', async () => {
+    mocks.token.mockRejectedValueOnce(new ApiError(401, 'Password required'))
+    const wrapper = mount(InboxView, { props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 } })
+    await flushPromises()
+    await wrapper.get('#inbox-create-local-part').setValue('protected')
+    await wrapper.get('#inbox-create-address form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.emitted('login')?.[0]).toEqual(['protected@example.com'])
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
+  it('dismisses mailbox subjects and code actions in toasts when access is revoked', async () => {
+    const { useToast } = await import('../toast')
+    const toast = useToast()
+    mocks.streamMessages.mockReturnValue(new Promise(() => {}))
+    mocks.messages.mockResolvedValueOnce(collection([])).mockResolvedValueOnce(collection(['secret-toast'])).mockRejectedValueOnce(new ApiError(401, 'Revoked'))
+    mocks.message.mockResolvedValue({ ...summary('secret-toast'), text: 'Your code is 998877', html: [] })
+    const wrapper = mount(InboxView, { props: { session: { address: 'box@example.com', token: 'visitor' }, fetchSeconds: 20 } })
+    await flushPromises()
+    await wrapper.get('[data-action="refresh"]').trigger('click')
+    await flushPromises()
+    expect(toast.toasts.value.some((entry) => entry.message === 'Message secret-toast')).toBe(true)
+    await wrapper.get('[data-action="refresh"]').trigger('click')
+    await flushPromises()
+    expect(toast.toasts.value.some((entry) => entry.message === 'Message secret-toast')).toBe(false)
+  })
+  it.each([
+    [401, 'pagination', false], [403, 'pagination', false],
+    [401, 'visibility', false], [403, 'visibility', false],
+    [401, 'pagination', true], [403, 'pagination', true],
+    [401, 'visibility', true], [403, 'visibility', true],
+  ] as const)('honors a superseded same-session %s after %s (newer mail loaded: %s)', async (status, trigger, alreadyLoaded) => {
+    let rejectOld!: (cause: Error) => void
+    let finishNew!: (value: ReturnType<typeof collection>) => void
+    let finishCode!: (value: unknown) => void
+    if (trigger === 'pagination') mocks.streamMessages.mockReturnValue(new Promise(() => {}))
+    mocks.message.mockReturnValueOnce(new Promise((resolve) => { finishCode = resolve }))
+    mocks.messages.mockResolvedValueOnce(collection(['initial'], { next: true }))
+      .mockReturnValueOnce(new Promise((_, reject) => { rejectOld = reject }))
+      .mockReturnValueOnce(new Promise((resolve) => { finishNew = resolve }))
+    const wrapper = mount(InboxView, { props: { session: { address: 'box@example.com', token: 'visitor', accessKind: 'visitor', protected: true }, fetchSeconds: 20 } })
+    await flushPromises()
+    await wrapper.get('[data-action="refresh"]').trigger('click')
+    if (trigger === 'pagination') await wrapper.get('.pagination button:last-child').trigger('click')
+    else document.dispatchEvent(new Event('visibilitychange'))
+    if (alreadyLoaded) {
+      finishNew(collection(['sensitive-after-revocation']))
+      await flushPromises()
+      expect(wrapper.text()).toContain('sensitive-after-revocation')
+    }
+    rejectOld(new ApiError(status, 'Revoked'))
+    await flushPromises()
+    expect.soft(wrapper.emitted('invalid')).toHaveLength(1)
+    expect.soft(wrapper.text()).not.toContain('Message initial')
+    finishNew(collection(['sensitive-after-revocation']))
+    finishCode({ subject: 'Your code 998877', text: '', html: [] })
+    await flushPromises()
+    expect.soft(wrapper.text()).not.toContain('sensitive-after-revocation')
+    expect.soft(wrapper.text()).not.toContain('998877')
+    document.dispatchEvent(new Event('visibilitychange'))
+    await wrapper.get('[data-action="refresh"]').trigger('click')
+    expect(mocks.messages).toHaveBeenCalledTimes(3)
+  })
+
+  it.each([401, 403])('ignores a previous mailbox session %s', async (status) => {
+    let rejectOld!: (cause: Error) => void
+    mocks.streamMessages.mockReturnValue(new Promise(() => {}))
+    mocks.messages.mockReturnValueOnce(new Promise((_, reject) => { rejectOld = reject }))
+      .mockResolvedValueOnce(collection(['new-mail']))
+    const wrapper = mount(InboxView, { props: { session: { address: 'old@example.com', token: 'old-token' }, fetchSeconds: 20 } })
+    await wrapper.setProps({ session: { address: 'new@example.com', token: 'new-token' } })
+    await flushPromises()
+    rejectOld(new ApiError(status, 'Revoked'))
+    await flushPromises()
+    expect(wrapper.emitted('invalid')).toBeUndefined()
+    expect(wrapper.text()).toContain('Message new-mail')
+  })
+
 })

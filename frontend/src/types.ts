@@ -1,6 +1,14 @@
-export interface AddressSession {
+export interface MailboxMetadata {
+  protected?: boolean
+  protectedUntil?: string | null
+  accessKind?: 'public' | 'visitor' | 'admin' | null
+  sessionExpiresAt?: string | null
+}
+
+export interface AddressSession extends MailboxMetadata {
   address: string
   token: string
+  csrf?: string
 }
 
 export interface Resource {
@@ -11,7 +19,7 @@ export interface Resource {
   updatedAt: string
 }
 
-export interface AccountResource extends Resource {
+export interface AccountResource extends Resource, MailboxMetadata {
   '@context': string
   address: string
   quota: number
@@ -104,13 +112,14 @@ export interface HydraCollection<T> {
 }
 
 export interface HydraError {
+  code?: 'password_required' | 'invalid_credentials' | 'invalid_token' | 'mailbox_conflict' | 'password_busy'
   '@context': string
   '@type': 'hydra:Error'
   'hydra:title': string
   'hydra:description': string
 }
 
-export interface TokenResponse {
+export interface TokenResponse extends MailboxMetadata {
   id: string
   token: string
 }
