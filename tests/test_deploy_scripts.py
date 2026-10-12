@@ -132,6 +132,7 @@ def _config_payload(jmap_token: str) -> str:
         "cache_file": "/var/lib/tmail-policy/domains.json",
         "api_token_secret": "a" * 32,
         "admin_password": "secret",
+        "frontend_dist": "../live/frontend/dist",
     })
 
 
@@ -141,16 +142,25 @@ def _release_tree(tmp_path: Path):
     systemd = tmp_path / "systemd"
     (stage / "deploy").mkdir(parents=True)
     (stage / "src").mkdir()
+    (stage / ".venv" / "bin").mkdir(parents=True)
+    python = stage / ".venv" / "bin" / "python"
+    python.write_text('#!/bin/sh\nexec python3 "$@"\n')
+    python.chmod(0o755)
     systemd.mkdir()
     (stage / "version").write_text("new")
-    (stage / "config.json").write_text(_config_payload("staged"))
+    payload = json.loads(_config_payload("staged"))
+    payload["frontend_dist"] = str(live / "frontend/dist")
+    (stage / "config.json").write_text(json.dumps(payload))
+    (stage / "frontend/dist").mkdir(parents=True)
+    (stage / "frontend/dist/index.html").write_text("built frontend")
+    shutil.copy(ROOT / "deploy/setup-mail.py", stage / "deploy/setup-mail.py")
     shutil.copy(ROOT / "src" / "config.py", stage / "src" / "config.py")
     for unit in UNITS:
         (stage / "deploy" / unit).write_text(f"new {unit}")
     return stage, live, systemd
 
 
-def _run_release(stage, live, systemd, command, state):
+def _run_release(stage, live, systemd, command, state, extra_env=None):
     return subprocess.run(
         ["bash", str(RELEASE), str(stage), str(live)],
         capture_output=True,
@@ -162,7 +172,9 @@ def _run_release(stage, live, systemd, command, state):
             "FAKE_RUNTIME_CONFIG": str(state.parent / "runtime" / "config.json"),
             "PATH": f"{command.parent}:{os.environ['PATH']}",
             "TMAIL_CONFIG_DIR": str(state.parent / "runtime"),
-        },
+            "TMAIL_WEB_OWNER": "systemd",
+            "TMAIL_LOCK_FILE": str(state.parent / "release.lock"),
+        } | (extra_env or {}),
     )
 
 
@@ -271,13 +283,14 @@ def test_release_preserves_existing_runtime_config(tmp_path):
     stage, live, systemd = _release_tree(tmp_path)
     command, state = _fake_systemctl(tmp_path)
     runtime_config = state.parent / "runtime" / "config.json"
-    runtime_config.write_text("newer live config")
+    existing_config = _config_payload("newer live config")
+    runtime_config.write_text(existing_config)
     runtime_config.chmod(0o600)
 
     result = _run_release(stage, live, systemd, command, state)
 
     assert result.returncode == 0, result.stderr
-    assert runtime_config.read_text() == "newer live config"
+    assert runtime_config.read_text() == existing_config
     assert not (live / "config.json").exists()
 
 
@@ -435,13 +448,14 @@ def test_failed_release_never_removes_existing_runtime_config(tmp_path):
     stage, live, systemd = _release_tree(tmp_path)
     command, state = _fake_systemctl(tmp_path)
     runtime_config = state.parent / "runtime" / "config.json"
-    runtime_config.write_text("newer live config")
+    existing_config = _config_payload("newer live config")
+    runtime_config.write_text(existing_config)
     (state / "fail-api").touch()
 
     result = _run_release(stage, live, systemd, command, state)
 
     assert result.returncode == 42
-    assert runtime_config.read_text() == "newer live config"
+    assert runtime_config.read_text() == existing_config
 
 
 @pytest.mark.parametrize("name", ["install.sh", "deploy.sh"])
@@ -527,3 +541,144 @@ def test_privileged_scripts_do_not_use_predictable_temp_files(name):
     script = (ROOT / "deploy" / name).read_text()
     assert "/tmp/tmail-requirements.txt" not in script
     assert "/tmp/main.cf.dedup" not in script
+
+
+def test_compose_release_preserves_api_unit_and_state(tmp_path):
+    stage, live, systemd = _release_tree(tmp_path)
+    command, state = _fake_systemctl(tmp_path)
+    api = systemd / "tmail-api.service"
+    api.write_text("disabled host API")
+
+    result = _run_release(stage, live, systemd, command, state, {"TMAIL_WEB_OWNER": "compose"})
+
+    assert result.returncode == 0, result.stderr
+    assert api.read_text() == "disabled host API"
+    assert "tmail-api.service" not in _state_files(state, "active")
+    assert "tmail-api.service" not in _state_files(state, "enabled")
+    log = (state / "log").read_text()
+    assert "restart tmail-api" not in log
+    assert "stop tmail-api" not in log
+
+
+def test_compose_release_rejects_active_systemd_api_before_mutation(tmp_path):
+    stage, live, systemd = _release_tree(tmp_path)
+    command, state = _fake_systemctl(tmp_path)
+    (state / "active" / "tmail-api.service").touch()
+
+    result = _run_release(stage, live, systemd, command, state, {"TMAIL_WEB_OWNER": "compose"})
+
+    assert result.returncode != 0
+    assert stage.exists()
+    assert not live.exists()
+    assert not list(systemd.iterdir())
+    assert not list(tmp_path.glob(".tmail-policy.backup.*"))
+
+
+def test_unchanged_release_skips_writes_promotion_and_restarts(tmp_path):
+    stage, live, systemd = _release_tree(tmp_path)
+    command, state = _fake_systemctl(tmp_path)
+    first = _run_release(stage, live, systemd, command, state)
+    assert first.returncode == 0, first.stderr
+    python = live / ".venv" / "bin" / "python"
+    python.write_text("#!/bin/sh\nexit 0\n")
+    python.chmod(0o755)
+    shutil.copytree(live, stage, ignore=shutil.ignore_patterns(".venv"))
+    (stage / "config.json").write_text(_config_payload("unused-seed"))
+    (state / "log").write_text("")
+    inode = live.stat().st_ino
+    unit_times = {p.name: p.stat().st_mtime_ns for p in systemd.iterdir()}
+    config = state.parent / "runtime" / "config.json"
+    config_time = config.stat().st_mtime_ns
+
+    result = _run_release(stage, live, systemd, command, state)
+
+    assert result.returncode == 0, result.stderr
+    assert live.stat().st_ino == inode
+    assert {p.name: p.stat().st_mtime_ns for p in systemd.iterdir()} == unit_times
+    assert config.stat().st_mtime_ns == config_time
+    assert not stage.exists()
+    log = (state / "log").read_text()
+    assert not any(verb in log for verb in ["restart ", "stop ", "enable ", "daemon-reload "])
+
+
+def test_delivery_verification_failure_rolls_back_release(tmp_path):
+    stage, live, systemd = _release_tree(tmp_path)
+    command, state = _fake_systemctl(tmp_path)
+    live.mkdir()
+    (live / "version").write_text("old")
+    verifier = tmp_path / "verify.py"
+    verifier.write_text("import sys\nsys.exit(51)\n")
+
+    result = _run_release(stage, live, systemd, command, state, {
+        "TMAIL_RELEASE_VERIFY": str(verifier), "TMAIL_SETUP_PLAN": str(tmp_path / "plan.json"),
+    })
+
+    assert result.returncode == 51
+    assert (live / "version").read_text() == "old"
+    assert not _state_files(state, "active")
+    assert not _state_files(state, "enabled")
+    assert not list(tmp_path.glob(".tmail-policy.backup.*"))
+
+
+def test_missing_staged_dependencies_stop_before_release_changes(tmp_path):
+    stage, live, systemd = _release_tree(tmp_path)
+    command, state = _fake_systemctl(tmp_path)
+    shutil.rmtree(stage / ".venv")
+
+    result = _run_release(stage, live, systemd, command, state)
+
+    assert result.returncode != 0
+    assert stage.exists()
+    assert not live.exists()
+    assert not list(systemd.iterdir())
+    assert not _state_files(state, "active")
+    assert not list(tmp_path.glob(".tmail-policy.backup.*"))
+
+
+@pytest.mark.parametrize("change", ["edit", "symlink", "delete"])
+def test_failed_release_preserves_concurrent_unit_change(tmp_path, change):
+    stage, live, systemd = _release_tree(tmp_path)
+    command, state = _fake_systemctl(tmp_path)
+    live.mkdir()
+    (live / "version").write_text("old")
+    unit = systemd / "tmail-api.service"
+    unit.write_text("old API unit")
+    verifier = tmp_path / "verify.py"
+    action = 'unit.write_text("administrator unit")'
+    if change == "symlink":
+        action = 'unit.unlink(); unit.symlink_to("administrator.service")'
+    elif change == "delete":
+        action = "unit.unlink()"
+    verifier.write_text(f"from pathlib import Path\nimport sys\nunit = Path({str(unit)!r})\n{action}\nsys.exit(51)\n")
+
+    result = _run_release(stage, live, systemd, command, state, {
+        "TMAIL_RELEASE_VERIFY": str(verifier), "TMAIL_SETUP_PLAN": str(tmp_path / "plan.json"),
+    })
+
+    assert result.returncode == 51
+    if change == "edit":
+        assert unit.read_text() == "administrator unit"
+    elif change == "symlink":
+        assert unit.is_symlink() and os.readlink(unit) == "administrator.service"
+    else:
+        assert not unit.exists()
+    assert (live / "version").read_text() == "old"
+    assert "concurrent unit change preserved" in result.stderr
+    assert "rollback incomplete" in result.stderr
+    assert list(tmp_path.glob(".tmail-policy.backup.*"))
+    assert (state.parent / "runtime/config.json").exists()
+
+
+def test_missing_frontend_stops_fresh_systemd_release_before_mutation(tmp_path):
+    stage, live, systemd = _release_tree(tmp_path)
+    command, state = _fake_systemctl(tmp_path)
+    shutil.rmtree(stage / "frontend")
+
+    result = _run_release(stage, live, systemd, command, state)
+
+    assert result.returncode != 0
+    assert "no frontend" in result.stderr
+    assert stage.exists() and not live.exists()
+    assert not list(systemd.iterdir())
+    assert not _state_files(state, "active")
+    assert not list(tmp_path.glob(".tmail-policy.backup.*"))

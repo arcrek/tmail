@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Run this script directly on the VPS from the project root.
-# Must be run as root: sudo bash deploy/install.sh  (or: sh deploy/install.sh)
+# Run from the project root on the existing Postfix/Stalwart host.
 [ -n "$BASH_VERSION" ] || exec bash "$0" "$@"
 set -euo pipefail
 
@@ -11,32 +10,37 @@ LEGACY_CONFIG="$REMOTE_DIR/config.json"
 POLICY_SERVICE_FILE="deploy/tmail-policy.service"
 API_SERVICE_FILE="deploy/tmail-api.service"
 STAGE_DIR=""
-MAIN_CF_TMP=""
+BACKUP_DIR=""
 
 cleanup() {
     status=$?
     trap - EXIT
     set +e
-    [[ "$MAIN_CF_TMP" == /etc/postfix/.main.cf.dedup.* ]] && rm -f -- "$MAIN_CF_TMP"
+    if [ "$status" -ne 0 ] && [ -n "$BACKUP_DIR" ] && [ -f "$BACKUP_DIR/plan.json" ]; then
+        python3 deploy/setup-mail.py restore "$BACKUP_DIR/runtime.json" "$BACKUP_DIR/plan.json" || \
+            echo "ERROR: recovery incomplete; private recovery data retained at $BACKUP_DIR" >&2
+    fi
     [[ "$STAGE_DIR" == /opt/.tmail-policy.stage.* ]] && rm -rf -- "$STAGE_DIR"
+    if [ -n "$BACKUP_DIR" ]; then
+        echo "==> Private setup backup retained at $BACKUP_DIR"
+    fi
     exit "$status"
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 [ "$(id -u)" -eq 0 ] || { echo "ERROR: must be run as root (use sudo)"; exit 1; }
-[ -f config.json ] || { echo "ERROR: config.json not found. Copy config.example.json to config.json and fill in your API token first."; exit 1; }
+exec 9>/run/lock/tmail-install.lock
+flock -n 9 || { echo "ERROR: another TMail setup is running"; exit 1; }
+umask 077
+[ -f config.json ] || { echo "ERROR: config.json not found. Copy config.example.json to config.json and configure it first."; exit 1; }
 [ -f "$POLICY_SERVICE_FILE" ] || { echo "ERROR: run from project root (deploy/tmail-policy.service not found)"; exit 1; }
 [ -f "$API_SERVICE_FILE" ] || { echo "ERROR: deploy/tmail-api.service not found"; exit 1; }
 
 echo "==> Creating secure release stage"
 STAGE_DIR=$(mktemp -d /opt/.tmail-policy.stage.XXXXXX)
 mkdir -p "$STAGE_DIR/src" "$STAGE_DIR/deploy"
-
-echo "==> Preparing service runtime directory"
-id tmail-policy &>/dev/null || useradd -r -s /sbin/nologin tmail-policy
-mkdir -p "$CONFIG_DIR"
-chown tmail-policy:tmail-policy "$CONFIG_DIR"
-chmod 700 "$CONFIG_DIR"
 
 if [ -L "$CONFIG_FILE" ] || [ -e "$CONFIG_FILE" ]; then
     echo "==> Snapshotting existing runtime config"
@@ -55,7 +59,8 @@ echo "==> Copying staged release"
 cp requirements.txt "$STAGE_DIR/requirements.txt"
 cp src/*.py "$STAGE_DIR/src/"
 cp "$POLICY_SERVICE_FILE" "$API_SERVICE_FILE" deploy/tmail-janitor.service \
-    deploy/tmail-janitor.timer deploy/accepted_domains deploy/release.sh "$STAGE_DIR/deploy/"
+    deploy/tmail-janitor.timer deploy/accepted_domains deploy/release.sh \
+    deploy/setup-mail.py deploy/tmail-janitor-docker.conf "$STAGE_DIR/deploy/"
 
 echo "==> Securing staged release"
 chown -R root:root "$STAGE_DIR"
@@ -67,112 +72,52 @@ chmod 600 "$STAGE_DIR/config.json"
 echo "==> Validating staged web config"
 (cd "$STAGE_DIR" && PYTHONPATH="$STAGE_DIR" python3 -m src.config validate-web "$STAGE_DIR/config.json")
 
-echo "==> Preparing Python dependencies"
-pip3 install -r "$STAGE_DIR/requirements.txt"
+echo "==> Checking compatibility and deployment ownership (no configuration changes)"
+BACKUP_DIR=$(mktemp -d /var/backups/tmail-setup.XXXXXX)
+chmod 700 "$BACKUP_DIR"
+install -m 600 "$STAGE_DIR/config.json" "$BACKUP_DIR/runtime.json"
+python3 deploy/setup-mail.py preflight "$BACKUP_DIR/runtime.json" "$BACKUP_DIR/plan.json"
+WEB_OWNER=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["owner"])' "$BACKUP_DIR/plan.json")
 
-# ── Postfix setup ──────────────────────────────────────────────────────────────
-
-echo "==> Installing Postfix and PCRE support"
-POSTFIX_HOSTNAME=$(python3 -c "import json, sys; print(json.load(open(sys.argv[1]))['mx_hostname'])" "$STAGE_DIR/config.json")
-POSTFIX_DOMAIN=$(echo "$POSTFIX_HOSTNAME" | cut -d. -f2-)
-
-# Write /etc/mailname before apt runs so the post-install script uses the right hostname
-echo "$POSTFIX_HOSTNAME" > /etc/mailname
-
-# If a broken previous install left a bad main.cf, patch it so dpkg --configure succeeds
-if [ -f /etc/postfix/main.cf ]; then
-    sed -i "s/^myhostname = .*/myhostname = ${POSTFIX_HOSTNAME}/" /etc/postfix/main.cf
-    sed -i "s/^mydomain = .*/mydomain = ${POSTFIX_DOMAIN}/" /etc/postfix/main.cf
+if [ "$WEB_OWNER" = systemd ]; then
+    FRONTEND_DIST=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("frontend_dist", "/opt/tmail-policy/frontend/dist"))' "$BACKUP_DIR/runtime.json")
+    if [ "$FRONTEND_DIST" = "$REMOTE_DIR/frontend/dist" ]; then
+        mkdir -p "$STAGE_DIR/frontend"
+        if [ -f frontend/dist/index.html ]; then
+            cp -a frontend/dist "$STAGE_DIR/frontend/dist"
+        else
+            cp -a "$FRONTEND_DIST" "$STAGE_DIR/frontend/dist"
+        fi
+        chown -R root:root "$STAGE_DIR/frontend"
+        find "$STAGE_DIR/frontend" -type d -exec chmod 755 {} +
+        find "$STAGE_DIR/frontend" -type f -exec chmod 644 {} +
+    fi
 fi
 
-echo "postfix postfix/main_mailer_type select Internet Site" | debconf-set-selections
-echo "postfix postfix/mailname string ${POSTFIX_HOSTNAME}" | debconf-set-selections
-DEBIAN_FRONTEND=noninteractive apt-get install -y postfix postfix-pcre
+python3 deploy/setup-mail.py validate-release "$BACKUP_DIR/runtime.json" "$STAGE_DIR" "$REMOTE_DIR" "$WEB_OWNER"
 
-echo "==> Backing up /etc/postfix/main.cf"
-POSTFIX_BACKUP=$(mktemp /etc/postfix/.main.cf.backup.XXXXXX)
-cp --preserve=mode,ownership,timestamps /etc/postfix/main.cf "$POSTFIX_BACKUP"
-echo "    Saved to $POSTFIX_BACKUP"
-
-echo "==> Installing accepted_domains PCRE map"
-cp "$STAGE_DIR/deploy/accepted_domains" /etc/postfix/accepted_domains
-
-echo "==> Cleaning up any duplicate keys from previous installs"
-MAIN_CF_TMP=$(mktemp /etc/postfix/.main.cf.dedup.XXXXXX)
-awk '!seen[$1]++' /etc/postfix/main.cf > "$MAIN_CF_TMP"
-chmod 644 "$MAIN_CF_TMP"
-mv "$MAIN_CF_TMP" /etc/postfix/main.cf
-MAIN_CF_TMP=""
-
-echo "==> Applying Postfix config (postconf -e, no duplicates)"
-postconf -e \
-    "myhostname = ${POSTFIX_HOSTNAME}" \
-    "mydomain = ${POSTFIX_DOMAIN}" \
-    "myorigin = \$myhostname" \
-    "inet_interfaces = all" \
-    "inet_protocols = ipv4" \
-    "mydestination = " \
-    "local_recipient_maps = " \
-    "local_transport = error:local delivery disabled" \
-    "virtual_transport = smtp:127.0.0.1:2525" \
-    "virtual_mailbox_domains = pcre:/etc/postfix/accepted_domains" \
-    "mynetworks = 127.0.0.0/8" \
-    "relay_domains = " \
-    "smtpd_recipient_restrictions = permit_mynetworks, check_policy_service inet:127.0.0.1:10030, reject"
-
-echo "==> Validating Postfix config"
-postfix check
-
-echo "==> Restarting Postfix"
-systemctl enable 'postfix@-.service'   # instance unit is enabled-runtime by default; make it permanent
-systemctl restart postfix
-systemctl status postfix --no-pager -l
-
-# ── Stalwart coexistence fix ───────────────────────────────────────────────────
-# Stalwart's default unit has Conflicts=postfix.service, which causes systemd to
-# send SIGINT to Stalwart every time Postfix starts.  Remove that conflict (the
-# port clash it guarded against is gone — Stalwart listens on 2525, not 25) and
-# add Wants=network-online.target so port binding waits for the NIC.
-
-STALWART_UNIT=/etc/systemd/system/stalwart.service
-if [ -f "$STALWART_UNIT" ]; then
-    echo "==> Patching $STALWART_UNIT (remove Conflicts=postfix, add Wants=network-online)"
-    sed -i 's/Conflicts=postfix\.service //' "$STALWART_UNIT"
-    sed -i 's/Conflicts=postfix\.service$//' "$STALWART_UNIT"
-    grep -q 'Wants=network-online.target' "$STALWART_UNIT" || \
-        sed -i '/^After=network-online.target/a Wants=network-online.target' "$STALWART_UNIT"
-    systemctl daemon-reload
-    systemctl restart stalwart
-    systemctl status stalwart --no-pager -l
+echo "==> Preparing service runtime directory"
+id tmail-policy &>/dev/null || useradd -r -s /sbin/nologin tmail-policy
+if [ ! -d "$CONFIG_DIR" ]; then
+    install -d -m 700 -o tmail-policy -g tmail-policy "$CONFIG_DIR"
 fi
 
-echo ""
-echo "==> Verifying port ownership"
-ss -tlnp | grep -E ':25|:2525' || true
+# Compare before dependency installation so unchanged runs need no package work.
+if ! bash deploy/release.sh --unchanged "$STAGE_DIR" "$REMOTE_DIR" "$WEB_OWNER"; then
+    echo "==> Preparing isolated Python dependencies"
+    python3 -m venv --copies "$STAGE_DIR/.venv"
+    "$STAGE_DIR/.venv/bin/python" -m pip install -r "$STAGE_DIR/requirements.txt"
+    chown -R root:root "$STAGE_DIR/.venv"
+    chmod -R a+rX "$STAGE_DIR/.venv"
+fi
 
-echo "==> Promoting staged release"
+echo "==> Applying only required mail configuration changes"
+python3 deploy/setup-mail.py apply "$BACKUP_DIR/runtime.json" "$BACKUP_DIR/plan.json"
+
+echo "==> Promoting and verifying staged release"
+export TMAIL_WEB_OWNER="$WEB_OWNER"
+export TMAIL_RELEASE_VERIFY="$REMOTE_DIR/deploy/setup-mail.py"
+export TMAIL_SETUP_PLAN="$BACKUP_DIR/plan.json"
 bash "$STAGE_DIR/deploy/release.sh" "$STAGE_DIR" "$REMOTE_DIR"
 STAGE_DIR=""
-
-echo ""
-echo "==> Done. Postfix on :25, Stalwart receiving on :2525."
-echo "    Test: swaks --to test@yourdomain.com --server 127.0.0.1"
-echo ""
-echo "╔══════════════════════════════════════════════════════════════════╗"
-echo "║  MANUAL STEP REQUIRED — Stalwart web UI                        ║"
-echo "║                                                                  ║"
-echo "║  Stalwart's default config requires SMTP auth on port 2525,    ║"
-echo "║  which blocks Postfix from delivering mail internally.          ║"
-echo "║                                                                  ║"
-echo "║  Fix:                                                            ║"
-echo "║  1. Open http://<server-ip>:8080/admin                         ║"
-echo "║  2. Navigate to: Settings → MTA → Inbound Sessions → AUTH      ║"
-echo "║  3. Find: Require Authentication                                ║"
-echo "║  4. Change the condition from:  local_port != 25               ║"
-echo "║                            to:  local_port == 465              ║"
-echo "║  5. Save                                                         ║"
-echo "║  6. Run: systemctl restart stalwart                             ║"
-echo "║                                                                  ║"
-echo "║  This makes auth required only on :465 (submissions), not on   ║"
-echo "║  :2525 (internal Postfix relay) or :25 (MX delivery).          ║"
-echo "╚══════════════════════════════════════════════════════════════════╝"
+echo "==> Setup verified; existing web owner preserved ($WEB_OWNER)"
