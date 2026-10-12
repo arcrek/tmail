@@ -138,12 +138,90 @@ after configuring `config.json`:
 sudo bash deploy/install.sh
 ```
 
-The installer configures Postfix and installs the service units. This route uses
-`/var/lib/tmail-policy/config.json` as mutable runtime configuration and keeps
-the release under `/opt/tmail-policy` read-only to the service. Frontend assets
-must be built and available at the configured `frontend_dist`; the installer
-does not build or copy them. Keep the systemd API disabled when Compose serves
-the web application.
+This command targets an existing, running Postfix/Stalwart host. Install Postfix
+with PCRE support and Python's venv support first; mail-server installation,
+DNS and TLS remain separate operations. Build the frontend before a systemd web
+installation. With the default `frontend_dist`, the installer stages an existing
+checkout build or preserves the installed assets; an external asset path must
+already contain a build.
+
+The [setup helper](../deploy/setup-mail.py) owns compatibility checks, scoped
+mail configuration, backups and delivery verification. It requires a loopback
+Stalwart management URL and a live SMTP listener bound only to
+`127.0.0.1:2525`; Stalwart must not be configured on port 25. Unsupported API
+responses, missing permissions, unsafe listeners and ambiguous deployment
+ownership stop setup before configuration edits. Resolve the reported condition
+instead of bypassing these checks.
+
+Existing recipient restrictions retain their order, and existing trusted networks
+are preserved. Restriction classes, access maps and other unsupported lists require
+inspection rather than automatic replacement: a policy-service `OK` must not
+bypass an existing rejection check. The [remote deploy entrypoint](../deploy/deploy.sh)
+also requires built frontend assets for systemd before promotion; Compose owns
+its frontend independently.
+
+### Setup credentials
+
+Use a separate setup credential so the running application does not need
+permission to change SMTP authentication. Put `jmap_url` and `jmap_token` in a
+root-owned, non-symlink JSON file with mode `0600`, targeting the same Stalwart
+origin as the runtime configuration. Pass its **path**, never the token, to setup:
+
+```bash
+sudo env TMAIL_STALWART_SETUP_CONFIG=/root/tmail-setup.json bash deploy/install.sh
+```
+
+The setup credential needs `sysMtaStageAuthGet`, `sysMtaStageAuthUpdate`,
+`sysNetworkListenerGet`, `sysActionCreate` and `actionReloadSettings`.
+See Stalwart's [AUTH object](https://stalw.art/docs/ref/object/mta-stage-auth/),
+[reload action](https://stalw.art/docs/ref/object/action/) and
+[permissions](https://stalw.art/docs/ref/permissions/) for their API contracts.
+Without a separate file, setup checks the runtime credential for those permissions;
+it never grants permissions automatically or copies the setup token into a release.
+Retain the setup credential until verification or recovery finishes, then revoke
+it when it is no longer needed.
+
+The runtime credential must support JMAP mail reads for verification. Setup sends
+one uniquely identified message through local Postfix to `catchall_address` and
+checks that it reaches the configured or discovered mail account. The message is
+left in that mailbox; no existing messages are removed. This proves local
+delivery, not public DNS, remote SMTP reachability or TLS.
+
+### Repeat runs and recovery
+
+The [release helper](../deploy/release.sh) preserves the detected web owner.
+Compose keeps its API and container janitor; systemd keeps its API and host
+janitor. Multiple candidate Compose APIs, simultaneous Compose/systemd ownership,
+or a stopped deployment without a clear owner require inspection. Do not run
+setup while changing the deployment topology or editing mail-server configuration.
+
+Unchanged releases skip promotion, dependency installation and service restarts.
+Mail settings are changed only where needed; the internal authentication exception
+preserves the existing rule for other connections. Python dependencies live in a
+root-owned release venv instead of modifying the host's Python packages.
+Mutable runtime configuration stays at `/var/lib/tmail-policy/config.json`.
+
+Setup prints a private `/var/backups/tmail-setup.*` recovery directory. It contains
+the runtime configuration, authentication snapshot and affected file backups;
+keep it root-only because it contains credentials. On failure, setup attempts
+recovery and refuses to overwrite detected concurrent edits. If recovery is
+incomplete, preserve both that directory and any release recovery directory named
+in the error. Release rollback preserves concurrent unit edits or deletions and
+retains its recovery data instead of overwriting an administrator's changes.
+From the same trusted checkout, with the same setup credential
+available, the mail recovery command is:
+
+```bash
+sudo env TMAIL_STALWART_SETUP_CONFIG=/root/tmail-setup.json \
+  python3 deploy/setup-mail.py restore /var/backups/tmail-setup.XXXXXX/runtime.json \
+  /var/backups/tmail-setup.XXXXXX/plan.json
+```
+
+Replace the example backup directory with the one printed by setup. This restores
+installer-owned mail changes; it does not restore a database or undo package
+installation. Follow [upgrades and rollback](#upgrades-and-rollback) for SQLite
+backup and application rollback constraints. Review and remove obsolete private
+setup backups after confirming they are no longer needed.
 
 ## Running behind Cloudflare
 
