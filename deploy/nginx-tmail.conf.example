@@ -4,6 +4,9 @@
 # Prerequisite:
 #   1. Obtain SSL certificate (e.g. via certbot certonly --nginx -d yourdomain.com)
 #   2. Run deploy/cloudflare-nginx-allowlist.sh to restrict traffic to Cloudflare IP ranges
+#   3. For Docker Compose deployments behind this HTTPS proxy, set TMAIL_HTTP_BIND=127.0.0.1,
+#      TMAIL_HTTP_PORT=8081, and TMAIL_TRUST_FORWARD_HEADERS=on in .env so the frontend
+#      container forwards X-Forwarded-Proto=https for Secure admin session cookies.
 
 server {
     listen 80;

@@ -682,3 +682,15 @@ def test_missing_frontend_stops_fresh_systemd_release_before_mutation(tmp_path):
     assert not list(systemd.iterdir())
     assert not _state_files(state, "active")
     assert not list(tmp_path.glob(".tmail-policy.backup.*"))
+
+
+def test_entrypoints_pass_web_owner_to_release_script():
+    install_script = (ROOT / "deploy" / "install.sh").read_text()
+    deploy_script = (ROOT / "deploy" / "deploy.sh").read_text()
+    assert 'bash deploy/release.sh --unchanged "$STAGE_DIR" "$REMOTE_DIR" "$WEB_OWNER"' in install_script
+    assert 'export TMAIL_WEB_OWNER="$WEB_OWNER"' in install_script
+    assert "release.sh' --unchanged '$STAGE_DIR' '$REMOTE_DIR' '$WEB_OWNER'" in deploy_script
+    assert 'release.sh" "$STAGE_DIR" "$REMOTE_DIR" "$WEB_OWNER"' in deploy_script
+
+
+

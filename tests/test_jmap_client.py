@@ -67,3 +67,42 @@ def test_provision_sends_correct_domain_name():
     create_obj = captured["payload"]["methodCalls"][0][1]["create"]["new-0"]
     assert create_obj["name"] == "example.com"
     assert create_obj["catchAllAddress"] == "admin@mail.tm-mails.com"
+
+
+def test_get_session_concurrent_threads_fetch_once():
+    import threading
+
+    barrier = threading.Barrier(4)
+    calls = 0
+
+    class FakeHttp:
+        def get(self, url, headers, timeout, follow_redirects):
+            nonlocal calls
+            calls += 1
+            return _mock_response({
+                "apiUrl": "https://api.mail.tm-mails.com/jmap/",
+                "primaryAccounts": {"urn:ietf:params:jmap:mail": "acc-1"},
+            })
+
+    client = JmapClient(
+        "https://mail.tm-mails.com/jmap/",
+        "token123",
+        "admin@mail.tm-mails.com",
+        client=FakeHttp(),
+    )
+    results = []
+
+    def worker():
+        barrier.wait(1)
+        results.append(client.discover_mail_account_id())
+
+    threads = [threading.Thread(target=worker) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(2)
+
+    assert results == ["acc-1"] * 4
+    assert calls == 1
+    assert client._api_url == "https://api.mail.tm-mails.com/jmap/"
+

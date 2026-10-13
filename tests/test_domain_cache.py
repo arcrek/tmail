@@ -334,3 +334,17 @@ def test_authoritative_replace_rejects_a_changed_generation(tmp_path):
     assert replacement.replace(["authoritative.example"], expected_generation=generation) is False
     assert replacement.domains() == ["old.example", "provisioned.example"]
     assert json.loads(path.read_text()) == ["old.example", "provisioned.example"]
+
+
+def test_load_unchanged_generation_avoids_file_lock(tmp_path, monkeypatch):
+    path = tmp_path / "domains.json"
+    path.write_text('["cached.example"]')
+    cache = DomainCache(str(path))
+    cache.load()
+    flock = MagicMock()
+    monkeypatch.setattr("src.domain_cache.fcntl.flock", flock)
+
+    cache.load()
+    flock.assert_not_called()
+    assert cache.domains() == ["cached.example"]
+

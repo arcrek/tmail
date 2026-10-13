@@ -669,3 +669,89 @@ def test_auto_sync_domains_debounced(admin_client, fake_jmap):
     assert result3 == ["new.example"]
     assert fake_jmap.list_domains.call_count == 2
 
+
+def test_concurrent_auto_sync_in_flight_debounces_peer_callers(admin_client, fake_jmap):
+    request = SimpleNamespace(app=admin_client.app)
+    admin_client.app.state.state_store.update_settings({"auto_sync_domains": True})
+    entered = threading.Event()
+    release = threading.Event()
+
+    def slow_list_domains():
+        entered.set()
+        release.wait(2)
+        return ["synced.example"]
+
+    fake_jmap.list_domains.side_effect = slow_list_domains
+    results = []
+    errors = []
+
+    def worker():
+        try:
+            results.append(admin_api.refresh_domains(request, require_auto=True))
+        except Exception as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=worker)
+    first.start()
+    assert entered.wait(1)
+
+    # Concurrent caller while first is in-flight should be debounced immediately
+    second_result = admin_api.refresh_domains(request, require_auto=True)
+    assert second_result == ["old.example"]
+    assert fake_jmap.list_domains.call_count == 1
+
+    release.set()
+    first.join(2)
+    assert not errors
+    assert results == [["synced.example"]]
+    assert fake_jmap.list_domains.call_count == 1
+
+
+def test_concurrent_rebuild_jmap_if_stale_serializes_via_jmap_lock(admin_client, monkeypatch):
+    from src import api_server
+
+    request = SimpleNamespace(app=admin_client.app)
+    created = []
+    barrier = threading.Barrier(2)
+
+    def build_jmap(url, token, catchall):
+        instance = SimpleNamespace(url=url, token=token, catchall=catchall)
+        created.append(instance)
+        return instance
+
+    monkeypatch.setattr(admin_api, "JmapClient", build_jmap)
+    admin_client.app.state.config_store.update({"jmap_url": "https://updated.example/jmap"})
+
+    def call_mail_runtime():
+        barrier.wait(1)
+        api_server.mail_runtime(request)
+
+    def call_admin_rebuild():
+        barrier.wait(1)
+        with request.app.state.admin_lock:
+            admin_api._rebuild_jmap_if_stale(request)
+
+    t1 = threading.Thread(target=call_mail_runtime)
+    t2 = threading.Thread(target=call_admin_rebuild)
+    t1.start()
+    t2.start()
+    t1.join(2)
+    t2.join(2)
+
+    assert len(created) == 1
+    assert admin_client.app.state.jmap is created[0]
+
+
+def test_refresh_domains_skips_invalid_entries_and_normalizes_trailing_dots(admin_client, fake_jmap):
+    request = SimpleNamespace(app=admin_client.app)
+    fake_jmap.list_domains.return_value = [
+        "Valid.Example.",
+        "invalid_domain_with_underscore",
+        "",
+        "Bücher.Example.",
+        "valid.example",
+    ]
+    domains = admin_api.refresh_domains(request, require_auto=False)
+    assert domains == ["valid.example", "xn--bcher-kva.example"]
+
+

@@ -111,14 +111,19 @@ def run(config_path: str) -> None:
     total_deleted = 0
 
     with httpx.Client(headers=headers) as client:
-        account_id = cfg.mail_account_id or JmapClient(
-            cfg.jmap_url, cfg.jmap_token, cfg.catchall_address, client=client
-        ).discover_mail_account_id()
+        api_url = cfg.jmap_url
+        account_id = cfg.mail_account_id
+        if not account_id:
+            jmap = JmapClient(
+                cfg.jmap_url, cfg.jmap_token, cfg.catchall_address, client=client
+            )
+            account_id = jmap.discover_mail_account_id()
+            api_url = jmap._api_url
         while True:
-            ids = _query_old_emails(client, cfg.jmap_url, account_id, before_utc)
+            ids = _query_old_emails(client, api_url, account_id, before_utc)
             if not ids:
                 break
-            deleted = _destroy_emails(client, cfg.jmap_url, account_id, ids)
+            deleted = _destroy_emails(client, api_url, account_id, ids)
             if deleted == 0:
                 raise JmapUpstreamError()
             total_deleted += deleted

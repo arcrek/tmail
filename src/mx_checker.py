@@ -7,11 +7,12 @@ class MxLookupError(Exception):
 
 
 def mx_matches(domain: str, expected_mx: str) -> bool:
+    target = expected_mx.strip().rstrip(".").lower()
     try:
         answers = dns.resolver.resolve(domain, "MX")
         for rdata in answers:
             host = rdata.exchange.to_text().rstrip(".").lower()
-            if host == expected_mx.lower():
+            if host == target:
                 return True
         return False
     except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):

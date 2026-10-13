@@ -35,6 +35,17 @@ def _domain(value: str) -> str:
     return domain
 
 
+def _safe_domain(value: object) -> str:
+    raw = str(value).strip().rstrip(".")
+    if not raw:
+        return ""
+    try:
+        return raw.encode("idna").decode("ascii").lower()
+    except UnicodeError:
+        return raw.lower()
+
+
+
 def _domain_rule(value: str) -> str:
     if isinstance(value, str) and value.startswith("*."):
         return f"*.{_domain(value[2:])}"
@@ -312,13 +323,12 @@ class MailboxAuth:
 def active_domains(cache_file: str | DomainCache, state) -> list[str]:
     settings = state.get_settings()
     manual = settings.get("manual_domains", [])
-    source = state.get_frozen_domains()
     if settings["auto_sync_domains"]:
         cache = cache_file if isinstance(cache_file, DomainCache) else DomainCache(cache_file)
         cache.load()
-        cached = cache.domains()
-        if cached:
-            source = cached
+        source = cache.domains() or state.get_frozen_domains()
+    else:
+        source = state.get_frozen_domains()
     domains = []
     for value in [*source, *manual]:
         try:

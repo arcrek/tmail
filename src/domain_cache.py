@@ -37,7 +37,10 @@ class DomainCache:
             return None
 
     def load(self) -> None:
+        current_generation = self._file_generation()
         with self._lock:
+            if current_generation == self._generation:
+                return
             try:
                 with self._file_locked():
                     domains = self._read()

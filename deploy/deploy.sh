@@ -67,10 +67,10 @@ ssh "$SERVER" "if [ -d '$STAGE_DIR/frontend' ]; then chown -R root:root '$STAGE_
 ssh "$SERVER" python3 "$STAGE_DIR/deploy/setup-mail.py" validate-release "$STAGE_DIR/config.json" "$STAGE_DIR" "$REMOTE_DIR" "$WEB_OWNER"
 
 echo "==> Preparing Python dependencies"
-ssh "$SERVER" "if ! bash '$STAGE_DIR/deploy/release.sh' --unchanged '$STAGE_DIR' '$REMOTE_DIR'; then python3 -m venv --copies '$STAGE_DIR/.venv' && '$STAGE_DIR/.venv/bin/python' -m pip install -r '$STAGE_DIR/requirements.txt' && chown -R root:root '$STAGE_DIR/.venv' && chmod -R a+rX '$STAGE_DIR/.venv'; fi"
+ssh "$SERVER" "if ! bash '$STAGE_DIR/deploy/release.sh' --unchanged '$STAGE_DIR' '$REMOTE_DIR' '$WEB_OWNER'; then python3 -m venv --copies '$STAGE_DIR/.venv' && '$STAGE_DIR/.venv/bin/python' -m pip install -r '$STAGE_DIR/requirements.txt' && chown -R root:root '$STAGE_DIR/.venv' && chmod -R a+rX '$STAGE_DIR/.venv'; fi"
 
 echo "==> Promoting staged release"
-ssh "$SERVER" bash "$STAGE_DIR/deploy/release.sh" "$STAGE_DIR" "$REMOTE_DIR"
+ssh "$SERVER" bash "$STAGE_DIR/deploy/release.sh" "$STAGE_DIR" "$REMOTE_DIR" "$WEB_OWNER"
 
 STAGE_DIR=""
 echo "==> Deployment complete"

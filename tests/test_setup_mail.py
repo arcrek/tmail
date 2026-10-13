@@ -417,3 +417,13 @@ def test_root_reads_mutable_runtime_config_as_service_user(monkeypatch, tmp_path
     monkeypatch.setattr(setup, "run", read)
     assert setup.read_config(tmp_path / "config.json") == {"frontend_dist": "assets"}
     assert calls == [("runuser", "-u", "tmail-policy", "--", "cat", "--", str(tmp_path / "config.json"))]
+
+
+def test_apply_resolves_accepted_domains_from_script_dir_outside_repo_cwd(monkeypatch, tmp_path):
+    outside = tmp_path / "outside-cwd"
+    outside.mkdir()
+    monkeypatch.chdir(outside)
+    test_real_file_transaction_preserves_unrelated_lines_and_is_repeatable(monkeypatch, tmp_path, False)
+    assert (tmp_path / "host/etc/postfix/accepted_domains").exists()
+
+

@@ -156,3 +156,25 @@ def test_invalid_destroy_result(upstream, data):
     _, responses, config = upstream
     responses.extend([envelope("Email/query", ids=["a"]), envelope("Email/set", **data)])
     with pytest.raises(JmapUpstreamError): email_janitor.run(str(config))
+
+
+def test_discovery_uses_session_api_url_for_queries_and_destroys(upstream):
+    requests, responses, config = upstream
+    data = json.loads(config.read_text())
+    data["mail_account_id"] = ""
+    config.write_text(json.dumps(data))
+    responses.extend([
+        {
+            "apiUrl": "https://api.mail.example/jmap/v1",
+            "primaryAccounts": {"urn:ietf:params:jmap:mail": "mail-account"},
+        },
+        envelope("Email/query", ids=["m1"]),
+        envelope("Email/set", destroyed=["m1"]),
+        envelope("Email/query", ids=[]),
+    ])
+
+    email_janitor.run(str(config))
+
+    post_urls = [str(req.url) for req in requests if req.method == "POST"]
+    assert post_urls == ["https://api.mail.example/jmap/v1"] * 3
+

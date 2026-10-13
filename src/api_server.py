@@ -35,6 +35,8 @@ from src.api_auth import (
     PasswordServiceError,
     _domain,
     _domain_matches_rule,
+    _safe_domain,
+    _token_address,
     active_domains,
     mailbox_operation,
     normalize_address,
@@ -71,6 +73,7 @@ _STREAM_SLOTS = threading.BoundedSemaphore(8)
 _STREAM_AUTH_SLOTS = threading.BoundedSemaphore(8)
 _STREAM_AUTH_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix="stream-auth")
 _STREAM_TICK = 5.0
+_STREAM_AUTH_TIMEOUT = 5.0
 _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 _SPA_RESERVED = {
     "accounts", "admin", "api", "assets", "docs", "domains", "favicon.ico", "me",
@@ -419,6 +422,10 @@ def _message_belongs_to_address(
 ) -> bool:
     if not isinstance(message, dict):
         return False
+    try:
+        expected = _token_address(address)
+    except (AddressValidationError, ValueError):
+        return False
     recipients = []
     for field in ("to", "cc", "bcc", "header:Delivered-To:asAddresses"):
         recipients.extend(message.get(field) or [])
@@ -427,9 +434,9 @@ def _message_belongs_to_address(
         if value is None:
             continue
         try:
-            if _address(request, value, config, elevated=elevated) == address:
+            if _token_address(value) == expected:
                 return True
-        except AddressValidationError:
+        except (AddressValidationError, ValueError):
             pass
     return False
 
@@ -463,8 +470,8 @@ def _emails(values: object) -> list[EmailAddress]:
 def _sender(message: dict, blocked_domains: set[str]) -> EmailAddress:
     senders = _emails(message.get("from"))
     sender = senders[0] if senders else EmailAddress(name="", address="unknown@invalid")
-    domain = sender.address.rpartition("@")[2].encode("idna").decode("ascii").lower()
-    if domain in blocked_domains:
+    domain = _safe_domain(sender.address.rpartition("@")[2]) if "@" in sender.address else ""
+    if domain and domain in blocked_domains:
         return EmailAddress(name="Blocked sender", address="blocked@invalid")
     return sender
 
@@ -777,7 +784,7 @@ def register_public_routes(app: FastAPI) -> None:
         limit = int(settings["message_limit"])
         account_id = mail_account_id(config, jmap)
         total, values = jmap.list_messages(account_id, address, limit, (page - 1) * limit)
-        blocked = {str(value).encode("idna").decode("ascii").lower() for value in settings["blocked_sender_domains"]}
+        blocked = {_safe_domain(value) for value in settings["blocked_sender_domains"]}
         owned = [
             value for value in values
             if _message_belongs_to_address(request, address, value, config, elevated=elevated)
@@ -825,7 +832,7 @@ def register_public_routes(app: FastAPI) -> None:
             pending = asyncio.wrap_future(future)
             pending.add_done_callback(lambda done: None if done.cancelled() else done.exception())
             try:
-                current = await asyncio.wait_for(asyncio.shield(pending), _STREAM_TICK)
+                current = await asyncio.wait_for(asyncio.shield(pending), _STREAM_AUTH_TIMEOUT)
                 return current["address"] == access["address"]
             except Exception:
                 return False
@@ -888,7 +895,7 @@ def register_public_routes(app: FastAPI) -> None:
         config, jmap = mail_runtime(request)
         account_id, value = message_for_address(request, address, message_id, config, jmap, elevated=elevated)
         settings = request.app.state.state_store.get_settings()
-        blocked = {str(item).encode("idna").decode("ascii").lower() for item in settings["blocked_sender_domains"]}
+        blocked = {_safe_domain(item) for item in settings["blocked_sender_domains"]}
         return _message(value, account_id, blocked)
 
     @app.patch("/messages/{message_id}", response_model=SeenPatch, responses=_ERROR_RESPONSES)
@@ -1108,7 +1115,7 @@ def create_app(config_path: str) -> FastAPI:
     app.state.domain_cache = DomainCache(cfg.cache_file)
     app.state.domain_cache.load()
     app.state.admin_lock = threading.Lock()
-    app.state.jmap_lock = threading.Lock()
+    app.state.jmap_lock = threading.RLock()
 
     limiter = _FixedWindowLimiter(limit=10, seconds=60)
     logging.getLogger(__name__).warning(
@@ -1261,7 +1268,7 @@ def create_app(config_path: str) -> FastAPI:
 
 
 def _set_security_headers(request: Request, response: Response) -> None:
-    if request.url.path.split("/")[1] in {"accounts", "token", "me", "messages", "sources", "unlock", "lock", "admin"}:
+    if request.url.path.split("/")[1] in {"accounts", "token", "me", "messages", "sources", "unlock", "lock", "admin", "domains"}:
         response.headers["Cache-Control"] = "no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"

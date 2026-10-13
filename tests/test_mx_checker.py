@@ -36,3 +36,10 @@ def test_returns_true_when_one_of_multiple_mx_matches():
             _make_rdata("mail.tm-mails.com"),
         ]
         assert mx_matches("newdomain.com", "mail.tm-mails.com") is True
+
+
+def test_strips_trailing_dot_and_whitespace_from_expected_mx():
+    with patch("src.mx_checker.dns.resolver.resolve") as mock:
+        mock.return_value = [_make_rdata("mail.tm-mails.com")]
+        assert mx_matches("newdomain.com", "  MAIL.TM-MAILS.COM. ") is True
+

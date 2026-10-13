@@ -3,6 +3,7 @@ from collections.abc import Iterator
 from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
 import logging
+import threading
 from urllib.parse import quote, urlsplit, urlunsplit
 
 import httpx
@@ -77,6 +78,7 @@ class JmapClient:
         self._client = client or httpx
         self._session = None
         self._api_url = url
+        self._session_lock = threading.Lock()
 
     def _call(self, method_calls: list, using: list[str]) -> list:
         try:
@@ -108,27 +110,28 @@ class JmapClient:
         return method_responses
 
     def _get_session(self) -> dict:
-        if self._session is None:
-            parts = urlsplit(self._url)
-            well_known = urlunsplit((parts.scheme, parts.netloc, "/.well-known/jmap", "", ""))
-            for url in dict.fromkeys((self._url, well_known)):
-                try:
-                    response = self._client.get(
-                        url, headers=self._headers, timeout=30, follow_redirects=True
-                    )
-                    response.raise_for_status()
-                    payload = response.json()
-                except Exception:
-                    continue
-                if isinstance(payload, dict):
-                    self._session = payload
-                    api_url = payload.get("apiUrl")
-                    if isinstance(api_url, str) and api_url:
-                        self._api_url = api_url
-                    break
+        with self._session_lock:
             if self._session is None:
-                raise JmapUpstreamError()
-        return self._session
+                parts = urlsplit(self._url)
+                well_known = urlunsplit((parts.scheme, parts.netloc, "/.well-known/jmap", "", ""))
+                for url in dict.fromkeys((self._url, well_known)):
+                    try:
+                        response = self._client.get(
+                            url, headers=self._headers, timeout=30, follow_redirects=True
+                        )
+                        response.raise_for_status()
+                        payload = response.json()
+                    except Exception:
+                        continue
+                    if isinstance(payload, dict):
+                        self._session = payload
+                        api_url = payload.get("apiUrl")
+                        if isinstance(api_url, str) and api_url:
+                            self._api_url = api_url
+                        break
+                if self._session is None:
+                    raise JmapUpstreamError()
+            return self._session
 
     def provision_domain(self, domain: str) -> bool:
         method_calls = [[

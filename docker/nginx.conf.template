@@ -9,6 +9,11 @@ map "${TMAIL_TRUST_FORWARD_HEADERS}:$http_x_forwarded_proto" $tmail_forwarded_pr
     "on:https" https;
 }
 
+map $http_host $tmail_safe_host {
+    default "localhost";
+    "~^[A-Za-z0-9.-]+(?::[0-9]{1,5})?$" $http_host;
+}
+
 server {
     listen 80;
     server_name _;
@@ -19,6 +24,10 @@ server {
     location ^~ /assets/ {
         try_files $uri =404;
         add_header Cache-Control "public, max-age=31536000, immutable";
+        add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; frame-src 'self'; frame-ancestors 'none'" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
     }
 
     location = /messages/stream {
@@ -48,7 +57,10 @@ server {
         if ($http_accept ~* "text/markdown") {
             return 418;
         }
-        sub_filter '__BASE_URL__' '$tmail_forwarded_proto://$http_host';
+        if ($uri !~ "^/(?:$|index\.html$|favicon\.ico$|admin$|[^/@]+@[^/@]+$)") {
+            return 418;
+        }
+        sub_filter '__BASE_URL__' '$tmail_forwarded_proto://$tmail_safe_host';
         sub_filter_once off;
         sub_filter_types text/html;
         try_files $uri /index.html;

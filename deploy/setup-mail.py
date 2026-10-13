@@ -395,7 +395,7 @@ def prepare_files(config, plan, plan_path):
     if changes:
         run("postconf", "-c", str(directory), "-e", *changes)
     desired = {main: (directory / "main.cf").read_bytes(),
-               Path("/etc/postfix/accepted_domains"): Path("deploy/accepted_domains").read_bytes()}
+               Path("/etc/postfix/accepted_domains"): Path(__file__).resolve().with_name("accepted_domains").read_bytes()}
     domain_map = Path("/etc/postfix/accepted_domains")
     if domain_map.exists() and domain_map.read_bytes() != desired[domain_map]:
         raise SetupError("Custom accepted_domains map requires inspection before setup")
