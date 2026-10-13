@@ -900,3 +900,62 @@ def test_missing_token_domain_does_not_query_stalwart_when_auto_sync_is_off(clie
 
     assert response.status_code == 422
     fake_jmap.list_domains.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "sender_email,expected_address",
+    [
+        ("user@", "user@"),
+        ("no-at-symbol", "no-at-symbol"),
+        ("user@a..b", "user@a..b"),
+        ("user@.example.com", "user@.example.com"),
+        ("user@bücher.example.", "blocked@invalid"),
+    ],
+)
+def test_messages_and_detail_handle_malformed_and_idn_sender_domains(
+    client, bearer, fake_jmap, sender_email, expected_address
+):
+    client.app.state.state_store.update_settings(
+        {"blocked_sender_domains": ["xn--bcher-kva.example.", "a..b.invalid"]}
+    )
+    msg = dict(MESSAGE)
+    msg["from"] = [{"name": "Sender", "email": sender_email}]
+    fake_jmap.list_messages.return_value = (1, [msg])
+    fake_jmap.get_message.return_value = msg
+
+    list_resp = client.get("/messages", headers=bearer)
+    assert list_resp.status_code == 200
+    assert list_resp.json()["hydra:member"][0]["from"]["address"] == expected_address
+
+    detail_resp = client.get("/messages/m1", headers=bearer)
+    assert detail_resp.status_code == 200
+    assert detail_resp.json()["from"]["address"] == expected_address
+
+
+def test_messages_external_recipient_does_not_trigger_domain_auto_sync(client, bearer, fake_jmap):
+    msg = dict(MESSAGE)
+    msg["to"] = [
+        {"name": "External", "email": "friend@gmail.com"},
+        {"name": "Box", "email": "box@example.com"},
+    ]
+    fake_jmap.list_messages.return_value = (1, [msg])
+    fake_jmap.list_domains.reset_mock()
+
+    response = client.get("/messages", headers=bearer)
+
+    assert response.status_code == 200
+    assert response.json()["hydra:totalItems"] == 1
+    fake_jmap.list_domains.assert_not_called()
+
+
+def test_domains_endpoints_set_cache_control_no_store(client):
+    collection = client.get("/domains")
+    assert collection.status_code == 200
+    assert collection.headers.get("cache-control") == "no-store"
+
+    domain_id = collection.json()["hydra:member"][0]["id"]
+    detail = client.get(f"/domains/{domain_id}")
+    assert detail.status_code == 200
+    assert detail.headers.get("cache-control") == "no-store"
+
+

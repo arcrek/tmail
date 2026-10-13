@@ -257,3 +257,66 @@ def test_backup_failure_aborts_migration(tmp_path, monkeypatch):
     with sqlite3.connect(path) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 0
         assert not conn.execute("SELECT name FROM sqlite_master WHERE name='mailbox_security'").fetchone()
+
+
+def test_admin_access_and_activity_pruning_and_injected_clock(tmp_path):
+    now = NOW
+    store = StateStore(str(tmp_path / "state.db"), clock=lambda: now)
+    expired = (now - timedelta(days=2)).isoformat()
+    stale_activity = (now - timedelta(days=31)).isoformat()
+
+    with sqlite3.connect(store.path) as conn:
+        index_names = {
+            row[0]
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='index'")
+        }
+        assert {
+            "admin_sessions_expires_at",
+            "access_sessions_expires_at",
+            "activity_kind_created_at",
+            "activity_kind_id",
+        }.issubset(index_names)
+
+        conn.executemany(
+            "INSERT INTO admin_sessions (token_hash, csrf_token, expires_at) VALUES (?, ?, ?)",
+            [(f"adm-{i}", "csrf", expired) for i in range(130)],
+        )
+        conn.executemany(
+            "INSERT INTO access_sessions (token_hash, expires_at) VALUES (?, ?)",
+            [(f"acc-{i}", expired) for i in range(130)],
+        )
+        conn.execute(
+            "INSERT INTO activity (kind, domain, detail, created_at) VALUES (?, ?, ?, ?)",
+            ("sync_success", None, "2 domains", stale_activity),
+        )
+        conn.execute(
+            "INSERT INTO activity (kind, domain, detail, created_at) VALUES (?, ?, ?, ?)",
+            ("sync_failure", None, "TimeoutError", stale_activity),
+        )
+        conn.executemany(
+            "INSERT INTO activity (kind, domain, detail, created_at) VALUES (?, ?, ?, ?)",
+            [("domain_provisioned", f"d{i}.example", None, stale_activity) for i in range(120)],
+        )
+
+    assert store.get_admin_session("missing", now) is None
+    assert store.get_access_session("missing", now) is False
+    store.record_event("domain_provisioned", "fresh.example")
+
+    with sqlite3.connect(store.path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM admin_sessions").fetchone()[0] == 30
+        assert conn.execute("SELECT COUNT(*) FROM access_sessions").fetchone()[0] == 30
+        # 120 stale domain_provisioned - 100 pruned + 2 preserved sync rows + 1 fresh row = 23
+        assert conn.execute("SELECT COUNT(*) FROM activity").fetchone()[0] == 23
+
+    history = store.sync_history()
+    assert history["lastSuccessfulSync"]["detail"] == "2 domains"
+    assert history["lastSyncError"]["detail"] == "TimeoutError"
+
+    summary = store.activity_summary()
+    assert summary["domainsToday"] == 1
+    assert summary["domainsSevenDays"] == 1
+    assert summary["recentDomains"][0] == {
+        "domain": "fresh.example",
+        "created_at": now.isoformat(),
+    }
+

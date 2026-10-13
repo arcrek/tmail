@@ -5,6 +5,7 @@ import socketserver
 import sys
 import threading
 
+from src.api_auth import AddressValidationError, _domain
 from src.api_state import StateStore
 from src.config import ConfigStore
 from src.domain_cache import DomainCache
@@ -39,57 +40,87 @@ def _runtime():
         return config, _jmap
 
 
+def _normalize_policy_domain(value: str) -> str:
+    raw = value.strip().rstrip(".")
+    if not raw:
+        return ""
+    try:
+        return _domain(raw)
+    except AddressValidationError:
+        return ""
+
+
 class PolicyHandler(socketserver.StreamRequestHandler):
     def handle(self) -> None:
-        config, jmap = _runtime()
-        attrs = {}
-        for raw in self.rfile:
-            line = raw.decode(errors="replace").strip()
-            if not line:
-                break
-            if "=" in line:
-                k, v = line.split("=", 1)
-                attrs[k.strip()] = v.strip()
+        sock = getattr(self, "request", None)
+        if sock is not None and hasattr(sock, "settimeout"):
+            sock.settimeout(30.0)
 
-        recipient = attrs.get("recipient", "")
-        domain = recipient.split("@")[-1].lower() if "@" in recipient else ""
+        while True:
+            attrs = {}
+            saw_line = False
+            try:
+                for raw in self.rfile:
+                    saw_line = True
+                    line = raw.decode(errors="replace").strip()
+                    if not line:
+                        break
+                    if "=" in line:
+                        k, v = line.split("=", 1)
+                        attrs[k.strip()] = v.strip()
+            except OSError:
+                return
 
-        if not domain:
-            self.wfile.write(b"action=REJECT Invalid recipient\n\n")
-            return
+            if not saw_line:
+                return
 
-        if _cache.contains(domain):
-            self.wfile.write(b"action=OK\n\n")
-            return
+            config, jmap = _runtime()
+            recipient = attrs.get("recipient", "")
+            domain = (
+                _normalize_policy_domain(recipient.rpartition("@")[2])
+                if "@" in recipient
+                else ""
+            )
 
-        try:
-            if mx_matches(domain, config.mx_hostname):
-                ok = jmap.provision_domain(domain)
-                if ok:
-                    _cache.add(domain)
+            if not domain:
+                self.wfile.write(b"action=REJECT Invalid recipient\n\n")
+                continue
+
+            if _cache.contains(domain):
+                self.wfile.write(b"action=OK\n\n")
+                continue
+
+            try:
+                if mx_matches(domain, config.mx_hostname):
+                    ok = jmap.provision_domain(domain)
+                    if ok:
+                        try:
+                            _cache.add(domain)
+                        except OSError as exc:
+                            logger.warning("Cache write failed for %s: %s", domain, exc)
+                        try:
+                            _state.record_event("domain_provisioned", domain)
+                        except Exception as exc:
+                            logger.warning("Metric write failed for %s: %s", domain, exc)
+                        logger.info("Provisioned: %s", domain)
+                        self.wfile.write(b"action=OK\n\n")
+                    else:
+                        logger.error("JMAP provision failed: %s", domain)
+                        self.wfile.write(b"action=DEFER_IF_PERMIT Service temporarily unavailable\n\n")
+                else:
+                    logger.debug("MX mismatch, rejecting: %s", domain)
                     try:
-                        _state.record_event("domain_provisioned", domain)
+                        _state.record_event("mx_mismatch", domain)
                     except Exception as exc:
                         logger.warning("Metric write failed for %s: %s", domain, exc)
-                    logger.info("Provisioned: %s", domain)
-                    self.wfile.write(b"action=OK\n\n")
-                else:
-                    logger.error("JMAP provision failed: %s", domain)
-                    self.wfile.write(b"action=DEFER_IF_PERMIT Service temporarily unavailable\n\n")
-            else:
-                logger.debug("MX mismatch, rejecting: %s", domain)
+                    self.wfile.write(b"action=REJECT\n\n")
+            except MxLookupError as exc:
+                logger.warning("DNS transient error for %s: %s", domain, exc)
                 try:
-                    _state.record_event("mx_mismatch", domain)
-                except Exception as exc:
-                    logger.warning("Metric write failed for %s: %s", domain, exc)
-                self.wfile.write(b"action=REJECT\n\n")
-        except MxLookupError as exc:
-            logger.warning("DNS transient error for %s: %s", domain, exc)
-            try:
-                _state.record_event("mx_lookup_error", domain, detail=str(exc))
-            except Exception as inner:
-                logger.warning("Metric write failed for %s: %s", domain, inner)
-            self.wfile.write(b"action=DEFER_IF_PERMIT DNS lookup failed, try again later\n\n")
+                    _state.record_event("mx_lookup_error", domain, detail=str(exc))
+                except Exception as inner:
+                    logger.warning("Metric write failed for %s: %s", domain, inner)
+                self.wfile.write(b"action=DEFER_IF_PERMIT DNS lookup failed, try again later\n\n")
 
 
 def main() -> None:
@@ -111,8 +142,14 @@ def main() -> None:
         existing = []
         logger.warning("Could not pre-load domains from Stalwart; retaining cache")
     if existing:
-        _cache.add_many(existing)
-        logger.info("Pre-loaded %d domains from Stalwart", len(existing))
+        valid_existing = [
+            normalized
+            for item in existing
+            if isinstance(item, str) and (normalized := _normalize_policy_domain(item))
+        ]
+        if valid_existing:
+            _cache.add_many(valid_existing)
+            logger.info("Pre-loaded %d domains from Stalwart", len(valid_existing))
 
     socketserver.ThreadingTCPServer.allow_reuse_address = True
     server = socketserver.ThreadingTCPServer(

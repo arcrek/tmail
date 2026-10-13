@@ -187,3 +187,33 @@ def test_older_policy_read_cannot_reinstall_stale_jmap(monkeypatch):
     assert not errors
     assert not older.is_alive() and not newer.is_alive()
     assert pd._jmap.url == "https://newer.example/jmap"
+
+
+def test_policy_normalizes_idn_and_trailing_dot_and_survives_cache_write_oserror():
+    cache, jmap, _state = _setup()
+    cache.add.side_effect = OSError("read-only cache")
+    h = _handler(["recipient=user@Bücher.Example."])
+    h.request = MagicMock()
+    with patch("src.policy_daemon.mx_matches", return_value=True) as mx_mock:
+        h.handle()
+    h.request.settimeout.assert_called_once_with(30.0)
+    mx_mock.assert_called_once_with("xn--bcher-kva.example", "mail.tm-mails.com")
+    jmap.provision_domain.assert_called_once_with("xn--bcher-kva.example")
+    assert h.wfile.getvalue() == b"action=OK\n\n"
+
+
+def test_policy_handles_multiple_requests_on_persistent_connection_and_rejects_malformed_domain():
+    _cache, _jmap, _state = _setup(known={"example.com"})
+    raw = (
+        b"recipient=user@example.com.\n\n"
+        b"recipient=user@invalid_domain\n\n"
+    )
+    h = pd.PolicyHandler.__new__(pd.PolicyHandler)
+    h.rfile = io.BytesIO(raw)
+    h.wfile = io.BytesIO()
+    h.handle()
+    assert h.wfile.getvalue() == (
+        b"action=OK\n\n"
+        b"action=REJECT Invalid recipient\n\n"
+    )
+

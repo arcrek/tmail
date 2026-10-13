@@ -55,15 +55,17 @@ def _rebuild_jmap_if_stale(request: Request) -> tuple[Config, JmapClient]:
     ConfigStore hot-reloads config.json on every read, but the JmapClient instance held in
     app.state does not track that on its own — mirrors policy_daemon._runtime()'s fingerprint
     check so a config.json edit (not just a PUT /admin/api/settings save) takes effect without
-    a process restart. Caller must hold request.app.state.admin_lock.
+    a process restart. Synchronized via request.app.state.jmap_lock.
     """
     state = request.app.state
-    config = state.config_store.get()
-    fingerprint = (config.jmap_url, config.jmap_token, config.catchall_address)
-    if state.jmap_fingerprint != fingerprint:
-        state.jmap = JmapClient(*fingerprint)
-        state.jmap_fingerprint = fingerprint
-    return config, state.jmap
+    lock = getattr(state, "jmap_lock", state.admin_lock)
+    with lock:
+        config = state.config_store.get()
+        fingerprint = (config.jmap_url, config.jmap_token, config.catchall_address)
+        if state.jmap_fingerprint != fingerprint:
+            state.jmap = JmapClient(*fingerprint)
+            state.jmap_fingerprint = fingerprint
+        return config, state.jmap
 
 
 def _camel(key: str) -> str:
@@ -405,17 +407,26 @@ def refresh_domains(request: Request, *, require_auto: bool = False) -> list[str
                 with request.app.state.admin_lock:
                     if not state.get_settings()["auto_sync_domains"]:
                         return _active_domains(request)
-                    now = time.monotonic()
-                    last_sync = getattr(request.app.state, "_last_auto_sync_time", None)
-                    if last_sync is not None and now - last_sync < _AUTO_SYNC_DEBOUNCE_SECONDS:
-                        return _active_domains(request)
+                    if _attempt == 0:
+                        now = time.monotonic()
+                        last_sync = getattr(request.app.state, "_last_auto_sync_time", None)
+                        if last_sync is not None and now - last_sync < _AUTO_SYNC_DEBOUNCE_SECONDS:
+                            return _active_domains(request)
+                        request.app.state._last_auto_sync_time = now
                     _config, jmap = _rebuild_jmap_if_stale(request)
                 values = jmap.list_domains()
             else:
                 values = jmap.list_domains()
-            if not values:
+            if not values or not isinstance(values, list):
                 raise ValueError("Stalwart returned no domains")
-            domains = _list(values, "domains", _domain)
+            domains: list[str] = []
+            for item in values:
+                if isinstance(item, str):
+                    try:
+                        domains.append(_domain(item.strip().rstrip(".")))
+                    except AddressValidationError:
+                        pass
+            domains = list(dict.fromkeys(domains))
             if not domains:
                 raise ValueError("Stalwart returned no valid domains")
             with request.app.state.admin_lock:

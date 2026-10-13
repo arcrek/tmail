@@ -138,6 +138,14 @@ class StateStore:
                   ON mailbox_sessions(expires_at);
                 CREATE INDEX IF NOT EXISTS mailbox_sessions_address
                   ON mailbox_sessions(address);
+                CREATE INDEX IF NOT EXISTS admin_sessions_expires_at
+                  ON admin_sessions(expires_at);
+                CREATE INDEX IF NOT EXISTS access_sessions_expires_at
+                  ON access_sessions(expires_at);
+                CREATE INDEX IF NOT EXISTS activity_kind_created_at
+                  ON activity(kind, created_at);
+                CREATE INDEX IF NOT EXISTS activity_kind_id
+                  ON activity(kind, id DESC);
         """
         for statement in schema.split(";"):
             if statement.strip():
@@ -353,6 +361,12 @@ class StateStore:
 
     def get_admin_session(self, token_hash: str, now: datetime) -> dict[str, object] | None:
         with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM admin_sessions WHERE token_hash IN "
+                "(SELECT token_hash FROM admin_sessions WHERE expires_at <= ? "
+                "ORDER BY expires_at LIMIT 100)",
+                (now.isoformat(),),
+            )
             row = conn.execute(
                 "SELECT token_hash, csrf_token, expires_at FROM admin_sessions WHERE token_hash = ?",
                 (token_hash,),
@@ -402,6 +416,12 @@ class StateStore:
 
     def get_access_session(self, token_hash: str, now: datetime) -> bool:
         with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM access_sessions WHERE token_hash IN "
+                "(SELECT token_hash FROM access_sessions WHERE expires_at <= ? "
+                "ORDER BY expires_at LIMIT 100)",
+                (now.isoformat(),),
+            )
             row = conn.execute(
                 "SELECT expires_at FROM access_sessions WHERE token_hash = ?", (token_hash,)
             ).fetchone()
@@ -415,10 +435,20 @@ class StateStore:
             conn.execute("DELETE FROM access_sessions WHERE token_hash = ?", (token_hash,))
 
     def record_event(self, kind: str, domain: str | None = None, detail: str | None = None) -> None:
+        now = self.clock()
+        cutoff = (now - timedelta(days=30)).isoformat()
         with self._connect() as conn:
             conn.execute(
                 "INSERT INTO activity (kind, domain, detail, created_at) VALUES (?, ?, ?, ?)",
-                (kind, domain, detail, datetime.now(timezone.utc).isoformat()),
+                (kind, domain, detail, now.isoformat()),
+            )
+            conn.execute(
+                "DELETE FROM activity WHERE id IN ("
+                "SELECT id FROM activity WHERE created_at < ? AND id NOT IN ("
+                "SELECT MAX(id) FROM activity WHERE kind IN ('sync_success', 'sync_failure') GROUP BY kind"
+                ") ORDER BY id LIMIT 100"
+                ")",
+                (cutoff,),
             )
 
     def record_sync(self, success: bool, detail: str) -> None:
@@ -447,7 +477,7 @@ class StateStore:
         }
 
     def activity_summary(self) -> dict[str, object]:
-        now = datetime.now(timezone.utc)
+        now = self.clock()
         today = now.date().isoformat()
         seven_days = (now - timedelta(days=7)).isoformat()
         with self._connect() as conn:

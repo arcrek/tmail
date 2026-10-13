@@ -138,3 +138,32 @@ def test_nested_mailbox_routes_reach_api_instead_of_spa():
     assert not re.match(pattern, "/meet")
     vite = (ROOT / "frontend/vite.config.ts").read_text()
     assert "'/me': proxy" in vite and "'/admin/api': proxy" in vite
+
+
+def test_requirements_dev_does_not_reference_bogus_httpx2():
+    req_dev = (ROOT / "requirements-dev.txt").read_text()
+    assert "httpx2" not in req_dev
+    assert "-r requirements.txt" in req_dev
+
+
+def test_nginx_validates_host_adds_asset_security_headers_and_forwards_non_mailbox_paths():
+    import re
+
+    nginx = (ROOT / "docker/nginx.conf.template").read_text()
+    assert "map $http_host $tmail_safe_host" in nginx
+    assert "sub_filter '__BASE_URL__' '$tmail_forwarded_proto://$tmail_safe_host';" in nginx
+
+    assets_block = re.search(r"location \^~ /assets/ \{([^}]+)\}", nginx).group(1)
+    for header in (
+        'X-Frame-Options "DENY" always;',
+        'X-Content-Type-Options "nosniff" always;',
+        'Referrer-Policy "no-referrer" always;',
+    ):
+        assert header in assets_block
+
+    spa_guard = re.search(r'if \(\$uri !~ "([^"]+)"\)', nginx).group(1)
+    for spa_path in ("/", "/index.html", "/favicon.ico", "/admin", "/box@example.com"):
+        assert re.search(spa_guard, spa_path), spa_path
+    for non_spa_path in ("/settings", "/meet", "/@", "/a@@b", "/foo/bar"):
+        assert not re.search(spa_guard, non_spa_path), non_spa_path
+

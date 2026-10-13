@@ -521,6 +521,7 @@ def test_sse_authorization_timeout_and_disconnect_retain_worker_capacity(client,
     monkeypatch.setattr(api_server, "_STREAM_AUTH_SLOTS", slots)
     monkeypatch.setattr(api_server, "_STREAM_AUTH_POOL", pool)
     monkeypatch.setattr(api_server, "_STREAM_TICK", .02)
+    monkeypatch.setattr(api_server, "_STREAM_AUTH_TIMEOUT", .02)
     started = threading.Event()
     release = threading.Event()
     calls = 0
