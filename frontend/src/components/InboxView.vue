@@ -480,7 +480,7 @@ onBeforeUnmount(() => {
           :disabled="refreshing"
           @click="refresh"
         >
-          <AppIcon name="refresh-cw" />
+          <AppIcon name="refresh-cw" :class="{ spinning: refreshing }" />
           {{ refreshing ? t('inbox.refreshing') : t('inbox.refresh') }}
         </button>
         <button
@@ -491,7 +491,7 @@ onBeforeUnmount(() => {
           aria-controls="inbox-create-address"
           @click="createExpanded = !createExpanded"
         >
-          <AppIcon :name="createExpanded ? 'x' : 'plus'" />
+          <AppIcon :name="createExpanded ? 'x' : 'mail-plus'" />
           {{ t('inbox.new') }}
         </button>
         <button
@@ -521,7 +521,7 @@ onBeforeUnmount(() => {
           :disabled="notificationPermission === 'granted'"
           @click="enableNotifications"
         >
-          <AppIcon name="bell" />
+          <AppIcon :name="notificationPermission === 'granted' ? 'bell-ring' : 'bell'" />
           {{ notificationPermission === 'granted' ? t('inbox.notificationsOn') : t('inbox.enableNotifications') }}
         </button>
       </div>
@@ -530,8 +530,14 @@ onBeforeUnmount(() => {
         <p v-if="session.accessKind === 'admin'">{{ t('password.admin') }}</p>
         <p v-if="session.protectedUntil">{{ t('password.deadline', { date: localDate(session.protectedUntil, { dateStyle: 'long', timeStyle: 'short' }) }) }}</p>
         <p v-else-if="!session.protected">{{ t('password.public') }}</p>
-        <button class="secondary-button" type="button" data-action="password" :disabled="accessInvalid" @click="emit('manage')">{{ !session.protected ? t('password.set') : session.accessKind === 'admin' ? t('password.reset') : t('password.change') }}</button>
-        <button v-if="session.accessKind === 'visitor' || session.accessKind === 'admin'" class="text-button" type="button" data-action="mailbox-logout" @click="emit('logout')">{{ t('password.logout') }}</button>
+        <button class="secondary-button" type="button" data-action="password" :disabled="accessInvalid" @click="emit('manage')">
+          <AppIcon :name="session.protected ? 'lock' : 'key'" />
+          {{ !session.protected ? t('password.set') : session.accessKind === 'admin' ? t('password.reset') : t('password.change') }}
+        </button>
+        <button v-if="session.accessKind === 'visitor' || session.accessKind === 'admin'" class="text-button" type="button" data-action="mailbox-logout" @click="emit('logout')">
+          <AppIcon name="log-out" />
+          {{ t('password.logout') }}
+        </button>
       </div>
       <p v-if="notice" class="toolbar-notice" aria-live="polite">{{ notice }}</p>
       <div class="auto-refresh-indicator">
@@ -591,10 +597,11 @@ onBeforeUnmount(() => {
           </div>
 
           <button class="primary-button" type="submit" :disabled="createSubmitting || !createAddress">
+            <AppIcon name="inbox" />
             {{ createSubmitting ? t('address.opening') : t('address.open') }}
           </button>
           <button class="text-button" type="button" :disabled="createSubmitting" @click="randomizeCreate">
-            <AppIcon name="sparkles" />
+            <AppIcon name="shuffle" />
             {{ t('address.random') }}
           </button>
         </form>

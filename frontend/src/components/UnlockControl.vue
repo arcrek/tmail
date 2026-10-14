@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppIcon from './AppIcon.vue'
 import { useI18n } from '../i18n'
 
 defineProps<{ inputId: string; accessToken: string; unlocking: boolean }>()
@@ -11,10 +12,14 @@ const { t } = useI18n()
 <template>
   <template v-if="accessToken">
     <span aria-live="polite">{{ t('unlock.unlocked') }}</span>
-    <button class="text-button" type="button" @click="emit('lock')">{{ t('unlock.lock') }}</button>
+    <button class="text-button" type="button" @click="emit('lock')">
+      <AppIcon name="lock" />
+      {{ t('unlock.lock') }}
+    </button>
   </template>
   <template v-else>
     <button class="text-button" type="button" @click="unlockOpen = !unlockOpen">
+      <AppIcon name="unlock" />
       {{ t('unlock.open') }}
     </button>
     <form v-if="unlockOpen" class="field" @submit.prevent="emit('unlock')">

@@ -278,7 +278,7 @@ onBeforeUnmount(() => { ++requestVersion; ++sessionVersion })
             :disabled="Boolean(busy)"
             @click="downloadSource"
           >
-            <AppIcon name="file-text" />
+            <AppIcon name="file-down" />
             {{ busy === 'source' ? t('reader.saving') : t('reader.downloadSource') }}
           </button>
           <button
@@ -306,7 +306,7 @@ onBeforeUnmount(() => { ++requestVersion; ++sessionVersion })
         <aside v-if="verificationCode" class="verification-code" :aria-label="t('reader.code')">
           <div class="verification-code-lead">
             <span class="verification-code-badge">
-              <AppIcon name="key" />
+              <AppIcon name="badge-check" />
               {{ t('reader.code') }}
             </span>
             <code>{{ verificationCode }}</code>

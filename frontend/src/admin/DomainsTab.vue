@@ -274,7 +274,10 @@ async function syncNow(): Promise<void> {
             <label for="manual-domain">{{ t('address.domain') }}</label>
             <div class="form-actions inline-add-row">
               <input id="manual-domain" v-model="manualDomain" name="manualDomain" type="text" inputmode="url" autocomplete="off" autocapitalize="none" class="font-mono" required>
-              <button class="secondary-button compact-button" type="submit">{{ t('domains.add') }}</button>
+              <button class="secondary-button compact-button" type="submit">
+                <AppIcon name="plus" />
+                <span>{{ t('domains.add') }}</span>
+              </button>
             </div>
             <small>{{ t('domains.addHelp') }}</small>
           </div>

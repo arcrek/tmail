@@ -53,7 +53,7 @@ onMounted(refresh)
           <div class="metric-card">
             <dt class="metric-header">
               <span>{{ t('dashboard.stored') }}</span>
-              <AppIcon name="mail" class="metric-icon" />
+              <AppIcon name="inbox" class="metric-icon" />
             </dt>
             <dd class="metric-value">{{ formatNumber(dashboard.messages.stored) }}</dd>
           </div>
@@ -67,7 +67,7 @@ onMounted(refresh)
           <div class="metric-card">
             <dt class="metric-header">
               <span>{{ t('dashboard.week') }}</span>
-              <AppIcon name="sparkles" class="metric-icon" />
+              <AppIcon name="calendar-range" class="metric-icon" />
             </dt>
             <dd class="metric-value">{{ formatNumber(dashboard.messages.sevenDays) }}</dd>
           </div>
@@ -84,14 +84,14 @@ onMounted(refresh)
           <div class="metric-card">
             <dt class="metric-header">
               <span>{{ t('dashboard.domainsToday') }}</span>
-              <AppIcon name="plus" class="metric-icon" />
+              <AppIcon name="globe-plus" class="metric-icon" />
             </dt>
             <dd class="metric-value">{{ formatNumber(dashboard.domains.domainsToday) }}</dd>
           </div>
           <div class="metric-card">
             <dt class="metric-header">
               <span>{{ t('dashboard.domainsWeek') }}</span>
-              <AppIcon name="shield" class="metric-icon" />
+              <AppIcon name="trending-up" class="metric-icon" />
             </dt>
             <dd class="metric-value">{{ formatNumber(dashboard.domains.domainsSevenDays) }}</dd>
           </div>
@@ -117,7 +117,7 @@ onMounted(refresh)
             <time :datetime="failure.created_at" class="mx-failure-time">{{ formatDate(failure.created_at, { dateStyle: 'medium', timeStyle: 'short' }) }}</time>
           </li>
           <li v-if="!dashboard.domains.recentMxFailures.length" class="mx-empty-state">
-            <AppIcon name="check" class="empty-check-icon" />
+            <AppIcon name="check-circle" class="empty-check-icon" />
             <span>{{ t('dashboard.mxFailuresEmpty') }}</span>
           </li>
         </ul>

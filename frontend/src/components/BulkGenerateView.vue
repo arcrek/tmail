@@ -119,7 +119,10 @@ function exportCsv(): void {
         <label for="bulk-count">{{ t('bulk.countLabel') }}</label>
         <input id="bulk-count" v-model.number="count" type="number" min="1" max="10">
       </div>
-      <button class="primary-button" type="submit">{{ t('bulk.generate') }}</button>
+      <button class="primary-button" type="submit">
+        <AppIcon name="mails" />
+        {{ t('bulk.generate') }}
+      </button>
     </form>
 
     <div class="bulk-results" aria-live="polite">

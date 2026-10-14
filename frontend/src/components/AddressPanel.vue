@@ -129,6 +129,7 @@ function forget(address: string): void {
         >
       </div>
       <button class="primary-button" type="submit" :disabled="submitting || !quickEmail.trim()">
+        <AppIcon name="mail-open" />
         {{ submitting ? t('address.opening') : t('address.openMailbox') }}
       </button>
     </form>
@@ -157,7 +158,7 @@ function forget(address: string): void {
     <div class="panel-heading">
       <h2>{{ t('address.create') }}</h2>
       <button class="text-button" type="button" :disabled="loadingDomains || !domains.length || submitting" @click="randomize">
-        <AppIcon name="sparkles" />
+        <AppIcon name="shuffle" />
         {{ t('address.random') }}
       </button>
     </div>
@@ -198,6 +199,7 @@ function forget(address: string): void {
     </div>
 
       <button class="primary-button" type="submit" :disabled="submitting || !address">
+        <AppIcon name="inbox" />
         {{ submitting ? t('address.opening') : t('address.open') }}
       </button>
     </form>
@@ -222,23 +224,23 @@ function forget(address: string): void {
     <h2 id="how-it-works-heading">{{ t('how.title') }}</h2>
     <div class="how-steps">
       <div class="how-step-card">
-        <div class="how-step-icon"><AppIcon name="sparkles" /></div>
+        <div class="how-step-icon"><AppIcon name="mail-plus" /></div>
         <h3>{{ t('how.step1Title') }}</h3>
         <p>{{ t('how.step1Desc') }}</p>
       </div>
       <div class="how-step-card">
-        <div class="how-step-icon"><AppIcon name="key" /></div>
+        <div class="how-step-icon"><AppIcon name="badge-check" /></div>
         <h3>{{ t('how.step2Title') }}</h3>
         <p>{{ t('how.step2Desc') }}</p>
       </div>
       <div class="how-step-card">
-        <div class="how-step-icon"><AppIcon name="shield" /></div>
+        <div class="how-step-icon"><AppIcon name="clock-shield" /></div>
         <h3>{{ t('how.step3Title') }}</h3>
         <p>{{ t('how.step3Desc') }}</p>
       </div>
     </div>
     <div class="trust-notice" role="note">
-      <AppIcon name="shield" />
+      <AppIcon name="shield-check" />
       <span>{{ t('trust.privacyNotice') }}</span>
     </div>
   </section>

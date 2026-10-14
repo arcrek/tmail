@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppIcon from './AppIcon.vue'
 import { useI18n } from '../i18n'
 import { useToast } from '../toast'
 
@@ -17,6 +18,7 @@ const { t } = useI18n()
         :role="toast.kind === 'error' ? 'alert' : 'status'"
         :aria-live="toast.kind === 'error' ? 'assertive' : 'polite'"
       >
+        <AppIcon :name="toast.kind === 'error' ? 'alert-triangle' : 'check-circle'" class="toast-icon" />
         <span>{{ toast.message }}</span>
         <button
           v-for="action in toast.actions"
@@ -25,7 +27,9 @@ const { t } = useI18n()
           class="toast-action"
           @click="() => { action.onClick(); dismiss(toast.id) }"
         >{{ action.label }}</button>
-        <button type="button" class="toast-dismiss" :aria-label="t('toast.dismiss')" @click="dismiss(toast.id)">×</button>
+        <button type="button" class="toast-dismiss" :aria-label="t('toast.dismiss')" @click="dismiss(toast.id)">
+          <AppIcon name="x" />
+        </button>
       </div>
     </TransitionGroup>
   </div>
