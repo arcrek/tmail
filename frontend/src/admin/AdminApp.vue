@@ -181,7 +181,8 @@ async function logout(): Promise<void> {
       <div class="admin-account-controls">
         <div class="api-status"><span class="pulse-dot" aria-hidden="true" /> {{ t('admin.apiStatus') }} <strong>{{ t('admin.healthy') }}</strong></div>
         <button class="rail-signout" type="button" :disabled="pending || childBusy" @click="logout">
-          {{ pending ? t('admin.loggingOut') : t('admin.logout') }}
+          <AppIcon name="log-out" />
+          <span>{{ pending ? t('admin.loggingOut') : t('admin.logout') }}</span>
         </button>
         <p v-if="error" class="admin-error" role="alert">{{ error }}</p>
       </div>

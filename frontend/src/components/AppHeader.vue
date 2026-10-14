@@ -75,7 +75,7 @@ function onLocaleChange(event: Event): void {
   <header class="app-header">
     <a class="brand" href="/" @click="onBrandClick">
       <img v-if="logoDataUrl" :src="logoDataUrl" alt="">
-      <span v-else class="brand-mark" aria-hidden="true"><AppIcon name="mail" /></span>
+      <span v-else class="brand-mark" aria-hidden="true"><AppIcon name="brand-mail" /></span>
       <span class="brand-name">{{ appName || t('app.defaultName') }}</span>
     </a>
 
@@ -105,19 +105,19 @@ function onLocaleChange(event: Event): void {
         {{ t('nav.home') }}
       </a>
       <a href="/docs" @click="closeMobileMenu">
-        <AppIcon name="external-link" />
+        <AppIcon name="book-open" />
         {{ t('nav.docs') }}
       </a>
       <a class="bulk-link" href="#" :aria-current="props.bulkActive ? 'page' : undefined" @click.prevent="onBulkClick">
-        <AppIcon name="sparkles" />
+        <AppIcon name="mails" />
         {{ t('nav.bulk') }}
       </a>
       <a class="bulk-code-link" href="#" :aria-current="props.bulkCodeActive ? 'page' : undefined" @click.prevent="onBulkCodeClick">
-        <AppIcon name="file-text" />
+        <AppIcon name="scan-code" />
         {{ t('nav.bulkCode') }}
       </a>
       <a class="admin-link" href="/admin" :aria-current="props.adminActive ? 'page' : undefined" @click="closeMobileMenu">
-        <AppIcon name="shield" />
+        <AppIcon name="shield-cog" />
         {{ t('nav.admin') }}
       </a>
       <div v-if="props.showUnlock" class="header-unlock">

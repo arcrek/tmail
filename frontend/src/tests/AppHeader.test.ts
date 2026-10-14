@@ -57,4 +57,35 @@ describe('AppHeader', () => {
     expect(toggleBtn.attributes('aria-expanded')).toBe('false')
     expect(wrapper.get('.app-header-nav').classes()).not.toContain('mobile-open')
   })
+
+  it('renders distinct function-matched SVG icons across header navigation and AppIcon catalog', async () => {
+    const { default: AppIcon } = await import('../components/AppIcon.vue')
+    type IconName = InstanceType<typeof AppIcon>['$props']['name']
+    const allNames: IconName[] = [
+      'home', 'copy', 'check', 'check-circle', 'refresh-cw', 'plus', 'trash-2',
+      'download', 'file-down', 'bell', 'bell-ring', 'sun', 'moon', 'arrow-left',
+      'paperclip', 'external-link', 'file-text', 'book-open', 'sparkles', 'shuffle',
+      'shield', 'shield-check', 'shield-cog', 'clock-shield', 'menu', 'x',
+      'volume-2', 'volume-x', 'qr', 'layout-dashboard', 'sliders', 'server',
+      'globe', 'globe-plus', 'key', 'lock', 'unlock', 'log-out', 'badge-check',
+      'code-2', 'scan-code', 'alert-triangle', 'mail', 'brand-mail', 'mail-open',
+      'mail-plus', 'mails', 'inbox', 'clock', 'calendar-range', 'trending-up', 'activity',
+    ]
+
+    for (const name of allNames) {
+      const icon = mount(AppIcon, { props: { name } })
+      expect(icon.find('svg.app-icon').exists()).toBe(true)
+      expect(icon.find('svg.app-icon').element.children.length).toBeGreaterThan(0)
+    }
+
+    initLocale()
+    const wrapper = mount(AppHeader, {
+      props: { unlockOpen: false, unlockValue: '', showLocalePicker: false, showUnlock: false },
+      global: { stubs: { ThemeToggle: true } },
+    })
+
+    const navSvgs = wrapper.findAll('.app-header-nav a svg.app-icon').map((svg) => svg.html())
+    expect(navSvgs).toHaveLength(5)
+    expect(new Set(navSvgs).size).toBe(5)
+  })
 })

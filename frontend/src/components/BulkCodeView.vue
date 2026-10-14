@@ -210,9 +210,12 @@ onBeforeUnmount(() => {
         <label for="bulk-code-addresses">{{ t('bulkCode.addresses') }}</label>
         <textarea id="bulk-code-addresses" v-model="input" rows="5" :placeholder="t('bulkCode.placeholder')" />
       </div>
-      <button class="primary-button" type="submit" :disabled="addresses.length === 0">{{ t('bulkCode.submit') }}</button>
+      <button class="primary-button" type="submit" :disabled="addresses.length === 0">
+        <AppIcon name="scan-code" />
+        {{ t('bulkCode.submit') }}
+      </button>
       <button v-if="rows.length" class="secondary-button" type="button" data-action="refresh" :disabled="refreshing" @click="manualRefresh">
-        <AppIcon name="refresh-cw" />
+        <AppIcon name="refresh-cw" :class="{ spinning: refreshing }" />
         {{ refreshing ? t('bulkCode.refreshing') : t('bulkCode.refresh') }}
       </button>
       <button v-if="rows.length" class="secondary-button bulk-export-csv" type="button" @click="exportCsv">
@@ -233,7 +236,7 @@ onBeforeUnmount(() => {
             <td v-else :data-label="t('bulkCode.subject')">{{ row.subject || t('bulkCode.noSubject') }}</td>
             <td v-if="row.status === 'loading'" :data-label="t('bulkCode.code')"><span class="skeleton skeleton-label" /></td>
             <td v-else :data-label="t('bulkCode.code')">{{ row.code || t('bulkCode.noCode') }}</td>
-            <td :data-label="t('bulkCode.actions')"><span class="row-actions"><button class="text-button" type="button" :disabled="!row.code" :aria-label="t('bulkCode.copyCodeFor', { address: row.address })" @click="copy(row.code ?? '', 'bulkCode.codeCopied')">{{ t('bulkCode.copyCode') }}</button><a v-if="row.status === 'locked'" :href="`/${encodeURIComponent(row.address)}`" target="_blank" rel="noopener noreferrer">{{ t('password.open') }}</a><button v-if="row.status === 'error'" class="text-button" type="button" @click="resolveRow(row)">{{ t('address.retry') }}</button></span></td>
+            <td :data-label="t('bulkCode.actions')"><span class="row-actions"><button class="text-button" type="button" :disabled="!row.code" :aria-label="t('bulkCode.copyCodeFor', { address: row.address })" @click="copy(row.code ?? '', 'bulkCode.codeCopied')"><AppIcon name="copy" />{{ t('bulkCode.copyCode') }}</button><a v-if="row.status === 'locked'" :href="`/${encodeURIComponent(row.address)}`" target="_blank" rel="noopener noreferrer">{{ t('password.open') }}</a><button v-if="row.status === 'error'" class="text-button" type="button" @click="resolveRow(row)">{{ t('address.retry') }}</button></span></td>
           </tr>
         </tbody>
       </table>

@@ -1741,6 +1741,9 @@ main {
 }
 
 .rail-signout {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   border: 0;
   padding: 0.7rem;
   background: transparent;
@@ -2042,7 +2045,18 @@ main {
 .toast-success { border-color: var(--green); }
 .toast-error { border-color: var(--red); }
 
+.toast-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex-shrink: 0;
+}
+
+.toast-success .toast-icon { color: var(--green); }
+.toast-error .toast-icon { color: var(--red); }
+
 .toast-dismiss {
+  display: inline-grid;
+  place-items: center;
   min-width: 2.75rem;
   min-height: 2.75rem;
   margin-left: auto;

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
 import { api } from '../api'
+import AppIcon from '../components/AppIcon.vue'
 import type { AdminSettings, MailServerSettings } from '../types'
 import { useI18n } from '../i18n'
 import { useToast } from '../toast'
@@ -107,7 +108,8 @@ async function testConnection(): Promise<void> {
 
         <div class="form-actions">
           <button class="secondary-button" type="button" :disabled="testing || pending" @click="testConnection">
-            {{ testing ? t('mail.testing') : t('mail.test') }}
+            <AppIcon name="activity" />
+            <span>{{ testing ? t('mail.testing') : t('mail.test') }}</span>
           </button>
           <button class="primary-button" type="submit" :disabled="pending || testing">
             {{ pending ? t('reader.saving') : t('mail.save') }}
