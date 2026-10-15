@@ -75,14 +75,31 @@ class JmapClient:
             "Content-Type": "application/json",
         }
         self._catchall = catchall_address
-        self._client = client or httpx
+        self._owns_client = client is None
+        self._client = client if client is not None else httpx.Client()
         self._session = None
         self._api_url = url
         self._session_lock = threading.Lock()
+        self._http_client: httpx.Client | None = self._client if self._owns_client else None
+
+    def close(self) -> None:
+        if self._http_client is not None:
+            self._http_client.close()
+            self._http_client = None
+
+    def _post(self, *args, **kwargs):
+        if self._owns_client and getattr(httpx.post, "__module__", "") != "httpx":
+            return httpx.post(*args, **kwargs)
+        return self._client.post(*args, **kwargs)
+
+    def _get(self, *args, **kwargs):
+        if self._owns_client and getattr(httpx.get, "__module__", "") != "httpx":
+            return httpx.get(*args, **kwargs)
+        return self._client.get(*args, **kwargs)
 
     def _call(self, method_calls: list, using: list[str]) -> list:
         try:
-            response = self._client.post(
+            response = self._post(
                 self._api_url,
                 json={"using": using, "methodCalls": method_calls},
                 headers=self._headers,
@@ -116,7 +133,7 @@ class JmapClient:
                 well_known = urlunsplit((parts.scheme, parts.netloc, "/.well-known/jmap", "", ""))
                 for url in dict.fromkeys((self._url, well_known)):
                     try:
-                        response = self._client.get(
+                        response = self._get(
                             url, headers=self._headers, timeout=30, follow_redirects=True
                         )
                         response.raise_for_status()
@@ -172,7 +189,7 @@ class JmapClient:
     def list_domains(self) -> list:
         method_calls = [[
                 "x:Domain/get",
-                {"accountId": "b", "ids": None},
+                {"accountId": "b", "ids": None, "properties": ["name"]},
                 "0",
             ]]
         method_resp = self._call(method_calls, _USING)[0]

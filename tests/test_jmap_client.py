@@ -106,3 +106,37 @@ def test_get_session_concurrent_threads_fetch_once():
     assert calls == 1
     assert client._api_url == "https://api.mail.tm-mails.com/jmap/"
 
+
+def test_list_domains_requests_only_name_property():
+    captured = {}
+
+    def fake_post(url, json, headers, timeout):
+        captured["payload"] = json
+        return _mock_response({"methodResponses": [["x:Domain/get", {"list": [{"name": "example.com"}]}, "0"]]})
+
+    with patch("src.jmap_client.httpx.post", side_effect=fake_post):
+        assert CLIENT.list_domains() == ["example.com"]
+
+    assert captured["payload"]["methodCalls"][0][1] == {
+        "accountId": "b",
+        "ids": None,
+        "properties": ["name"],
+    }
+
+
+def test_jmap_client_uses_persistent_httpx_client_by_default():
+    client = JmapClient("https://mail.tm-mails.com/jmap/", "token123", "admin@mail.tm-mails.com")
+    try:
+        assert client._http_client is not None
+        with patch.object(
+            client._http_client,
+            "post",
+            return_value=_mock_response({"methodResponses": [["x:Domain/get", {"list": [{"name": "example.com"}]}, "0"]]}),
+        ) as client_post:
+            assert client.list_domains() == ["example.com"]
+            client_post.assert_called_once()
+    finally:
+        client.close()
+    assert client._http_client is None
+
+

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AddressPanel from './components/AddressPanel.vue'
 import AppHeader from './components/AppHeader.vue'
 import BulkGenerateView from './components/BulkGenerateView.vue'
@@ -7,8 +7,9 @@ import BulkCodeView from './components/BulkCodeView.vue'
 import InboxView from './components/InboxView.vue'
 import SandboxFrame from './components/SandboxFrame.vue'
 import ToastStack from './components/ToastStack.vue'
-import AdminApp from './admin/AdminApp.vue'
 import { ApiError, api } from './api'
+
+const AdminApp = defineAsyncComponent(() => import('./admin/AdminApp.vue'))
 import { clearAccessToken, loadAccessToken, saveAccessToken } from './access'
 import { parseRoute } from './route'
 import { loadSessions, removeSession, saveSession } from './session'
