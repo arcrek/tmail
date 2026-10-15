@@ -372,7 +372,7 @@ onBeforeUnmount(() => {
           v-if="view === 'inbox' && current"
           :session="current"
           :access-token="accessToken"
-          :fetch-seconds="site?.fetchSeconds ?? 20"
+          :fetch-seconds="site?.fetchSeconds ?? 5"
           @create="openCreatedInbox"
           @login="promptMailbox"
           @invalid="invalidateMailbox(Boolean(passwordSession))"
@@ -388,7 +388,7 @@ onBeforeUnmount(() => {
         <BulkCodeView
           v-else-if="view === 'bulkCode'"
           :access-token="accessToken"
-          :fetch-seconds="site?.fetchSeconds ?? 20"
+          :fetch-seconds="site?.fetchSeconds ?? 5"
         />
 
         <section v-else-if="loading" class="handoff-loading" aria-live="polite">

@@ -20,7 +20,7 @@ DEFAULT_SETTINGS = {
     "cookie_enabled": False,
     "cookie_text": "",
     "auto_sync_domains": True,
-    "fetch_seconds": 20,
+    "fetch_seconds": 5,
     "message_limit": 15,
     "local_part_min": 3,
     "local_part_max": 32,

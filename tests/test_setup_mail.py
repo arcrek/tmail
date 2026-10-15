@@ -25,6 +25,16 @@ def test_internal_exception_preserves_existing_authentication_branches():
     assert len(old["match"]) == 1
     assert setup.internal_auth_rule(new) == new
 
+    old_spam = {"match": {}, "else": "is_empty(authenticated_as)"}
+    new_spam = setup.internal_spam_rule(old_spam)
+    assert new_spam["match"]["0"] == {"if": setup.GUARD, "then": "false"}
+    assert setup.internal_spam_rule(new_spam) == new_spam
+
+    old_dkim = {"match": {}, "else": "relaxed"}
+    new_dkim = setup.internal_dkim_rule(old_dkim)
+    assert new_dkim["match"]["0"] == {"if": setup.GUARD, "then": "disable"}
+    assert setup.internal_dkim_rule(new_dkim) == new_dkim
+
 
 def test_recipient_policy_preserves_custom_rejections_and_allowlist_order():
     current = "permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination, reject_rbl_client zen.spamhaus.org"
@@ -109,10 +119,27 @@ def test_redirect_never_sends_credentials_to_another_origin():
         setup.SameOriginRedirect().redirect_request(request, None, 302, "", {}, "https://other.example.com/schema")
 
 
+def test_management_loopback_keeps_local_origin_when_session_advertises_public_hostname(monkeypatch):
+    monkeypatch.setattr(setup.Management, "request", lambda self, url, payload=None: {
+        "apiUrl": "https://mail.example.com/jmap/",
+        "capabilities": {"urn:ietf:params:jmap:core": {}},
+        "primaryAccounts": {"urn:stalwart:jmap": "b"},
+    })
+    client = setup.Management({"jmap_url": "http://127.0.0.1:8080/jmap/", "jmap_token": "secret"})
+    assert client.api_url == "http://127.0.0.1:8080/jmap/"
+
+    with pytest.raises(setup.SetupError, match="Unverified Stalwart JMAP API origin"):
+        setup.Management({"jmap_url": "https://admin.example.com/jmap/", "jmap_token": "secret"})
+
+
 def transaction(monkeypatch, tmp_path, fail_reload=False):
     old = {"else": "local_port != 25"}
     new = setup.internal_auth_rule(old)
-    rule = [old]
+    old_spam = {"else": "is_empty(authenticated_as)"}
+    new_spam = setup.internal_spam_rule(old_spam)
+    old_dkim = {"else": "relaxed"}
+    new_dkim = setup.internal_dkim_rule(old_dkim)
+    rule = [old, old_spam, old_dkim]
     calls = []
 
     class Client:
@@ -127,6 +154,22 @@ def transaction(monkeypatch, tmp_path, fail_reload=False):
             rule[0] = value
             calls.append("set-auth")
 
+        def data_stage(self):
+            return rule[1], "spam-state"
+
+        def set_data_stage(self, value, state):
+            assert state == "spam-state"
+            rule[1] = value
+            calls.append("set-spam")
+
+        def sender_auth(self):
+            return rule[2], "dkim-state"
+
+        def set_sender_auth(self, value, state):
+            assert state == "dkim-state"
+            rule[2] = value
+            calls.append("set-dkim")
+
         def reload(self):
             calls.append("reload")
             if fail_reload and rule[0] == new:
@@ -136,7 +179,8 @@ def transaction(monkeypatch, tmp_path, fail_reload=False):
     monkeypatch.setattr(setup, "load_setup", lambda config: config)
     monkeypatch.setattr(setup, "run", lambda *args: calls.append(args) or "")
     config = {}
-    plan = {"old_auth": old, "new_auth": new, "services": {}, "owner": "systemd", "container": ""}
+    plan = {"old_auth": old, "new_auth": new, "old_spam": old_spam, "new_spam": new_spam,
+            "old_dkim": old_dkim, "new_dkim": new_dkim, "services": {}, "owner": "systemd", "container": ""}
     monkeypatch.setattr(setup, "detect_web_owner", lambda *a: ("systemd", ""))
     plan_path = tmp_path / "plan.json"
     target = tmp_path / "main.cf"
@@ -159,10 +203,10 @@ def test_apply_then_recover_restores_config_and_auth(monkeypatch, tmp_path):
     config, plan, path, target, rule, calls, original = transaction(monkeypatch, tmp_path)
     setup.apply(config, plan, path)
     assert target.read_bytes() != original
-    assert rule[0] == plan["new_auth"]
+    assert rule == [plan["new_auth"], plan["new_spam"], plan["new_dkim"]]
     setup.restore(config, plan, path)
     assert target.read_bytes() == original
-    assert rule[0] == plan["old_auth"]
+    assert rule == [plan["old_auth"], plan["old_spam"], plan["old_dkim"]]
     assert calls.count("reload") == 2
 
 
@@ -171,7 +215,7 @@ def test_failed_reload_still_restores_authentication(monkeypatch, tmp_path):
     with pytest.raises(setup.SetupError, match="reload failed"):
         setup.apply(config, plan, path)
     setup.restore(config, json.loads(path.read_text()), path)
-    assert rule[0] == plan["old_auth"]
+    assert rule == [plan["old_auth"], plan["old_spam"], plan["old_dkim"]]
     assert target.read_bytes() == original
 
 
@@ -183,7 +227,7 @@ def test_recovery_preserves_concurrent_file_change(monkeypatch, tmp_path):
         setup.restore(config, plan, path)
     assert target.read_bytes() == b"administrator edit"
     assert (tmp_path / "backup").read_bytes() == original
-    assert rule[0] == plan["old_auth"]
+    assert rule == [plan["old_auth"], plan["old_spam"], plan["old_dkim"]]
 
 
 def test_recovery_preserves_concurrent_stalwart_change(monkeypatch, tmp_path):
@@ -193,6 +237,8 @@ def test_recovery_preserves_concurrent_stalwart_change(monkeypatch, tmp_path):
     with pytest.raises(setup.SetupError, match="Stalwart recovery incomplete"):
         setup.restore(config, plan, path)
     assert rule[0] == {"else": "administrator expression"}
+    assert rule[1] == plan["old_spam"]
+    assert rule[2] == plan["old_dkim"]
     assert target.read_bytes() == original
 
 
@@ -215,13 +261,24 @@ def test_preflight_is_read_only_and_rejects_incompatible_servers(monkeypatch, tm
         def request(self, url):
             if url.endswith("/api/account"):
                 return {"permissions": [] if problem == "permissions" else [
-                    "sys-mta-stage-auth-get", "sys-mta-stage-auth-update", "sys-network-listener-get",
-                    "sys-action-create", "action-reload-settings"]}
-            return {"types": [] if problem == "schema" else ["MtaStageAuth", "NetworkListener", "ReloadSettings"]}
+                    "sys-mta-stage-auth-get", "sys-mta-stage-auth-update",
+                    "sys-mta-stage-data-get", "sys-mta-stage-data-update",
+                    "sys-sender-auth-get", "sys-sender-auth-update",
+                    "sys-network-listener-get", "sys-action-create", "action-reload-settings"]}
+            return {"types": [] if problem == "schema" else [
+                "MtaStageAuth", "MtaStageData", "SenderAuth", "NetworkListener", "ReloadSettings"]}
 
         def auth(self):
             methods.append("x:MtaStageAuth/get")
             return {"else": "local_port != 25"}, "state"
+
+        def data_stage(self):
+            methods.append("x:MtaStageData/get")
+            return {"else": "is_empty(authenticated_as)"}, "spam-state"
+
+        def sender_auth(self):
+            methods.append("x:SenderAuth/get")
+            return {"else": "relaxed"}, "dkim-state"
 
         def call(self, method, args, mail=False):
             methods.append(method)

@@ -154,7 +154,7 @@ def _validate_site(values: dict[str, object]) -> dict[str, object]:
     for key in ("cookie_enabled", "auto_sync_domains"):
         if type(result[key]) is not bool:
             raise HTTPException(422, f"{key} must be a boolean")
-    result["fetch_seconds"] = _integer(result["fetch_seconds"], 10, 300, "fetch_seconds")
+    result["fetch_seconds"] = _integer(result["fetch_seconds"], 5, 300, "fetch_seconds")
     result["message_limit"] = _integer(result["message_limit"], 1, 100, "message_limit")
     result["local_part_min"] = _integer(result["local_part_min"], 1, 64, "local_part_min")
     result["local_part_max"] = _integer(result["local_part_max"], 1, 64, "local_part_max")
