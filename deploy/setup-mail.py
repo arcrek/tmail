@@ -48,14 +48,23 @@ class Management:
         parts = urlsplit(self.url)
         if parts.username or parts.password or parts.scheme not in {"http", "https"}:
             raise SetupError("Invalid Stalwart URL")
-        if parts.scheme == "http" and parts.hostname not in {"127.0.0.1", "::1", "localhost"}:
+        loopback = parts.hostname in {"127.0.0.1", "::1", "localhost"}
+        if parts.scheme == "http" and not loopback:
             raise SetupError("Remote Stalwart credentials require HTTPS")
         self.token = config["jmap_token"]
         self.session = self.request(urljoin(self.url, "/.well-known/jmap"))
-        self.api_url = self.session.get("apiUrl")
-        if not isinstance(self.api_url, str) or origin(self.api_url) != origin(self.url):
+        api_url = self.session.get("apiUrl")
+        api_parts = urlsplit(api_url) if isinstance(api_url, str) else None
+        if not api_parts or api_parts.scheme not in {"http", "https"} or not api_parts.hostname:
             raise SetupError("Unverified Stalwart JMAP API origin")
-        if "urn:stalwart:jmap" not in self.session.get("capabilities", {}):
+        if origin(api_url) == origin(self.url):
+            self.api_url = api_url
+        elif loopback and api_parts.path.startswith("/") and not api_parts.path.startswith("//"):
+            self.api_url = urljoin(self.url, api_parts.path)
+        else:
+            raise SetupError("Unverified Stalwart JMAP API origin")
+        if ("urn:stalwart:jmap" not in self.session.get("capabilities", {})
+                and "urn:stalwart:jmap" not in self.session.get("primaryAccounts", {})):
             raise SetupError("Stalwart management JMAP is unsupported")
 
     def request(self, url, payload=None):
@@ -92,13 +101,45 @@ class Management:
         values = data.get("list")
         if not isinstance(values, list) or len(values) != 1 or values[0].get("id") != "singleton":
             raise SetupError("Unsupported Stalwart authentication response")
-        return values[0]["require"], data["state"]
+        return values[0]["require"], data.get("state")
 
     def set_auth(self, rule, state):
-        data = self.call("x:MtaStageAuth/set", {
-            "ifInState": state, "update": {"singleton": {"require": rule}}})
+        args = {"update": {"singleton": {"require": rule}}}
+        if state is not None:
+            args["ifInState"] = state
+        data = self.call("x:MtaStageAuth/set", args)
         if "singleton" not in data.get("updated", {}):
             raise SetupError("Stalwart authentication update was rejected")
+
+    def data_stage(self):
+        data = self.call("x:MtaStageData/get", {"ids": ["singleton"]})
+        values = data.get("list")
+        if not isinstance(values, list) or len(values) != 1 or values[0].get("id") != "singleton":
+            raise SetupError("Unsupported Stalwart DATA stage response")
+        return values[0]["enableSpamFilter"], data.get("state")
+
+    def set_data_stage(self, rule, state):
+        args = {"update": {"singleton": {"enableSpamFilter": rule}}}
+        if state is not None:
+            args["ifInState"] = state
+        data = self.call("x:MtaStageData/set", args)
+        if "singleton" not in data.get("updated", {}):
+            raise SetupError("Stalwart DATA stage update was rejected")
+
+    def sender_auth(self):
+        data = self.call("x:SenderAuth/get", {"ids": ["singleton"]})
+        values = data.get("list")
+        if not isinstance(values, list) or len(values) != 1 or values[0].get("id") != "singleton":
+            raise SetupError("Unsupported Stalwart sender authentication response")
+        return values[0]["dkimVerify"], data.get("state")
+
+    def set_sender_auth(self, rule, state):
+        args = {"update": {"singleton": {"dkimVerify": rule}}}
+        if state is not None:
+            args["ifInState"] = state
+        data = self.call("x:SenderAuth/set", args)
+        if "singleton" not in data.get("updated", {}):
+            raise SetupError("Stalwart sender authentication update was rejected")
 
     def reload(self):
         data = self.call("x:Action/set", {"create": {"reload": {"@type": "ReloadSettings"}}})
@@ -151,19 +192,31 @@ def merge_recipient_restrictions(current):
     return ", ".join([*restrictions, "reject"])
 
 
-def internal_auth_rule(rule):
+def internal_rule(rule, value="false", label="authentication"):
     if not isinstance(rule, dict) or set(rule) - {"match", "else"} or not isinstance(rule.get("else"), str):
-        raise SetupError("Unsupported custom authentication expression")
+        raise SetupError(f"Unsupported custom {label} expression")
     matches = rule.get("match", {})
     if not isinstance(matches, dict) or list(matches) != [str(i) for i in range(len(matches))]:
-        raise SetupError("Unsupported custom authentication expression order")
-    if any(not isinstance(value, dict) or set(value) != {"if", "then"}
-           or not all(isinstance(v, str) for v in value.values()) for value in matches.values()):
-        raise SetupError("Unsupported custom authentication expression branches")
-    if matches.get("0") == {"if": GUARD, "then": "false"}:
+        raise SetupError(f"Unsupported custom {label} expression order")
+    if any(not isinstance(branch, dict) or set(branch) != {"if", "then"}
+           or not all(isinstance(v, str) for v in branch.values()) for branch in matches.values()):
+        raise SetupError(f"Unsupported custom {label} expression branches")
+    if matches.get("0") == {"if": GUARD, "then": value}:
         return rule
-    return {"match": {"0": {"if": GUARD, "then": "false"},
-                      **{str(int(key) + 1): value for key, value in matches.items()}}, "else": rule["else"]}
+    return {"match": {"0": {"if": GUARD, "then": value},
+                      **{str(int(key) + 1): branch for key, branch in matches.items()}}, "else": rule["else"]}
+
+
+def internal_auth_rule(rule):
+    return internal_rule(rule, "false", "authentication")
+
+
+def internal_spam_rule(rule):
+    return internal_rule(rule, "false", "spam filter")
+
+
+def internal_dkim_rule(rule):
+    return internal_rule(rule, "disable", "DKIM verification")
 
 
 def check_listener(listeners):
@@ -291,14 +344,23 @@ def preflight(config):
     admin = Management(load_setup(config))
     permissions = admin.request(urljoin(admin.url, "/api/account")).get("permissions", [])
     normalized = {p.replace("-", "").lower() for p in permissions if isinstance(p, str)}
-    required = {"sysmtastageauthget", "sysmtastageauthupdate", "sysnetworklistenerget", "sysactioncreate", "actionreloadsettings"}
+    required = {
+        "sysmtastageauthget", "sysmtastageauthupdate",
+        "sysmtastagedataget", "sysmtastagedataupdate",
+        "syssenderauthget", "syssenderauthupdate",
+        "sysnetworklistenerget", "sysactioncreate", "actionreloadsettings",
+    }
     if not required <= normalized:
         raise SetupError("Setup credential lacks authentication/listener/reload management permissions")
     schema = json.dumps(admin.request(urljoin(admin.url, "/api/schema")))
-    if any(name not in schema for name in ["MtaStageAuth", "NetworkListener", "ReloadSettings"]):
+    if any(name not in schema for name in ["MtaStageAuth", "MtaStageData", "SenderAuth", "NetworkListener", "ReloadSettings"]):
         raise SetupError("Unsupported Stalwart configuration schema")
     old, _ = admin.auth()
     new = internal_auth_rule(old)
+    old_spam, _ = admin.data_stage()
+    new_spam = internal_spam_rule(old_spam)
+    old_dkim, _ = admin.sender_auth()
+    new_dkim = internal_dkim_rule(old_dkim)
     listeners = admin.call("x:NetworkListener/get", {"ids": None}).get("list")
     if not isinstance(listeners, list):
         raise SetupError("Unsupported Stalwart listener response")
@@ -334,6 +396,8 @@ def preflight(config):
     if len(lines) != 1 or "127.0.0.1:2525" not in lines[0] or '"stalwart"' not in lines[0]:
         raise SetupError("Cannot verify Stalwart exclusively owns loopback port 2525")
     return {"owner": owner, "container": container, "old_auth": old, "new_auth": new,
+            "old_spam": old_spam, "new_spam": new_spam,
+            "old_dkim": old_dkim, "new_dkim": new_dkim,
             "mail_account": account,
             "services": services, "recipient_restrictions": restrictions,
             "new_recipient_restrictions": merged_restrictions,
@@ -444,11 +508,30 @@ def apply(config, plan, plan_path):
     old, state = client.auth()
     if old != plan["old_auth"]:
         raise SetupError("Stalwart authentication changed since preflight")
+    has_spam = "old_spam" in plan and "new_spam" in plan
+    if has_spam:
+        old_spam, spam_state = client.data_stage()
+        if old_spam != plan["old_spam"]:
+            raise SetupError("Stalwart DATA stage changed since preflight")
+    has_dkim = "old_dkim" in plan and "new_dkim" in plan
+    if has_dkim:
+        old_dkim, dkim_state = client.sender_auth()
+        if old_dkim != plan["old_dkim"]:
+            raise SetupError("Stalwart sender authentication changed since preflight")
     desired = prepare_files(config, plan, plan_path)
     plan["mail_started"] = True
     save_plan(plan_path, plan)
+    changed = False
     if old != plan["new_auth"]:
         client.set_auth(plan["new_auth"], state)
+        changed = True
+    if has_spam and old_spam != plan["new_spam"]:
+        client.set_data_stage(plan["new_spam"], spam_state)
+        changed = True
+    if has_dkim and old_dkim != plan["new_dkim"]:
+        client.set_sender_auth(plan["new_dkim"], dkim_state)
+        changed = True
+    if changed:
         client.reload()
     for entry in plan["files"]:
         path = Path(entry["path"])
@@ -485,14 +568,33 @@ def restore(config, plan, plan_path):
         except Exception:
             errors.append("Configuration recovery incomplete")
     try:
-        if plan["old_auth"] != plan["new_auth"]:
+        has_auth = plan["old_auth"] != plan["new_auth"]
+        has_spam = "old_spam" in plan and "new_spam" in plan and plan["old_spam"] != plan["new_spam"]
+        has_dkim = "old_dkim" in plan and "new_dkim" in plan and plan["old_dkim"] != plan["new_dkim"]
+        if has_auth or has_spam or has_dkim:
             client = Management(load_setup(config))
-            old, state = client.auth()
-            if old not in (plan["old_auth"], plan["new_auth"]):
+            stage_error = False
+            restored = False
+            for enabled, getter, setter, old_key, new_key in (
+                (has_auth, client.auth, client.set_auth, "old_auth", "new_auth"),
+                (has_spam, client.data_stage, client.set_data_stage, "old_spam", "new_spam"),
+                (has_dkim, client.sender_auth, client.set_sender_auth, "old_dkim", "new_dkim"),
+            ):
+                if not enabled:
+                    continue
+                try:
+                    current, state = getter()
+                    if current not in (plan[old_key], plan[new_key]):
+                        raise SetupError("Concurrent Stalwart change; refusing to overwrite it during recovery")
+                    if current != plan[old_key]:
+                        setter(plan[old_key], state)
+                        restored = True
+                except Exception:
+                    stage_error = True
+            if restored or not stage_error:
+                client.reload()
+            if stage_error:
                 raise SetupError("Concurrent Stalwart change; refusing to overwrite it during recovery")
-            if old != plan["old_auth"]:
-                client.set_auth(plan["old_auth"], state)
-            client.reload()
     except Exception:
         errors.append("Stalwart recovery incomplete")
     try:

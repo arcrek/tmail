@@ -163,7 +163,7 @@ its frontend independently.
 ### Setup credentials
 
 Use a separate setup credential so the running application does not need
-permission to change SMTP authentication. Put `jmap_url` and `jmap_token` in a
+permission to change Stalwart SMTP stage settings. Put `jmap_url` and `jmap_token` in a
 root-owned, non-symlink JSON file with mode `0600`, targeting the same Stalwart
 origin as the runtime configuration. Pass its **path**, never the token, to setup:
 
@@ -172,7 +172,9 @@ sudo env TMAIL_STALWART_SETUP_CONFIG=/root/tmail-setup.json bash deploy/install.
 ```
 
 The setup credential needs `sysMtaStageAuthGet`, `sysMtaStageAuthUpdate`,
-`sysNetworkListenerGet`, `sysActionCreate` and `actionReloadSettings`.
+`sysMtaStageDataGet`, `sysMtaStageDataUpdate`, `sysSenderAuthGet`,
+`sysSenderAuthUpdate`, `sysNetworkListenerGet`, `sysActionCreate` and
+`actionReloadSettings`.
 See Stalwart's [AUTH object](https://stalw.art/docs/ref/object/mta-stage-auth/),
 [reload action](https://stalw.art/docs/ref/object/action/) and
 [permissions](https://stalw.art/docs/ref/permissions/) for their API contracts.
@@ -196,13 +198,13 @@ or a stopped deployment without a clear owner require inspection. Do not run
 setup while changing the deployment topology or editing mail-server configuration.
 
 Unchanged releases skip promotion, dependency installation and service restarts.
-Mail settings are changed only where needed; the internal authentication exception
-preserves the existing rule for other connections. Python dependencies live in a
+Mail settings are changed only where needed; the internal relay exceptions
+preserve the existing rules for other connections. Python dependencies live in a
 root-owned release venv instead of modifying the host's Python packages.
 Mutable runtime configuration stays at `/var/lib/tmail-policy/config.json`.
 
 Setup prints a private `/var/backups/tmail-setup.*` recovery directory. It contains
-the runtime configuration, authentication snapshot and affected file backups;
+the runtime configuration, Stalwart rule snapshots and affected file backups;
 keep it root-only because it contains credentials. On failure, setup attempts
 recovery and refuses to overwrite detected concurrent edits. If recovery is
 incomplete, preserve both that directory and any release recovery directory named

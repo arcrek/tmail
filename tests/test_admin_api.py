@@ -205,7 +205,7 @@ def test_access_credentials_require_admin_auth(client, method, path, body):
 
 
 @pytest.mark.parametrize("site", [
-    {"fetchSeconds": 9},
+    {"fetchSeconds": 4},
     {"fetchSeconds": 301},
     {"messageLimit": 0},
     {"messageLimit": 101},

@@ -296,7 +296,7 @@ async function syncNow(): Promise<void> {
           <div class="settings-grid">
             <div class="field">
               <label for="fetch-seconds">{{ t('domains.poll') }}</label>
-              <input id="fetch-seconds" v-model.number="draft.fetchSeconds" name="fetchSeconds" type="number" min="10" max="300" required>
+              <input id="fetch-seconds" v-model.number="draft.fetchSeconds" name="fetchSeconds" type="number" min="5" max="300" required>
             </div>
             <div class="field">
               <label for="message-limit">{{ t('domains.limit') }}</label>

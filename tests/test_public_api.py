@@ -144,7 +144,7 @@ def test_accounts_validate_without_persisting(client):
 def test_site_exposes_only_public_settings(client):
     body = client.get("/site").json()
     assert body["appName"] == "Temporary Inbox"
-    assert body["fetchSeconds"] == 20
+    assert body["fetchSeconds"] == 5
     assert "jmapToken" not in body
     assert "adminPassword" not in body
 
