@@ -27,6 +27,10 @@ const mocks = vi.hoisted(() => ({
   accessList: vi.fn(),
   accessCreate: vi.fn(),
   accessRemove: vi.fn(),
+  deletedList: vi.fn(),
+  deletedGet: vi.fn(),
+  deletedSource: vi.fn(),
+  deletedRemove: vi.fn(),
 }))
 
 vi.mock('../api', async () => {
@@ -43,6 +47,13 @@ vi.mock('../api', async () => {
           list: mocks.accessList,
           create: mocks.accessCreate,
           remove: mocks.accessRemove,
+        },
+        deletedMessages: {
+          ...actual.api.admin.deletedMessages,
+          list: mocks.deletedList,
+          get: mocks.deletedGet,
+          source: mocks.deletedSource,
+          remove: mocks.deletedRemove,
         },
       },
     },
@@ -152,6 +163,10 @@ describe('administration frontend', () => {
     mocks.accessList.mockResolvedValue({ credentials: [] })
     mocks.accessCreate.mockResolvedValue({ id: 'credential-id', kind: 'password', label: 'Main password', createdAt: '2026-08-13T00:00:00Z' })
     mocks.accessRemove.mockResolvedValue(undefined)
+    mocks.deletedList.mockResolvedValue({ totalItems: 0, page: 1, limit: 20, member: [] })
+    mocks.deletedGet.mockResolvedValue(null)
+    mocks.deletedSource.mockResolvedValue(new Blob(['raw eml'], { type: 'message/rfc822' }))
+    mocks.deletedRemove.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -194,6 +209,7 @@ describe('administration frontend', () => {
       'Domains & Inbox',
       'Access',
       'HTML & Ads',
+      'Deleted Mail',
     ])
     expect(wrapper.get('.admin-sidebar .admin-account-controls').text()).toContain('Healthy')
     expect(wrapper.get('.admin-shell').element.children).toHaveLength(3)
@@ -210,7 +226,7 @@ describe('administration frontend', () => {
     await flushPromises()
 
     expect(mocks.settings).toHaveBeenCalledTimes(1)
-    expect(wrapper.findAll('[role="tab"]')).toHaveLength(6)
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(7)
     await wrapper.get('.rail-signout').trigger('click')
     expect(mocks.logout).toHaveBeenCalledWith('resumed-csrf')
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'tmail-admin-logout' }))
@@ -258,10 +274,10 @@ describe('administration frontend', () => {
     await flushPromises()
 
     await wrapper.get('.rail-signout').trigger('click')
-    expect(wrapper.findAll('[role="tab"]')).toHaveLength(6)
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(7)
     logout.reject(new Error('Logout unavailable'))
     await flushPromises()
-    expect(wrapper.findAll('[role="tab"]')).toHaveLength(6)
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(7)
     expect(wrapper.get('[role="alert"]').text()).toContain('Logout unavailable')
 
     await wrapper.get('.rail-signout').trigger('click')
@@ -801,5 +817,88 @@ describe('administration frontend', () => {
     await wrapper.get('form').trigger('submit')
     expect(toastStack.text()).toContain('100,000')
     expect(mocks.updateSettings).not.toHaveBeenCalled()
+  })
+
+  it('searches, inspects in a sandboxed iframe, downloads .eml, and permanently deletes archived messages', async () => {
+    const summary = {
+      id: 'del-1',
+      accountId: 'mail-account',
+      msgid: '<del-1@example.com>',
+      mailboxAddress: 'alice@example.com',
+      from: { name: 'Bank Security', address: 'security@bank.example' },
+      to: [{ name: 'Alice', address: 'alice@example.com' }],
+      subject: 'Your verification code 987654',
+      intro: 'Code 987654',
+      hasAttachments: true,
+      size: 2048,
+      hasSource: true,
+      downloadUrl: '/admin/api/deleted-messages/del-1/source',
+      receivedAt: '2026-10-19T12:00:00Z',
+      deletedAt: '2026-10-20T05:00:00Z',
+      expiresAt: '2027-10-20T05:00:00Z',
+    }
+    const detail = {
+      ...summary,
+      cc: [],
+      bcc: [],
+      text: 'Your verification code is 987654',
+      html: ['<p>Your verification code is <strong>987654</strong></p>'],
+      attachments: [{
+        id: 'att-1',
+        filename: 'statement.pdf',
+        contentType: 'application/pdf',
+        disposition: 'attachment',
+        size: 1024,
+      }],
+    }
+    mocks.deletedList
+      .mockResolvedValueOnce({ totalItems: 1, page: 1, limit: 20, member: [summary] })
+      .mockResolvedValueOnce({ totalItems: 1, page: 1, limit: 20, member: [summary] })
+      .mockResolvedValueOnce({ totalItems: 0, page: 1, limit: 20, member: [] })
+    mocks.deletedGet.mockResolvedValueOnce(detail)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    const wrapper = mount(AdminApp)
+    await wrapper.get('input[type="password"]').setValue('correct horse')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    const tab = (name: string) => wrapper.findAll('[role="tab"]').find((item) => item.text() === name)!
+    await tab('Deleted Mail').trigger('click')
+    await flushPromises()
+
+    expect(mocks.deletedList).toHaveBeenCalledWith(1, '', 20)
+    expect(wrapper.text()).toContain('alice@example.com')
+    expect(wrapper.text()).toContain('Your verification code 987654')
+
+    await wrapper.get('#deleted-mail-search').setValue('alice')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(mocks.deletedList).toHaveBeenCalledWith(1, 'alice', 20)
+
+    await wrapper.get('[data-deleted-id="del-1"]').trigger('click')
+    await flushPromises()
+
+    expect(mocks.deletedGet).toHaveBeenCalledWith('del-1')
+    expect(wrapper.text()).toContain('987654')
+    expect(wrapper.text()).toContain('statement.pdf')
+    const iframe = wrapper.get('iframe')
+    expect(iframe.attributes('sandbox')).toContain('allow-scripts')
+    expect(iframe.attributes('sandbox')).not.toContain('allow-same-origin')
+
+    Object.defineProperty(URL, 'createObjectURL', { value: vi.fn(() => 'blob:del-1'), configurable: true })
+    Object.defineProperty(URL, 'revokeObjectURL', { value: vi.fn(), configurable: true })
+    const anchorClickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    await wrapper.get('[data-download-deleted-source]').trigger('click')
+    await flushPromises()
+    expect(mocks.deletedSource).toHaveBeenCalledWith('del-1')
+    expect(anchorClickSpy).toHaveBeenCalledTimes(1)
+    anchorClickSpy.mockRestore()
+
+    await wrapper.get('[data-action="delete-permanent"]').trigger('click')
+    await flushPromises()
+
+    expect(mocks.deletedRemove).toHaveBeenCalledWith('del-1', 'csrf-value')
+    expect(wrapper.text()).toContain('No deleted messages match your search.')
   })
 })

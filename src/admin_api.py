@@ -5,13 +5,14 @@ import binascii
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+from pathlib import Path
 import re
 import secrets
 import sqlite3
 import time
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request, Response
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -530,3 +531,67 @@ def dashboard(request: Request, _session_value: dict[str, object] = Depends(_ses
         "autoSyncDomains": site["auto_sync_domains"],
         **request.app.state.state_store.sync_history(),
     }
+
+
+def _download_headers(filename: str) -> dict[str, str]:
+    safe_name = Path(filename.replace("\r", "").replace("\n", "")).name or "download"
+    return {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(safe_name, safe='')}"}
+
+
+@router.get("/deleted-messages")
+def list_deleted_messages(
+    request: Request,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    q: str = Query("", max_length=200),
+    _session_value: dict[str, object] = Depends(_session),
+):
+    total, items = request.app.state.deleted_mail_store.list_messages(
+        page=page, limit=limit, query=q
+    )
+    return {
+        "totalItems": total,
+        "page": page,
+        "limit": limit,
+        "member": items,
+    }
+
+
+@router.get("/deleted-messages/{message_id}")
+def get_deleted_message(
+    request: Request,
+    message_id: str,
+    _session_value: dict[str, object] = Depends(_session),
+):
+    item = request.app.state.deleted_mail_store.get_message(message_id)
+    if item is None:
+        raise HTTPException(404, "Deleted message not found")
+    return item
+
+
+@router.get("/deleted-messages/{message_id}/source")
+def get_deleted_message_source(
+    request: Request,
+    message_id: str,
+    _session_value: dict[str, object] = Depends(_session),
+):
+    raw_eml = request.app.state.deleted_mail_store.get_source(message_id)
+    if raw_eml is None:
+        raise HTTPException(404, "Deleted message source not found")
+    return Response(
+        content=raw_eml,
+        media_type="message/rfc822",
+        headers=_download_headers(f"{message_id}.eml"),
+    )
+
+
+@router.delete("/deleted-messages/{message_id}", status_code=204)
+def delete_deleted_message(
+    request: Request,
+    message_id: str,
+    _session_value: dict[str, object] = Depends(_csrf),
+):
+    if not request.app.state.deleted_mail_store.delete_message(message_id):
+        raise HTTPException(404, "Deleted message not found")
+    return Response(status_code=204)
+

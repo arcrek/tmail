@@ -23,6 +23,7 @@ class Config:
     api_token_secret: str = ""
     admin_password: str = ""
     state_db: str = "/var/lib/tmail-policy/state.db"
+    deleted_mail_db: str = "/var/lib/tmail-policy/deleted_mail.db"
     frontend_dist: str = "/opt/tmail-policy/frontend/dist"
     mail_account_id: str = ""
 
@@ -57,6 +58,8 @@ def validate_web_config(config: Config) -> Config:
 
 
 def _config_from_dict(d: dict) -> Config:
+    state_db = d.get("state_db", "/var/lib/tmail-policy/state.db")
+    default_deleted_db = os.path.join(os.path.dirname(state_db) or ".", "deleted_mail.db")
     return Config(
         jmap_url=d["jmap_url"],
         jmap_token=d["jmap_token"],
@@ -70,7 +73,8 @@ def _config_from_dict(d: dict) -> Config:
         api_listen_port=int(d.get("api_listen_port", 8000)),
         api_token_secret=d.get("api_token_secret", ""),
         admin_password=d.get("admin_password", ""),
-        state_db=d.get("state_db", "/var/lib/tmail-policy/state.db"),
+        state_db=state_db,
+        deleted_mail_db=d.get("deleted_mail_db") or default_deleted_db,
         frontend_dist=d.get("frontend_dist", "/opt/tmail-policy/frontend/dist"),
         mail_account_id=d.get("mail_account_id", ""),
     )
@@ -79,8 +83,8 @@ def _config_from_dict(d: dict) -> Config:
 def load_config(path: str) -> Config:
     with open(path) as f:
         d = json.load(f)
-    for key in ("state_db", "frontend_dist"):
-        if key in d and not os.path.isabs(d[key]):
+    for key in ("state_db", "deleted_mail_db", "frontend_dist"):
+        if key in d and d[key] and not os.path.isabs(d[key]):
             d[key] = os.path.join(os.path.dirname(path), d[key])
     return _config_from_dict(d)
 

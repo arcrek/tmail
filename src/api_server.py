@@ -64,8 +64,10 @@ from src.api_models import (
 )
 from src.api_state import StateStore
 from src.config import Config, ConfigStore, validate_web_config
+from src.deleted_mail import DeletedMailStore, MAX_EML_BACKUP_BYTES
 from src.domain_cache import DomainCache
 from src.jmap_client import JmapClient
+import zlib
 
 
 _BEARER = HTTPBearer(auto_error=False)
@@ -551,6 +553,83 @@ def _message(message: dict, account_id: str, blocked_domains: set[str]) -> Messa
     )
 
 
+def _compress_message_source(
+    jmap: JmapClient, account_id: str, message_id: str, message: dict
+) -> bytes | None:
+    blob_id = message.get("blobId")
+    size = int(message.get("size") or 0)
+    if not blob_id or size > MAX_EML_BACKUP_BYTES:
+        return None
+    stream, _content_type = jmap.download_blob(
+        account_id, str(blob_id), f"{message_id}.eml", "message/rfc822"
+    )
+    compressor = zlib.compressobj(level=6)
+    compressed_chunks: list[bytes] = []
+    total_bytes = 0
+    try:
+        for chunk in stream:
+            if not chunk:
+                continue
+            total_bytes += len(chunk)
+            if total_bytes > MAX_EML_BACKUP_BYTES:
+                return None
+            part = compressor.compress(chunk)
+            if part:
+                compressed_chunks.append(part)
+        tail = compressor.flush()
+        if tail:
+            compressed_chunks.append(tail)
+    finally:
+        close = getattr(stream, "close", None)
+        if close is not None:
+            close()
+    return b"".join(compressed_chunks)
+
+
+def _archive_deleted_message(
+    request: Request,
+    account_id: str,
+    address: str,
+    message_id: str,
+    message: dict,
+    jmap: JmapClient,
+) -> None:
+    senders = _emails(message.get("from"))
+    sender = senders[0] if senders else EmailAddress(name="", address="unknown@invalid")
+    attachments: list[dict[str, object]] = []
+    for attachment in message.get("attachments") or []:
+        if not isinstance(attachment, dict):
+            continue
+        attachments.append({
+            "id": str(attachment.get("blobId") or attachment.get("id") or "attachment"),
+            "filename": str(attachment.get("name") or "attachment"),
+            "contentType": str(attachment.get("type") or "application/octet-stream"),
+            "disposition": str(attachment.get("disposition") or "attachment"),
+            "size": int(attachment.get("size") or 0),
+        })
+    raw_eml_zlib = _compress_message_source(jmap, account_id, message_id, message)
+    request.app.state.deleted_mail_store.archive(
+        message_id=message_id,
+        account_id=account_id,
+        msgid=str(message.get("messageId") or message_id),
+        mailbox_address=address,
+        from_name=sender.name,
+        from_address=sender.address,
+        to_list=[{"name": item.name, "address": item.address} for item in _emails(message.get("to"))],
+        cc_list=[{"name": item.name, "address": item.address} for item in _emails(message.get("cc"))],
+        bcc_list=[{"name": item.name, "address": item.address} for item in _emails(message.get("bcc"))],
+        subject=str(message.get("subject") or ""),
+        intro=str(message.get("preview") or ""),
+        has_attachments=bool(message.get("hasAttachment") or attachments),
+        size=int(message.get("size") or 0),
+        text_body="\n".join(_body_parts(message, "textBody")),
+        html_body=_body_parts(message, "htmlBody"),
+        attachments=attachments,
+        raw_eml_zlib=raw_eml_zlib,
+        received_at=message.get("receivedAt") or _EPOCH,
+    )
+
+
 def _account(address: str, **metadata) -> AccountResource:
     account_id = _stable_id("account", address)
     return AccountResource(
@@ -915,7 +994,8 @@ def register_public_routes(app: FastAPI) -> None:
         elevated: bool = Depends(bearer_elevated),
     ):
         config, jmap = mail_runtime(request)
-        account_id, _value = message_for_address(request, address, message_id, config, jmap, elevated=elevated)
+        account_id, value = message_for_address(request, address, message_id, config, jmap, elevated=elevated)
+        _archive_deleted_message(request, account_id, address, message_id, value, jmap)
         if not jmap.delete_message(account_id, message_id):
             raise HTTPException(502, "Could not delete message")
         return Response(status_code=204)
@@ -1103,10 +1183,12 @@ def create_app(config_path: str) -> FastAPI:
     config_store = ConfigStore(config_path)
     cfg = validate_web_config(config_store.get())
     state = StateStore(cfg.state_db)
+    deleted_mail_store = DeletedMailStore(cfg.deleted_mail_db)
     signer = AddressToken(cfg.api_token_secret)
     app = FastAPI(title="Temporary Mail API", docs_url="/docs", redoc_url="/redoc")
     app.state.config_store = config_store
     app.state.state_store = state
+    app.state.deleted_mail_store = deleted_mail_store
     app.state.signer = signer
     app.state.mailbox_auth = MailboxAuth(state, signer)
     jmap_fingerprint = (cfg.jmap_url, cfg.jmap_token, cfg.catchall_address)

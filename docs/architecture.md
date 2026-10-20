@@ -47,7 +47,7 @@ flowchart TD
   - The SPA catch-all route explicitly guards reserved system paths (`_SPA_RESERVED`) so mailbox local-parts cannot shadow application endpoints.
 - **Retention Janitor ([`src/email_janitor.py`](../src/email_janitor.py))**:
   - Independent maintenance utility triggered by [`deploy/tmail-janitor.timer`](../deploy/tmail-janitor.timer).
-  - Queries Stalwart via JMAP for messages older than `retention_days` and batches their deletion.
+  - Queries Stalwart via JMAP for messages older than `retention_days` and batches their deletion, and purges expired user-deleted message backups from [`src/deleted_mail.py:DeletedMailStore`](../src/deleted_mail.py).
 - **Frontend SPA ([`frontend/`](../frontend/))**:
   - Vue 3 + TypeScript single-page application governed by the [frontend design guidelines](design-guidelines.md).
 
@@ -68,6 +68,7 @@ TMail partitions persistence between two independent stores with distinct perfor
 |---|---|---|---|---|
 | **Domain Cache** | Atomic JSON file (`domains.json`) | [`src/domain_cache.py:DomainCache`](../src/domain_cache.py) | Instant lookup of MX-verified domains for Postfix SMTP checks | In-memory `set` synchronized via `fcntl.flock` and file generation tracking |
 | **State Store** | SQLite database (`state.db`) | [`src/api_state.py:StateStore`](../src/api_state.py) | Relational storage: site settings, admin/unlock/mailbox sessions, password hashes, revocation generations, frozen domains, activity logs | Multi-process SQLite with `PRAGMA journal_mode=WAL` |
+| **Deleted Mail Store** | SQLite database (`deleted_mail.db`) | [`src/deleted_mail.py:DeletedMailStore`](../src/deleted_mail.py) | 365-day admin-only backup of user-deleted emails (`DELETE /messages/{id}`) with zlib-compressed `.eml` source (up to 10 MiB raw) | Multi-process SQLite with `PRAGMA journal_mode=WAL`, `0600` permissions, and `PRAGMA auto_vacuum=INCREMENTAL` |
 
 ### State database upgrades and mailbox lifecycle
 

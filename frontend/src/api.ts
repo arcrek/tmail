@@ -4,6 +4,8 @@ import type {
   AdminSettings,
   AdminSettingsUpdate,
   DashboardResource,
+  DeletedMessageCollection,
+  DeletedMessageResource,
   DomainResource,
   HydraCollection,
   HydraError,
@@ -176,5 +178,18 @@ export const api = {
         request<void>(`/admin/api/access-credentials/${encodeURIComponent(id)}`, { method: 'DELETE', csrf }),
     },
     dashboard: () => request<DashboardResource>('/admin/api/dashboard'),
+    deletedMessages: {
+      list: (page = 1, q = '', limit = 20) => {
+        const params = new URLSearchParams({ page: String(page), limit: String(limit) })
+        if (q.trim()) params.set('q', q.trim())
+        return request<DeletedMessageCollection>(`/admin/api/deleted-messages?${params.toString()}`)
+      },
+      get: (id: string) =>
+        request<DeletedMessageResource>(`/admin/api/deleted-messages/${encodeURIComponent(id)}`),
+      source: (id: string) =>
+        request<Blob>(`/admin/api/deleted-messages/${encodeURIComponent(id)}/source`),
+      remove: (id: string, csrf: string) =>
+        request<void>(`/admin/api/deleted-messages/${encodeURIComponent(id)}`, { method: 'DELETE', csrf }),
+    },
   },
 }

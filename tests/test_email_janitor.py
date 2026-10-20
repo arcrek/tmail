@@ -178,3 +178,69 @@ def test_discovery_uses_session_api_url_for_queries_and_destroys(upstream):
     post_urls = [str(req.url) for req in requests if req.method == "POST"]
     assert post_urls == ["https://api.mail.example/jmap/v1"] * 3
 
+
+def test_janitor_purges_expired_deleted_mail_backups(upstream, caplog):
+    from datetime import timedelta
+    from src.deleted_mail import BACKUP_RETENTION_DAYS, DeletedMailStore
+
+    _, responses, config = upstream
+    responses.append(envelope("Email/query", ids=[]))
+
+    cfg = email_janitor.load_config(str(config))
+    now = datetime(2026, 10, 9, 16, 0, tzinfo=timezone.utc)
+    expired_time = now - timedelta(days=BACKUP_RETENTION_DAYS + 1)
+    fresh_time = now - timedelta(days=10)
+
+    expired_store = DeletedMailStore(cfg.deleted_mail_db, clock=lambda: expired_time)
+    expired_store.archive(
+        message_id="expired-backup",
+        account_id="mail-account",
+        msgid="<expired@example.com>",
+        mailbox_address="box@example.com",
+        from_name="",
+        from_address="sender@example.net",
+        to_list=[],
+        cc_list=[],
+        bcc_list=[],
+        subject="Old",
+        intro="",
+        has_attachments=False,
+        size=10,
+        text_body="Old",
+        html_body=[],
+        attachments=[],
+        raw_eml_zlib=None,
+        received_at="2025-10-01T00:00:00Z",
+    )
+    fresh_store = DeletedMailStore(cfg.deleted_mail_db, clock=lambda: fresh_time)
+    fresh_store.archive(
+        message_id="fresh-backup",
+        account_id="mail-account",
+        msgid="<fresh@example.com>",
+        mailbox_address="box@example.com",
+        from_name="",
+        from_address="sender@example.net",
+        to_list=[],
+        cc_list=[],
+        bcc_list=[],
+        subject="Fresh",
+        intro="",
+        has_attachments=False,
+        size=10,
+        text_body="Fresh",
+        html_body=[],
+        attachments=[],
+        raw_eml_zlib=None,
+        received_at="2026-09-29T00:00:00Z",
+    )
+
+    with caplog.at_level(logging.INFO):
+        email_janitor.run(str(config))
+
+    assert "archived backups purged: 1" in caplog.text
+    check_store = DeletedMailStore(cfg.deleted_mail_db, clock=lambda: now)
+    total, items = check_store.list_messages()
+    assert total == 1
+    assert [item["id"] for item in items] == ["fresh-backup"]
+
+

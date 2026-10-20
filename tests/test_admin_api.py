@@ -755,3 +755,85 @@ def test_refresh_domains_skips_invalid_entries_and_normalizes_trailing_dots(admi
     assert domains == ["valid.example", "xn--bcher-kva.example"]
 
 
+def test_admin_deleted_messages_require_auth_and_csrf_for_delete(client, admin_client):
+    anon = TestClient(client.app, base_url="https://testserver", raise_server_exceptions=False)
+    assert anon.get("/admin/api/deleted-messages").status_code == 401
+    assert anon.get("/admin/api/deleted-messages/m1").status_code == 401
+    assert anon.get("/admin/api/deleted-messages/m1/source").status_code == 401
+    assert anon.delete("/admin/api/deleted-messages/m1").status_code == 401
+    assert admin_client.delete("/admin/api/deleted-messages/m1").status_code == 403
+
+
+def test_admin_deleted_messages_list_detail_source_and_delete(admin_client):
+    import zlib
+
+    store = admin_client.app.state.deleted_mail_store
+    store.archive(
+        message_id="del-1",
+        account_id="mail-account",
+        msgid="<del-1@example.com>",
+        mailbox_address="alice@old.example",
+        from_name="Sender One",
+        from_address="one@sender.example",
+        to_list=[{"name": "Alice", "address": "alice@old.example"}],
+        cc_list=[],
+        bcc_list=[],
+        subject="Your verification code 123456",
+        intro="Code is 123456",
+        has_attachments=False,
+        size=120,
+        text_body="Code is 123456",
+        html_body=["<p>Code is 123456</p>"],
+        attachments=[],
+        raw_eml_zlib=zlib.compress(b"Subject: Your verification code 123456\r\n\r\nCode is 123456"),
+        received_at="2026-10-19T10:00:00Z",
+    )
+    store.archive(
+        message_id="del-2",
+        account_id="mail-account",
+        msgid="<del-2@example.com>",
+        mailbox_address="bob@old.example",
+        from_name="Sender Two",
+        from_address="two@sender.example",
+        to_list=[{"name": "Bob", "address": "bob@old.example"}],
+        cc_list=[],
+        bcc_list=[],
+        subject="Large attachment mail",
+        intro="No raw eml",
+        has_attachments=True,
+        size=15 * 1024 * 1024,
+        text_body="Oversized mail",
+        html_body=[],
+        attachments=[{"id": "a1", "filename": "huge.bin", "contentType": "application/octet-stream", "disposition": "attachment", "size": 15000000}],
+        raw_eml_zlib=None,
+        received_at="2026-10-19T11:00:00Z",
+    )
+
+    listing = admin_client.get("/admin/api/deleted-messages?q=alice")
+    assert listing.status_code == 200
+    body = listing.json()
+    assert body["totalItems"] == 1
+    assert [item["id"] for item in body["member"]] == ["del-1"]
+
+    detail = admin_client.get("/admin/api/deleted-messages/del-1")
+    assert detail.status_code == 200
+    assert detail.json()["text"] == "Code is 123456"
+    assert detail.json()["hasSource"] is True
+
+    source = admin_client.get("/admin/api/deleted-messages/del-1/source")
+    assert source.status_code == 200
+    assert source.headers["content-type"] == "message/rfc822"
+    assert "del-1.eml" in source.headers["content-disposition"]
+    assert source.content == b"Subject: Your verification code 123456\r\n\r\nCode is 123456"
+
+    # Oversized message without raw_eml_zlib returns 404 on /source
+    assert admin_client.get("/admin/api/deleted-messages/del-2/source").status_code == 404
+
+    # Hard delete removes the backup record
+    deleted = admin_client.delete("/admin/api/deleted-messages/del-1", headers=admin_client.csrf)
+    assert deleted.status_code == 204
+    assert admin_client.get("/admin/api/deleted-messages/del-1").status_code == 404
+    assert admin_client.delete("/admin/api/deleted-messages/del-1", headers=admin_client.csrf).status_code == 404
+
+
+
