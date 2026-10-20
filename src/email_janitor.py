@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 
 from .config import load_config
+from .deleted_mail import DeletedMailStore
 from .jmap_client import JmapClient, JmapUpstreamError
 
 logger = logging.getLogger(__name__)
@@ -129,7 +130,15 @@ def run(config_path: str) -> None:
             total_deleted += deleted
             logger.info("Deleted batch of %d (total so far: %d)", deleted, total_deleted)
 
-    logger.info("Done. Total emails deleted: %d", total_deleted)
+    deleted_mail_store = DeletedMailStore(
+        cfg.deleted_mail_db, clock=lambda: datetime.now(timezone.utc)
+    )
+    archived_purged = deleted_mail_store.purge_expired()
+    logger.info(
+        "Done. Total emails deleted: %d (archived backups purged: %d)",
+        total_deleted,
+        archived_purged,
+    )
 
 
 if __name__ == "__main__":

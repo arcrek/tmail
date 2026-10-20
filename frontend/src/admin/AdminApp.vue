@@ -7,6 +7,7 @@ import type { AdminSettings } from '../types'
 import AccessTab from './AccessTab.vue'
 import ContentTab from './ContentTab.vue'
 import DashboardTab from './DashboardTab.vue'
+import DeletedMailTab from './DeletedMailTab.vue'
 import DomainsTab from './DomainsTab.vue'
 import GeneralTab from './GeneralTab.vue'
 import MailServerTab from './MailServerTab.vue'
@@ -20,8 +21,9 @@ const tabs: Array<{ id: Tab; key: MessageKey; icon: IconName }> = [
   { id: 'domains', key: 'admin.domains', icon: 'globe' },
   { id: 'access', key: 'admin.access', icon: 'key' },
   { id: 'content', key: 'admin.content', icon: 'code-2' },
+  { id: 'deleted', key: 'admin.deleted', icon: 'trash-2' },
 ]
-type Tab = 'dashboard' | 'general' | 'mail' | 'domains' | 'access' | 'content'
+type Tab = 'dashboard' | 'general' | 'mail' | 'domains' | 'access' | 'content' | 'deleted'
 const { t } = useI18n()
 
 const password = ref('')
@@ -195,6 +197,7 @@ async function logout(): Promise<void> {
         <MailServerTab v-else-if="activeTab === 'mail'" :mail-server="settings.mailServer" :csrf="csrf" @busy="childBusy = $event" @updated="settings = $event" />
         <DomainsTab v-else-if="activeTab === 'domains'" :site="settings.site" :domains="settings.domains" :last-sync="settings.lastSync" :last-successful-sync="settings.lastSuccessfulSync" :last-sync-error="settings.lastSyncError" :csrf="csrf" @busy="childBusy = $event" @synced="applyDomainSync" @updated="settings = $event" />
         <AccessTab v-else-if="activeTab === 'access'" :csrf="csrf" @busy="childBusy = $event" />
+        <DeletedMailTab v-else-if="activeTab === 'deleted'" :csrf="csrf" @busy="childBusy = $event" />
         <ContentTab v-else :site="settings.site" :csrf="csrf" @busy="childBusy = $event" @updated="settings = $event" />
       </div>
     </section>

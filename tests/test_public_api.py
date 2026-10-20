@@ -959,3 +959,50 @@ def test_domains_endpoints_set_cache_control_no_store(client):
     assert detail.headers.get("cache-control") == "no-store"
 
 
+def test_delete_message_archives_to_deleted_mail_db_before_jmap_destroy(client, bearer, fake_jmap):
+    client.app.state.state_store.update_settings({"blocked_sender_domains": ["example.net"]})
+
+    response = client.delete("/messages/m1", headers=bearer)
+
+    assert response.status_code == 204
+    fake_jmap.delete_message.assert_called_once_with("mail-account", "m1")
+    archived = client.app.state.deleted_mail_store.get_message("m1")
+    assert archived is not None
+    assert archived["mailboxAddress"] == "box@example.com"
+    # Admin archive must preserve real unmasked sender even when sender domain is blocked publicly
+    assert archived["from"] == {"name": "Sender", "address": "sender@example.net"}
+    assert archived["subject"] == "Hello"
+    assert archived["text"] == "Plain body"
+    assert archived["html"] == ["<p>HTML body</p>"]
+    assert archived["hasSource"] is True
+    assert client.app.state.deleted_mail_store.get_source("m1") == b"payload"
+
+
+def test_delete_message_fails_closed_when_backup_archive_fails(client, bearer, fake_jmap, monkeypatch):
+    def fail_archive(**_kwargs):
+        raise sqlite3.OperationalError("database or disk is full")
+
+    monkeypatch.setattr(client.app.state.deleted_mail_store, "archive", fail_archive)
+
+    response = client.delete("/messages/m1", headers=bearer)
+
+    assert response.status_code == 503
+    assert response.json()["@type"] == "hydra:Error"
+    fake_jmap.delete_message.assert_not_called()
+
+
+def test_delete_message_skips_source_blob_when_message_exceeds_size_cap(client, bearer, fake_jmap):
+    oversized = dict(MESSAGE, size=11 * 1024 * 1024)
+    fake_jmap.get_message.return_value = oversized
+
+    response = client.delete("/messages/m1", headers=bearer)
+
+    assert response.status_code == 204
+    fake_jmap.download_blob.assert_not_called()
+    archived = client.app.state.deleted_mail_store.get_message("m1")
+    assert archived is not None
+    assert archived["hasSource"] is False
+    assert client.app.state.deleted_mail_store.get_source("m1") is None
+
+
+

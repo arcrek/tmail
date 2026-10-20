@@ -205,3 +205,45 @@ export interface DashboardResource extends SyncHistory {
   }
   autoSyncDomains: boolean
 }
+
+export interface DeletedAttachment {
+  id: string
+  filename: string
+  contentType: string
+  disposition: string
+  size: number
+}
+
+export interface DeletedMessageSummary {
+  id: string
+  accountId: string
+  msgid: string
+  mailboxAddress: string
+  from: EmailAddress
+  to: EmailAddress[]
+  subject: string
+  intro: string
+  hasAttachments: boolean
+  size: number
+  hasSource: boolean
+  downloadUrl: string | null
+  receivedAt: string
+  deletedAt: string
+  expiresAt: string
+}
+
+export interface DeletedMessageResource extends DeletedMessageSummary {
+  cc: EmailAddress[]
+  bcc: EmailAddress[]
+  text: string
+  html: string[]
+  attachments: DeletedAttachment[]
+}
+
+export interface DeletedMessageCollection {
+  totalItems: number
+  page: number
+  limit: number
+  member: DeletedMessageSummary[]
+}
+
