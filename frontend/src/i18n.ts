@@ -1,164 +1,54 @@
 import { readonly, ref } from 'vue'
+import { en } from './locales/en'
+import { vi } from './locales/vi'
+import { ru } from './locales/ru'
+import { zh } from './locales/zh'
 
-export type Locale = 'en' | 'vi'
+export { en, vi, ru, zh }
+
+export type Locale = 'en' | 'vi' | 'ru' | 'zh'
+export type MessageKey = keyof typeof en
 type Params = Record<string, string | number>
 const STORAGE_KEY = 'tmail.locale'
 
-export const en = {
-  'address.quickAccess': 'Quick email access',
-  'address.email': 'Email address',
-  'address.openMailbox': 'Open mailbox',
-  'password.title': 'Mailbox password',
-  'password.login': 'Sign in to this mailbox',
-  'password.label': 'Mailbox password',
-  'password.current': 'Current password',
-  'password.new': 'New password',
-  'password.confirm': 'Confirm new password',
-  'password.set': 'Set password',
-  'password.change': 'Change password',
-  'password.reset': 'Reset password',
-  'password.remove': 'Remove password',
-  'password.public': 'Public mailbox',
-  'password.admin': 'Administrator access',
-  'password.deadline': 'Protection expires: {date}',
-  'password.warning': 'After 90 days without signing in with your password, protection expires and anyone can access this mailbox. Reading mail while already signed in does not extend this period.',
-  'password.removeWarning': 'Removing the password makes this mailbox public. Anyone with its address can read its mail.',
-  'password.length': 'Use 12–128 characters. Spaces are preserved.',
-  'password.mismatch': 'Passwords do not match. Try again.',
-  'password.invalid': 'The mailbox password is incorrect. Try again.',
-  'password.required': 'This mailbox requires a password.',
-  'password.submit': 'Sign in',
-  'password.busy': 'Please wait…',
-  'password.cancel': 'Cancel',
-  'password.logout': 'Sign out of mailbox',
-  'password.loggedOut': 'Signed out on this device.',
-  'password.logoutUnconfirmed': 'Signed out locally. Server revocation could not be confirmed; the session may still work elsewhere.',
-  'password.locked': 'Locked — sign in on the mailbox page.',
-  'password.open': 'Open mailbox login',
-  'password.retry': 'Try opening again',
-  'password.changed': 'Mailbox protection changed. Sign in again.',
-  'password.saved': 'Mailbox protection updated.',
-
-  'nav.site': 'Site navigation', 'a11y.skipToContent': 'Skip to content', 'nav.home': 'Home', 'nav.docs': 'API docs', 'nav.bulk': 'Bulk generate', 'nav.bulkCode': 'Bulk read', 'nav.admin': 'Admin', 'nav.menu': 'Menu', 'nav.toggleMenu': 'Toggle navigation menu', 'locale.label': 'Language', 'locale.english': 'English', 'locale.vietnamese': 'Vietnamese',
-  'theme.light': 'Switch to light theme', 'theme.dark': 'Switch to dark theme',
-  'toast.dismiss': 'Dismiss',
-  'app.opening': 'Opening address', 'app.cookie': 'Cookie notice', 'app.header': 'Configured site header', 'app.footer': 'Configured site footer', 'app.content': 'Configured {name} content', 'app.defaultName': 'TMail — Temporary Inbox', 'app.messageContent': 'Message content', 'app.siteContent': 'Site content',
-  'how.title': 'How it works', 'how.step1Title': 'Instant addresses', 'how.step1Desc': 'Pick a custom name or generate a random address across available receiving domains.', 'how.step2Title': 'Live verification codes', 'how.step2Desc': 'Emails arrive in real-time with one-click copyable verification and OTP codes.', 'how.step3Title': 'Automatic privacy', 'how.step3Desc': 'No accounts or passwords. Inboxes and messages expire safely based on server retention policy.', 'trust.privacyNotice': 'Passwordless public inboxes. Incoming messages automatically expire after the server retention window. No tracking cookies or personal data stored.',
-  'address.eyebrow': 'Temporary inbox', 'address.title': 'Receive mail. Keep your address.', 'address.lede': 'Choose a name, open the inbox, and leave no account behind.', 'address.loading': 'Loading receiving domains', 'address.failed': 'Domains could not be loaded', 'address.none': 'No receiving domains are available', 'address.noneHelp': 'Try again later or ask the site administrator to enable a domain.', 'address.retry': 'Retry', 'address.open': 'Open inbox', 'address.opening': 'Opening inbox', 'address.create': 'Create an address', 'address.random': 'Open random email', 'address.name': 'Address name', 'address.domain': 'Receiving domain', 'address.preview': 'Your address appears here', 'address.copy': 'Copy', 'address.copied': 'Copied', 'address.copiedNotice': 'Address copied.', 'address.saved': 'Saved inboxes', 'address.savedHelp': 'Addresses you open on this device will appear here.', 'address.forget': 'Forget {address}', 'error.unavailable': 'The mail service is unavailable. Try again.', 'error.copy': 'Copy failed. Select the address and copy it manually.',
-  'bulk.title': 'Generate multiple addresses', 'bulk.lede': 'Pick how many random addresses to create.', 'bulk.countLabel': 'Number of addresses', 'bulk.generate': 'Generate', 'bulk.generating': 'Generating', 'bulk.empty': 'Generate a batch to see addresses here.', 'bulk.open': 'Open in new tab', 'bulk.copy': 'Copy', 'bulk.copied': 'Copied', 'bulk.copiedNotice': 'Address copied.', 'bulk.copyAll': 'Copy all', 'bulk.copiedAllNotice': 'All addresses copied.', 'bulk.partial': 'Only {count} unique addresses could be generated.',
-  'bulk.exportCsv': 'Export CSV',
-  'bulkCode.exportCsv': 'Export CSV',
-  'inbox.refreshIn': 'Auto-refresh in {seconds}s',
-  'inbox.toggleSound': 'Toggle sound alerts',
-  'inbox.soundOn': 'Sound on',
-  'inbox.soundOff': 'Sound off',
-  'inbox.showQr': 'Show QR code',
-  'inbox.qrTitle': 'Scan email address',
-  'inbox.qrError': 'Could not generate a QR code. You can still copy the address.',
-  'inbox.qrHelp': 'Scan this QR code to open or copy this temporary email address on your mobile device.',
-  'inbox.createToggle': 'Create or customize address',
-  'bulkCode.title': 'Read verification codes', 'bulkCode.lede': 'Paste up to 10 addresses to read their latest verification codes.', 'bulkCode.addresses': 'Email addresses', 'bulkCode.placeholder': 'one@example.com, two@example.com', 'bulkCode.submit': 'Read codes', 'bulkCode.loading': 'Loading latest message', 'bulkCode.refresh': 'Refresh', 'bulkCode.refreshing': 'Refreshing', 'bulkCode.partial': 'Only the first {count} unique addresses will be read.', 'bulkCode.empty': 'Paste addresses to read their latest messages.', 'bulkCode.email': 'Email address', 'bulkCode.subject': 'Subject', 'bulkCode.code': 'Extracted code', 'bulkCode.actions': 'Actions', 'bulkCode.noSubject': '(No subject)', 'bulkCode.noCode': '(No code)', 'bulkCode.copyCode': 'Copy code', 'bulkCode.copyCodeFor': 'Copy code for {address}', 'bulkCode.copyEmailFor': 'Copy email {address}', 'bulkCode.codeCopied': 'Verification code copied.', 'bulkCode.emailCopied': 'Email address copied.', 'bulkCode.rowError': 'Could not read this address.',
-  'unlock.open': 'Unlock full access', 'unlock.credential': 'Access credential', 'unlock.placeholder': 'Password or token', 'unlock.submit': 'Unlock', 'unlock.unlocking': 'Unlocking', 'unlock.cancel': 'Cancel', 'unlock.unlocked': 'Unlocked', 'unlock.lock': 'Lock', 'unlock.invalid': 'The access credential is invalid.', 'unlock.failed': 'Could not unlock full access. Try again.',
-  'inbox.address': 'Your temporary address', 'inbox.refresh': 'Refresh', 'inbox.refreshing': 'Refreshing', 'inbox.new': 'New address', 'inbox.enableNotifications': 'Enable notifications', 'inbox.notificationsOn': 'Notifications on', 'inbox.autoRefresh': 'Auto-refreshes every {seconds}s', 'inbox.messages': 'Messages', 'inbox.total': '{count} total', 'inbox.searchLabel': 'Search messages', 'inbox.searchPlaceholder': 'Search this page', 'inbox.loading': 'Loading inbox', 'inbox.unavailable': 'Inbox unavailable', 'inbox.waiting': 'Waiting for mail', 'inbox.waitingHelp': 'New messages will appear here automatically.', 'inbox.noSearchResults': 'No messages match your search on this page.', 'inbox.noSubject': '(No subject)', 'inbox.noPreview': 'No preview available', 'inbox.attachment': 'Has attachment', 'inbox.unread': 'Unread', 'inbox.pages': 'Message pages', 'inbox.previous': 'Previous', 'inbox.next': 'Next', 'inbox.page': 'Page {page}', 'inbox.newMessage': 'New message', 'inbox.copyEmailAction': 'Copy email', 'inbox.copyCodeAction': 'Copy code', 'inbox.copyCodeFor': 'Copy code for {address}', 'inbox.codeCopied': 'Verification code copied.', 'inbox.newMessageBody': 'A new message arrived in your temporary inbox.', 'inbox.notificationsUnavailable': 'Browser notifications are not available.', 'inbox.notificationsEnabled': 'Notifications enabled.', 'inbox.notificationsOff': 'Notifications remain off.', 'error.inbox': 'The inbox could not be refreshed.',
-  'reader.back': 'Back to inbox', 'reader.loading': 'Loading message', 'reader.unavailable': 'Message unavailable', 'reader.saving': 'Saving', 'reader.downloadSource': 'Download .eml', 'reader.deleting': 'Deleting', 'reader.delete': 'Delete', 'reader.to': 'To', 'reader.cc': 'Cc', 'reader.bcc': 'Bcc', 'reader.undisclosed': 'Undisclosed', 'reader.attachments': 'Attachments', 'reader.download': 'Download', 'reader.downloadFile': 'Download {filename}', 'reader.code': 'Verification code', 'reader.format': 'Message format', 'reader.text': 'Plain text', 'reader.html': 'HTML', 'reader.empty': 'This message has no readable body.', 'reader.title': 'Message: {subject}', 'reader.deleteConfirm': 'Delete this message permanently?', 'error.message': 'The message could not be loaded.', 'error.stale': 'This message is no longer available.', 'error.download': 'The attachment could not be downloaded.', 'error.source': 'The message source could not be downloaded.', 'error.delete': 'The message could not be deleted.', 'error.seen': 'The read status could not be saved.',
-  'admin.loginEyebrow': 'Administration', 'admin.loginTitle': 'Admin access', 'admin.loginNote': 'Your session is kept for 12 hours on this device. Credentials are never stored.', 'admin.password': 'Administrator password', 'admin.signIn': 'Log in', 'admin.signingIn': 'Signing in', 'admin.cleanup': 'Retry session cleanup', 'admin.retryingCleanup': 'Retrying cleanup', 'admin.apiStatus': 'API status', 'admin.healthy': 'Healthy', 'admin.logout': 'Log out', 'admin.loggingOut': 'Logging out', 'admin.settings': 'Settings', 'admin.config': 'System configuration', 'admin.sections': 'Administration sections', 'admin.dashboard': 'Dashboard', 'admin.general': 'General', 'admin.mail': 'Mail Server', 'admin.domains': 'Domains & Inbox', 'admin.access': 'Access', 'admin.content': 'HTML & Ads', 'admin.deleted': 'Deleted Mail',
-  'deleted.eyebrow': '1-year compliance archive', 'deleted.title': 'Deleted Mail', 'deleted.note': 'User-deleted messages are retained here for 365 days before automatic purge.', 'deleted.searchLabel': 'Search deleted messages', 'deleted.searchPlaceholder': 'Search mailbox, sender, or subject…', 'deleted.search': 'Search', 'deleted.clear': 'Clear', 'deleted.loading': 'Loading deleted messages', 'deleted.empty': 'No deleted messages in backup.', 'deleted.noResults': 'No deleted messages match your search.', 'deleted.back': 'Back to deleted messages', 'deleted.mailbox': 'Mailbox', 'deleted.from': 'From', 'deleted.received': 'Received', 'deleted.deletedAt': 'Deleted', 'deleted.expiresAt': 'Expires', 'deleted.sourceUnavailable': 'Raw .eml not stored (>10 MB)', 'deleted.delete': 'Delete permanently', 'deleted.deleting': 'Deleting', 'deleted.deleteConfirm': 'Permanently delete this archived message from the backup database? This cannot be undone.', 'deleted.deletedNotice': 'Archived message permanently deleted.', 'error.deletedLoad': 'Could not load deleted messages.', 'error.deletedMessage': 'Could not load archived message.', 'error.deletedDelete': 'Could not delete archived message.',
-  'access.eyebrow': 'Full-access credentials', 'access.list': 'Access credentials', 'access.kind': 'Kind', 'access.label': 'Label', 'access.created': 'Created', 'access.password': 'Password', 'access.token': 'Token', 'access.addPassword': 'Add password', 'access.passwordConfirm': 'Confirm password', 'access.generateToken': 'Generate token', 'access.secret': 'Save this credential now', 'access.secretHelp': 'This secret is shown only once and cannot be recovered.', 'access.copy': 'Copy', 'access.copied': 'Copied', 'access.dismiss': 'Dismiss', 'access.revoke': 'Revoke', 'access.revokeConfirm': 'Revoke {label}? This cannot be undone.', 'access.none': 'No access credentials have been created.', 'error.access': 'Could not update access credentials.', 'error.accessLoad': 'Could not load access credentials.', 'error.accessPasswordMatch': 'Passwords do not match.', 'error.accessCopy': 'Copy failed. Select the credential and copy it manually.',
-  'dashboard.eyebrow': 'Mail activity', 'dashboard.stored': 'Stored messages', 'dashboard.today': 'Messages today', 'dashboard.week': 'Messages in seven days', 'dashboard.domainsActive': 'Active domains', 'dashboard.domainsToday': 'Domains today', 'dashboard.domainsWeek': 'Domains in seven days', 'dashboard.mxFailures': 'Recent MX failures', 'dashboard.mxFailuresEmpty': 'No recent MX failures.', 'dashboard.mxMismatch': 'MX record mismatch', 'dashboard.mxLookupError': 'MX lookup error', 'dashboard.loading': 'Loading mail activity', 'error.dashboard': 'Could not load mail activity.',
-  'general.eyebrow': 'Appearance and language', 'general.appName': 'App name', 'general.language': 'Language', 'general.languageHelp': 'Supported UI languages: en, vi.', 'general.primary': 'Primary color', 'general.accent': 'Accent color', 'general.colorHelp': 'Used in both light and dark themes', 'general.logo': 'Logo image', 'general.favicon': 'Favicon image', 'general.imageHelp': 'Image, 1 MiB maximum.', 'general.brandingAssets': 'Branding & Assets', 'general.cookieConsent': 'Cookie Consent', 'general.cookieEnabled': 'Show cookie notice', 'general.cookieText': 'Cookie notice text', 'general.save': 'Save general settings', 'general.saved': 'General settings saved.', 'error.image': 'Could not read image.', 'error.imageType': 'Choose an image file.', 'error.imageSize': 'Images must be no larger than 1 MiB.', 'error.general': 'Could not save general settings.',
-  'mail.eyebrow': 'JMAP connection', 'mail.url': 'JMAP URL', 'mail.token': 'JMAP token', 'mail.tokenHelp': 'The masked value keeps the saved token unchanged.', 'mail.catchall': 'Catch-all address', 'mail.account': 'Account ID', 'mail.accountHelp': 'Optional. Leave empty for discovery.', 'mail.retention': 'Retention days', 'mail.test': 'Test connection', 'mail.testing': 'Testing', 'mail.save': 'Save mail server', 'mail.saved': 'Mail server settings saved.', 'mail.passed': 'Connection passed. {domains} domains and {messages} stored messages.', 'mail.jmapConfig': 'JMAP Endpoint Configuration', 'mail.accountRetention': 'Account & Data Retention', 'error.mailValid': 'Enter a valid JMAP URL, catch-all address, and retention period.', 'error.mail': 'Could not save mail server settings.', 'error.connection': 'Mail connection failed.',
-  'domains.eyebrow': 'Provisioning policy', 'domains.sync': 'Sync now', 'domains.syncing': 'Syncing', 'domains.whitelist': 'Active whitelist', 'domains.none': 'No active domains.', 'domains.lastSync': 'Last sync', 'domains.time': 'Time', 'domains.result': 'Result', 'domains.detail': 'Detail', 'domains.lastSuccess': 'Last successful sync', 'domains.lastError': 'Last error', 'domains.notYet': 'Not yet', 'domains.success': 'Successful', 'domains.failed': 'Failed', 'domains.noDetail': 'None', 'domains.remove': 'Remove {domain}', 'domains.removeText': 'Remove', 'domains.add': 'Add', 'domains.addWhitelist': 'Add Whitelist Domain', 'domains.syncPolicy': 'Domain Sync & Policy Configuration', 'domains.auto': 'Automatically sync domains from the mail server', 'domains.poll': 'Polling seconds', 'domains.limit': 'Message limit', 'domains.min': 'Local-part minimum', 'domains.max': 'Local-part maximum', 'domains.save': 'Save domain settings', 'domains.saved': 'Domain settings saved.', 'domains.confirm': 'Turn off auto-sync? The current whitelist will freeze until you sync manually or turn auto-sync on.', 'domains.autoStatus': 'Auto-sync {status}.', 'domains.enabled': 'enabled', 'domains.disabled': 'disabled', 'domains.localRange': 'Minimum local-part length cannot exceed the maximum.', 'domains.added': 'Receiving domain added.', 'domains.removed': 'Receiving domain removed.', 'domains.hidden': 'Domain removed from public web access.', 'domains.complete': 'Sync complete. {count} active domains.', 'domains.addHelp': 'Added domains appear in the active whitelist after validation.', 'domains.forbidden': 'Forbidden IDs', 'domains.listHelp': 'One value per line or comma-separated.', 'domains.blocked': 'Blocked sender domains', 'domains.blacklisted': 'Blacklisted web domains', 'domains.blacklistHelp': 'Use exact domains or *.example.com (includes the base). Manual whitelist entries win. Mail is still received, but the public website cannot create or open inboxes for these domains.', 'error.domainValid': 'Enter a valid domain name.', 'error.domainExists': 'That domain is already in the whitelist.', 'error.domains': 'Could not save domain settings.', 'error.domainSync': 'Domain sync failed.', 'error.syncUpdate': 'Could not update auto-sync.', 'error.sync': 'Domain sync failed.', 'error.settingsRefresh': 'Settings refresh failed.', 'error.domainsSynced': 'Domains synced, but settings refresh failed. {detail}',
-  'content.eyebrow': 'Sandboxed site content', 'content.note': 'Scripts in ad HTML run in an isolated origin and cannot access inbox storage.', 'content.header': 'Header HTML', 'content.footer': 'Footer HTML', 'content.css': 'Content-block CSS', 'content.headerTitle': 'Header HTML', 'content.footerTitle': 'Footer HTML', 'content.cssTitle': 'Custom CSS Sandbox', 'content.headerPreview': 'Header preview', 'content.footerPreview': 'Footer preview', 'content.slots': 'Named ad slots', 'content.add': 'Add slot', 'content.name': 'Slot name', 'content.ad': 'Ad HTML', 'content.remove': 'Remove slot', 'content.preview': '{name} preview', 'content.none': 'No ad slots configured.', 'content.save': 'Save HTML and ads', 'content.saved': 'HTML and ad settings saved.', 'content.everyName': 'Every ad slot needs a name.', 'content.unique': 'Ad slot names must be unique after trimming.', 'content.limit': 'HTML, CSS, and ad values must not exceed 100,000 characters.', 'error.content': 'Could not save HTML and ads.',
-} as const
-
-export const vi: Record<keyof typeof en, string> = {
-  'address.quickAccess': 'Mở nhanh hộp thư',
-  'address.email': 'Địa chỉ email',
-  'address.openMailbox': 'Mở hộp thư',
-  'password.title': 'Mật khẩu hộp thư',
-  'password.login': 'Đăng nhập hộp thư',
-  'password.label': 'Mật khẩu hộp thư',
-  'password.current': 'Mật khẩu hiện tại',
-  'password.new': 'Mật khẩu mới',
-  'password.confirm': 'Nhập lại mật khẩu mới',
-  'password.set': 'Đặt mật khẩu',
-  'password.change': 'Đổi mật khẩu',
-  'password.reset': 'Đặt lại mật khẩu',
-  'password.remove': 'Xóa mật khẩu',
-  'password.public': 'Hộp thư công khai',
-  'password.admin': 'Truy cập với quyền quản trị',
-  'password.deadline': 'Hết hạn bảo vệ: {date}',
-  'password.warning': 'Sau 90 ngày không đăng nhập bằng mật khẩu, chế độ bảo vệ sẽ hết hạn và bất kỳ ai cũng có thể truy cập hộp thư này. Đọc thư khi đã đăng nhập không gia hạn thời gian bảo vệ.',
-  'password.removeWarning': 'Xóa mật khẩu sẽ công khai hộp thư này. Bất kỳ ai biết địa chỉ đều có thể đọc thư.',
-  'password.length': 'Dùng từ 12 đến 128 ký tự. Khoảng trắng được giữ nguyên.',
-  'password.mismatch': 'Hai mật khẩu không khớp. Hãy nhập lại.',
-  'password.invalid': 'Mật khẩu hộp thư không đúng. Hãy thử lại.',
-  'password.required': 'Hộp thư này cần mật khẩu để truy cập.',
-  'password.submit': 'Đăng nhập',
-  'password.busy': 'Đang xử lý…',
-  'password.cancel': 'Hủy',
-  'password.logout': 'Đăng xuất hộp thư',
-  'password.loggedOut': 'Đã đăng xuất trên thiết bị này.',
-  'password.logoutUnconfirmed': 'Đã đăng xuất trên thiết bị này nhưng chưa xác nhận được việc thu hồi phiên trên máy chủ. Phiên này có thể vẫn dùng được ở nơi khác.',
-  'password.locked': 'Đã khóa — đăng nhập tại trang hộp thư.',
-  'password.open': 'Mở trang đăng nhập hộp thư',
-  'password.retry': 'Thử mở lại',
-  'password.changed': 'Chế độ bảo vệ hộp thư đã thay đổi. Hãy đăng nhập lại.',
-  'password.saved': 'Đã cập nhật chế độ bảo vệ hộp thư.',
-
-  'nav.site': 'Điều hướng trang', 'a11y.skipToContent': 'Chuyển tới nội dung chính', 'nav.home': 'Trang chủ', 'nav.docs': 'Tài liệu API', 'nav.bulk': 'Tạo hàng loạt', 'nav.bulkCode': 'Đọc hàng loạt', 'nav.admin': 'Quản trị', 'nav.menu': 'Trình đơn', 'nav.toggleMenu': 'Bật/tắt trình đơn', 'locale.label': 'Ngôn ngữ', 'locale.english': 'Tiếng Anh', 'locale.vietnamese': 'Tiếng Việt', 'theme.light': 'Chuyển sang giao diện sáng', 'theme.dark': 'Chuyển sang giao diện tối',
-  'toast.dismiss': 'Đóng',
-  'app.opening': 'Đang mở địa chỉ', 'app.cookie': 'Thông báo cookie', 'app.header': 'Phần đầu trang đã cấu hình', 'app.footer': 'Phần cuối trang đã cấu hình', 'app.content': 'Nội dung {name} đã cấu hình', 'app.defaultName': 'TMail — Hộp thư tạm thời', 'app.messageContent': 'Nội dung thư', 'app.siteContent': 'Nội dung trang',
-  'how.title': 'Cách hoạt động', 'how.step1Title': 'Địa chỉ tức thì', 'how.step1Desc': 'Chọn tên tùy chỉnh hoặc tạo địa chỉ ngẫu nhiên trên các tên miền khả dụng.', 'how.step2Title': 'Mã xác minh trực tiếp', 'how.step2Desc': 'Thư đến theo thời gian thực với mã OTP và xác minh sao chép bằng một cú nhấp.', 'how.step3Title': 'Bảo mật tự động', 'how.step3Desc': 'Không cần tài khoản hay mật khẩu. Hộp thư và tin nhắn tự động hết hạn theo chính sách lưu trữ.', 'trust.privacyNotice': 'Hộp thư công khai không cần mật khẩu. Tin nhắn tự động hết hạn sau thời gian lưu trữ. Không lưu cookie theo dõi hay dữ liệu cá nhân.',
-  'address.eyebrow': 'Hộp thư tạm thời', 'address.title': 'Nhận thư. Giữ địa chỉ của bạn.', 'address.lede': 'Chọn tên, mở hộp thư và không cần tạo tài khoản.', 'address.loading': 'Đang tải tên miền nhận thư', 'address.failed': 'Không thể tải tên miền', 'address.none': 'Không có tên miền nhận thư', 'address.noneHelp': 'Hãy thử lại sau hoặc yêu cầu quản trị viên bật tên miền.', 'address.retry': 'Thử lại', 'address.open': 'Mở hộp thư', 'address.opening': 'Đang mở hộp thư', 'address.create': 'Tạo địa chỉ', 'address.random': 'Mở email ngẫu nhiên', 'address.name': 'Tên địa chỉ', 'address.domain': 'Tên miền nhận thư', 'address.preview': 'Địa chỉ của bạn xuất hiện ở đây', 'address.copy': 'Sao chép', 'address.copied': 'Đã sao chép', 'address.copiedNotice': 'Đã sao chép địa chỉ.', 'address.saved': 'Hộp thư đã lưu', 'address.savedHelp': 'Các địa chỉ bạn mở trên thiết bị này sẽ xuất hiện ở đây.', 'address.forget': 'Quên {address}', 'error.unavailable': 'Dịch vụ thư không khả dụng. Hãy thử lại.', 'error.copy': 'Sao chép thất bại. Hãy chọn địa chỉ và sao chép thủ công.',
-  'bulk.title': 'Tạo nhiều địa chỉ', 'bulk.lede': 'Chọn số lượng địa chỉ ngẫu nhiên cần tạo.', 'bulk.countLabel': 'Số lượng địa chỉ', 'bulk.generate': 'Tạo', 'bulk.generating': 'Đang tạo', 'bulk.empty': 'Tạo một đợt để xem địa chỉ ở đây.', 'bulk.open': 'Mở ở tab mới', 'bulk.copy': 'Sao chép', 'bulk.copied': 'Đã sao chép', 'bulk.copiedNotice': 'Đã sao chép địa chỉ.', 'bulk.copyAll': 'Sao chép tất cả', 'bulk.copiedAllNotice': 'Đã sao chép tất cả địa chỉ.', 'bulk.partial': 'Chỉ tạo được {count} địa chỉ duy nhất.',
-  'bulkCode.title': 'Đọc mã xác minh', 'bulkCode.lede': 'Dán tối đa 10 địa chỉ để đọc mã xác minh mới nhất.', 'bulkCode.addresses': 'Địa chỉ email', 'bulkCode.placeholder': 'mot@example.com, hai@example.com', 'bulkCode.submit': 'Đọc mã', 'bulkCode.loading': 'Đang tải thư mới nhất', 'bulkCode.refresh': 'Làm mới', 'bulkCode.refreshing': 'Đang làm mới', 'bulkCode.partial': 'Chỉ đọc {count} địa chỉ duy nhất đầu tiên.', 'bulkCode.empty': 'Dán địa chỉ để đọc thư mới nhất.', 'bulkCode.email': 'Địa chỉ email', 'bulkCode.subject': 'Tiêu đề', 'bulkCode.code': 'Mã đã trích xuất', 'bulkCode.actions': 'Thao tác', 'bulkCode.noSubject': '(Không có tiêu đề)', 'bulkCode.noCode': '(Không có mã)', 'bulkCode.copyCode': 'Sao chép mã', 'bulkCode.copyCodeFor': 'Sao chép mã cho {address}', 'bulkCode.copyEmailFor': 'Sao chép email {address}', 'bulkCode.codeCopied': 'Đã sao chép mã xác minh.', 'bulkCode.emailCopied': 'Đã sao chép địa chỉ email.', 'bulkCode.rowError': 'Không thể đọc địa chỉ này.',
-  'bulk.exportCsv': 'Xuất CSV',
-  'bulkCode.exportCsv': 'Xuất CSV',
-  'inbox.refreshIn': 'Tự làm mới sau {seconds}s',
-  'inbox.toggleSound': 'Bật/tắt âm báo',
-  'inbox.soundOn': 'Bật âm thanh',
-  'inbox.soundOff': 'Tắt âm thanh',
-  'inbox.showQr': 'Hiển thị mã QR',
-  'inbox.qrTitle': 'Quét địa chỉ email',
-  'inbox.qrError': 'Không thể tạo mã QR. Vẫn có thể sao chép địa chỉ email.',
-  'inbox.qrHelp': 'Quét mã QR này để mở hoặc sao chép địa chỉ email tạm thời trên điện thoại của bạn.',
-  'inbox.createToggle': 'Tạo hoặc tùy chỉnh địa chỉ',
-  'unlock.open': 'Mở khóa toàn bộ quyền truy cập', 'unlock.credential': 'Thông tin truy cập', 'unlock.placeholder': 'Mật khẩu hoặc mã thông báo', 'unlock.submit': 'Mở khóa', 'unlock.unlocking': 'Đang mở khóa', 'unlock.cancel': 'Hủy', 'unlock.unlocked': 'Đã mở khóa', 'unlock.lock': 'Khóa', 'unlock.invalid': 'Thông tin truy cập không hợp lệ.', 'unlock.failed': 'Không thể mở khóa toàn bộ quyền truy cập. Hãy thử lại.',
-  'inbox.address': 'Địa chỉ tạm thời của bạn', 'inbox.refresh': 'Làm mới', 'inbox.refreshing': 'Đang làm mới', 'inbox.new': 'Địa chỉ mới', 'inbox.enableNotifications': 'Bật thông báo', 'inbox.notificationsOn': 'Đã bật thông báo', 'inbox.autoRefresh': 'Tự làm mới mỗi {seconds} giây', 'inbox.messages': 'Thư', 'inbox.total': '{count} thư', 'inbox.searchLabel': 'Tìm kiếm thư', 'inbox.searchPlaceholder': 'Tìm trên trang này', 'inbox.loading': 'Đang tải hộp thư', 'inbox.unavailable': 'Hộp thư không khả dụng', 'inbox.waiting': 'Đang chờ thư', 'inbox.waitingHelp': 'Thư mới sẽ tự động xuất hiện ở đây.', 'inbox.noSearchResults': 'Không có thư nào khớp với tìm kiếm trên trang này.', 'inbox.noSubject': '(Không có tiêu đề)', 'inbox.noPreview': 'Không có bản xem trước', 'inbox.attachment': 'Có tệp đính kèm', 'inbox.unread': 'Chưa đọc', 'inbox.pages': 'Các trang thư', 'inbox.previous': 'Trước', 'inbox.next': 'Tiếp', 'inbox.page': 'Trang {page}', 'inbox.newMessage': 'Thư mới', 'inbox.copyEmailAction': 'Sao chép email', 'inbox.copyCodeAction': 'Sao chép mã', 'inbox.copyCodeFor': 'Sao chép mã cho {address}', 'inbox.codeCopied': 'Đã sao chép mã xác minh.', 'inbox.newMessageBody': 'Có thư mới trong hộp thư tạm thời của bạn.', 'inbox.notificationsUnavailable': 'Thông báo trình duyệt không khả dụng.', 'inbox.notificationsEnabled': 'Đã bật thông báo.', 'inbox.notificationsOff': 'Thông báo vẫn tắt.', 'error.inbox': 'Không thể làm mới hộp thư.',
-  'reader.back': 'Quay lại hộp thư', 'reader.loading': 'Đang tải thư', 'reader.unavailable': 'Thư không khả dụng', 'reader.saving': 'Đang lưu', 'reader.downloadSource': 'Tải .eml', 'reader.deleting': 'Đang xóa', 'reader.delete': 'Xóa', 'reader.to': 'Đến', 'reader.cc': 'Cc', 'reader.bcc': 'Bcc', 'reader.undisclosed': 'Không tiết lộ', 'reader.attachments': 'Tệp đính kèm', 'reader.download': 'Tải xuống', 'reader.downloadFile': 'Tải {filename}', 'reader.code': 'Mã xác minh', 'reader.format': 'Định dạng thư', 'reader.text': 'Văn bản thuần', 'reader.html': 'HTML', 'reader.empty': 'Thư này không có nội dung có thể đọc.', 'reader.title': 'Thư: {subject}', 'reader.deleteConfirm': 'Xóa vĩnh viễn thư này?', 'error.message': 'Không thể tải thư.', 'error.stale': 'Thư này không còn khả dụng.', 'error.download': 'Không thể tải tệp đính kèm.', 'error.source': 'Không thể tải nguồn thư.', 'error.delete': 'Không thể xóa thư.', 'error.seen': 'Không thể lưu trạng thái đã đọc.',
-  'admin.loginEyebrow': 'Quản trị', 'admin.loginTitle': 'Truy cập quản trị', 'admin.loginNote': 'Phiên của bạn được giữ trong 12 giờ trên thiết bị này. Thông tin đăng nhập không bao giờ được lưu.', 'admin.password': 'Mật khẩu quản trị', 'admin.signIn': 'Đăng nhập', 'admin.signingIn': 'Đang đăng nhập', 'admin.cleanup': 'Thử dọn phiên lại', 'admin.retryingCleanup': 'Đang dọn phiên lại', 'admin.apiStatus': 'Trạng thái API', 'admin.healthy': 'Hoạt động tốt', 'admin.logout': 'Đăng xuất', 'admin.loggingOut': 'Đang đăng xuất', 'admin.settings': 'Cài đặt', 'admin.config': 'Cấu hình hệ thống', 'admin.sections': 'Các mục quản trị', 'admin.dashboard': 'Bảng điều khiển', 'admin.general': 'Chung', 'admin.mail': 'Máy chủ thư', 'admin.domains': 'Tên miền & Hộp thư', 'admin.access': 'Truy cập', 'admin.content': 'HTML & Quảng cáo', 'admin.deleted': 'Thư đã xóa',
-  'deleted.eyebrow': 'Lưu trữ tuân thủ 1 năm', 'deleted.title': 'Thư đã xóa', 'deleted.note': 'Thư do người dùng xóa được lưu giữ tại đây trong 365 ngày trước khi tự động xóa vĩnh viễn.', 'deleted.searchLabel': 'Tìm kiếm thư đã xóa', 'deleted.searchPlaceholder': 'Tìm hộp thư, người gửi hoặc tiêu đề…', 'deleted.search': 'Tìm kiếm', 'deleted.clear': 'Xóa lọc', 'deleted.loading': 'Đang tải thư đã xóa', 'deleted.empty': 'Chưa có thư đã xóa nào trong bản sao lưu.', 'deleted.noResults': 'Không có thư đã xóa nào khớp với tìm kiếm.', 'deleted.back': 'Quay lại danh sách thư đã xóa', 'deleted.mailbox': 'Hộp thư', 'deleted.from': 'Người gửi', 'deleted.received': 'Ngày nhận', 'deleted.deletedAt': 'Ngày xóa', 'deleted.expiresAt': 'Hết hạn lưu', 'deleted.sourceUnavailable': 'Không lưu .eml gốc (>10 MB)', 'deleted.delete': 'Xóa vĩnh viễn', 'deleted.deleting': 'Đang xóa', 'deleted.deleteConfirm': 'Xóa vĩnh viễn thư lưu trữ này khỏi cơ sở dữ liệu sao lưu? Không thể hoàn tác.', 'deleted.deletedNotice': 'Đã xóa vĩnh viễn thư lưu trữ.', 'error.deletedLoad': 'Không thể tải danh sách thư đã xóa.', 'error.deletedMessage': 'Không thể tải chi tiết thư lưu trữ.', 'error.deletedDelete': 'Không thể xóa vĩnh viễn thư lưu trữ.',
-  'access.eyebrow': 'Thông tin truy cập đầy đủ', 'access.list': 'Thông tin truy cập', 'access.kind': 'Loại', 'access.label': 'Nhãn', 'access.created': 'Ngày tạo', 'access.password': 'Mật khẩu', 'access.token': 'Mã thông báo', 'access.addPassword': 'Thêm mật khẩu', 'access.passwordConfirm': 'Xác nhận mật khẩu', 'access.generateToken': 'Tạo mã thông báo', 'access.secret': 'Lưu thông tin này ngay', 'access.secretHelp': 'Thông tin này chỉ hiển thị một lần và không thể khôi phục.', 'access.copy': 'Sao chép', 'access.copied': 'Đã sao chép', 'access.dismiss': 'Đóng', 'access.revoke': 'Thu hồi', 'access.revokeConfirm': 'Thu hồi {label}? Không thể hoàn tác.', 'access.none': 'Chưa có thông tin truy cập nào được tạo.', 'error.access': 'Không thể cập nhật thông tin truy cập.', 'error.accessLoad': 'Không thể tải thông tin truy cập.', 'error.accessPasswordMatch': 'Mật khẩu không khớp.', 'error.accessCopy': 'Sao chép thất bại. Hãy chọn thông tin và sao chép thủ công.',
-  'dashboard.eyebrow': 'Hoạt động thư', 'dashboard.stored': 'Thư đã lưu', 'dashboard.today': 'Thư hôm nay', 'dashboard.week': 'Thư trong bảy ngày', 'dashboard.domainsActive': 'Tên miền đang hoạt động', 'dashboard.domainsToday': 'Tên miền hôm nay', 'dashboard.domainsWeek': 'Tên miền trong bảy ngày', 'dashboard.mxFailures': 'Lỗi MX gần đây', 'dashboard.mxFailuresEmpty': 'Không có lỗi MX gần đây.', 'dashboard.mxMismatch': 'Bản ghi MX không khớp', 'dashboard.mxLookupError': 'Lỗi tra cứu MX', 'dashboard.loading': 'Đang tải hoạt động thư', 'error.dashboard': 'Không thể tải hoạt động thư.',
-  'general.eyebrow': 'Giao diện và ngôn ngữ', 'general.appName': 'Tên ứng dụng', 'general.language': 'Ngôn ngữ', 'general.languageHelp': 'Ngôn ngữ UI được hỗ trợ: en, vi.', 'general.primary': 'Màu chính', 'general.accent': 'Màu nhấn', 'general.colorHelp': 'Dùng cho cả giao diện sáng và tối', 'general.logo': 'Ảnh logo', 'general.favicon': 'Ảnh favicon', 'general.imageHelp': 'Ảnh, tối đa 1 MiB.', 'general.brandingAssets': 'Thương hiệu & Tài nguyên', 'general.cookieConsent': 'Chấp thuận Cookie', 'general.cookieEnabled': 'Hiện thông báo cookie', 'general.cookieText': 'Nội dung thông báo cookie', 'general.save': 'Lưu cài đặt chung', 'general.saved': 'Đã lưu cài đặt chung.', 'error.image': 'Không thể đọc ảnh.', 'error.imageType': 'Hãy chọn tệp ảnh.', 'error.imageSize': 'Ảnh không được lớn hơn 1 MiB.', 'error.general': 'Không thể lưu cài đặt chung.',
-  'mail.eyebrow': 'Kết nối JMAP', 'mail.url': 'URL JMAP', 'mail.token': 'Mã JMAP', 'mail.tokenHelp': 'Giá trị được che giữ nguyên mã đã lưu.', 'mail.catchall': 'Địa chỉ catch-all', 'mail.account': 'ID tài khoản', 'mail.accountHelp': 'Không bắt buộc. Để trống để tự phát hiện.', 'mail.retention': 'Số ngày lưu giữ', 'mail.test': 'Kiểm tra kết nối', 'mail.testing': 'Đang kiểm tra', 'mail.save': 'Lưu máy chủ thư', 'mail.saved': 'Đã lưu cài đặt máy chủ thư.', 'mail.passed': 'Kết nối thành công. {domains} tên miền và {messages} thư đã lưu.', 'mail.jmapConfig': 'Cấu hình điểm cuối JMAP', 'mail.accountRetention': 'Tài khoản & Thời gian lưu trữ', 'error.mailValid': 'Nhập URL JMAP, địa chỉ catch-all và thời hạn lưu giữ hợp lệ.', 'error.mail': 'Không thể lưu cài đặt máy chủ thư.', 'error.connection': 'Kết nối thư thất bại.',
-  'domains.eyebrow': 'Chính sách cấp phát', 'domains.sync': 'Đồng bộ ngay', 'domains.syncing': 'Đang đồng bộ', 'domains.whitelist': 'Danh sách cho phép đang hoạt động', 'domains.none': 'Không có tên miền hoạt động.', 'domains.lastSync': 'Lần đồng bộ gần nhất', 'domains.time': 'Thời gian', 'domains.result': 'Kết quả', 'domains.detail': 'Chi tiết', 'domains.lastSuccess': 'Lần đồng bộ thành công gần nhất', 'domains.lastError': 'Lỗi gần nhất', 'domains.notYet': 'Chưa có', 'domains.success': 'Thành công', 'domains.failed': 'Thất bại', 'domains.noDetail': 'Không có', 'domains.remove': 'Xóa {domain}', 'domains.removeText': 'Xóa', 'domains.add': 'Thêm', 'domains.addWhitelist': 'Thêm tên miền cho phép', 'domains.syncPolicy': 'Cấu hình đồng bộ & chính sách tên miền', 'domains.auto': 'Tự động đồng bộ tên miền từ máy chủ thư', 'domains.poll': 'Số giây thăm dò', 'domains.limit': 'Giới hạn thư', 'domains.min': 'Độ dài phần cục bộ tối thiểu', 'domains.max': 'Độ dài phần cục bộ tối đa', 'domains.save': 'Lưu tên miền và hộp thư', 'domains.saved': 'Đã lưu cài đặt tên miền và hộp thư.', 'domains.confirm': 'Tắt tự động đồng bộ? Danh sách cho phép hiện tại sẽ giữ nguyên cho đến khi bạn đồng bộ thủ công hoặc bật lại tự động đồng bộ.', 'domains.autoStatus': 'Tự động đồng bộ đã {status}.', 'domains.enabled': 'bật', 'domains.disabled': 'tắt', 'domains.localRange': 'Độ dài phần cục bộ tối thiểu không thể lớn hơn tối đa.', 'domains.added': 'Đã thêm tên miền nhận thư.', 'domains.removed': 'Đã xóa tên miền nhận thư.', 'domains.hidden': 'Đã xóa tên miền khỏi truy cập web công khai.', 'domains.complete': 'Đồng bộ xong. Có {count} tên miền hoạt động.', 'domains.addHelp': 'Tên miền đã thêm sẽ xuất hiện trong danh sách cho phép sau khi xác thực.', 'domains.forbidden': 'ID bị cấm', 'domains.listHelp': 'Một giá trị mỗi dòng hoặc phân cách bằng dấu phẩy.', 'domains.blocked': 'Tên miền người gửi bị chặn', 'domains.blacklisted': 'Tên miền web bị chặn', 'domains.blacklistHelp': 'Dùng tên miền chính xác hoặc *.example.com (gồm cả tên miền gốc). Mục trong danh sách cho phép thủ công được ưu tiên. Thư vẫn được nhận, nhưng trang công khai không thể tạo hoặc mở hộp thư cho các tên miền này.', 'error.domainValid': 'Nhập tên miền hợp lệ.', 'error.domainExists': 'Tên miền đó đã có trong danh sách cho phép.', 'error.domains': 'Không thể lưu cài đặt tên miền.', 'error.domainSync': 'Đồng bộ tên miền thất bại.', 'error.syncUpdate': 'Không thể cập nhật tự động đồng bộ.', 'error.sync': 'Đồng bộ tên miền thất bại.', 'error.settingsRefresh': 'Không thể làm mới cài đặt.', 'error.domainsSynced': 'Tên miền đã đồng bộ, nhưng không thể làm mới cài đặt. {detail}',
-  'content.eyebrow': 'Nội dung trang cách ly', 'content.note': 'Tập lệnh trong HTML quảng cáo chạy ở nguồn gốc cách ly và không thể truy cập bộ nhớ hộp thư.', 'content.header': 'HTML phần đầu', 'content.footer': 'HTML phần cuối', 'content.css': 'CSS khối nội dung', 'content.headerTitle': 'HTML phần đầu', 'content.footerTitle': 'HTML phần cuối', 'content.cssTitle': 'Tùy chỉnh CSS', 'content.headerPreview': 'Xem trước phần đầu', 'content.footerPreview': 'Xem trước phần cuối', 'content.slots': 'Vị trí quảng cáo có tên', 'content.add': 'Thêm vị trí', 'content.name': 'Tên vị trí', 'content.ad': 'HTML quảng cáo', 'content.remove': 'Xóa vị trí', 'content.preview': 'Xem trước {name}', 'content.none': 'Chưa cấu hình vị trí quảng cáo.', 'content.save': 'Lưu HTML và quảng cáo', 'content.saved': 'Đã lưu cài đặt HTML và quảng cáo.', 'content.everyName': 'Mỗi vị trí quảng cáo cần có tên.', 'content.unique': 'Tên vị trí quảng cáo phải duy nhất sau khi bỏ khoảng trắng.', 'content.limit': 'Giá trị HTML, CSS và quảng cáo không được vượt quá 100.000 ký tự.', 'error.content': 'Không thể lưu HTML và quảng cáo.',
+export const catalogs: Record<Locale, Partial<Record<MessageKey, string>>> = {
+  en,
+  vi,
+  ru,
+  zh,
 }
 
-export type MessageKey = keyof typeof en
 const locale = ref<Locale>('en')
 let siteLocale: Locale | null = null
 let visitorLocale: Locale | null = null
 
 export function normalizeLocale(value?: string): Locale {
-  return value?.trim().toLowerCase().split('-')[0] === 'vi' ? 'vi' : 'en'
+  const code = value?.trim().toLowerCase().split(/[-_]/)[0]
+  if (code === 'vi') return 'vi'
+  if (code === 'ru') return 'ru'
+  if (code === 'zh') return 'zh'
+  return 'en'
 }
 
 function readStoredLocale(): Locale | null {
   try {
     if (typeof localStorage === 'undefined') return null
     const value = localStorage.getItem(STORAGE_KEY)
-    return value === 'en' || value === 'vi' ? value : null
+    return value === 'en' || value === 'vi' || value === 'ru' || value === 'zh' ? value : null
   } catch {
     return null
   }
 }
 
 function browserLocale(): Locale {
-  const languages = typeof navigator === 'undefined' ? [] : navigator.languages?.length ? navigator.languages : [navigator.language]
-  return normalizeLocale(languages[0])
+  if (typeof navigator === 'undefined') return 'en'
+  const languages = navigator.languages?.length ? navigator.languages : [navigator.language]
+  for (const lang of languages) {
+    if (!lang) continue
+    const code = lang.trim().toLowerCase().split(/[-_]/)[0]
+    if (code === 'vi' || code === 'ru' || code === 'zh') return code
+  }
+  return 'en'
 }
 
 function resolveLocale(): void { locale.value = visitorLocale ?? siteLocale ?? browserLocale() }
@@ -187,7 +77,12 @@ export function initLocale(): void {
 }
 
 export function useI18n() {
-  const t = (key: MessageKey, params: Params = {}) => (locale.value === 'vi' ? vi[key] : en[key]).replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? `{${name}}`))
+  const t = (key: MessageKey, params: Params = {}) => {
+    const raw = catalogs[locale.value]?.[key] ?? en[key] ?? key
+    return raw.replace(/\{(\w+)\}/g, (_, name) =>
+      Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : `{${name}}`
+    )
+  }
   const formatDate = (value: string, options: Intl.DateTimeFormatOptions) => {
     const date = new Date(value)
     return Number.isNaN(date.valueOf()) ? value : new Intl.DateTimeFormat(locale.value, options).format(date)

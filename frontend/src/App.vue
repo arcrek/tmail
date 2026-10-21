@@ -95,7 +95,7 @@ function cleanupSite(): void {
 }
 
 watch(site, applySite)
-watch(locale, (value) => { root.lang = value }, { immediate: true })
+watch(locale, (value) => { root.lang = value === 'zh' ? 'zh-Hans' : value }, { immediate: true })
 
 function openInbox(session: AddressSession, updatePath = true): void {
   current.value = session

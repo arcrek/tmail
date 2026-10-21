@@ -136,6 +136,8 @@ function onLocaleChange(event: Event): void {
         <select :value="locale" :aria-label="t('locale.label')" @change="onLocaleChange">
           <option value="en">{{ t('locale.english') }}</option>
           <option value="vi">{{ t('locale.vietnamese') }}</option>
+          <option value="ru">{{ t('locale.russian') }}</option>
+          <option value="zh">{{ t('locale.chinese') }}</option>
         </select>
       </label>
       <div class="desktop-theme-toggle">

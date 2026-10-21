@@ -128,15 +128,25 @@ describe('address flow', () => {
     expect(wrapper.find('.inbox-view').exists()).toBe(true)
   })
 
-  it('lets visitors choose and persist Vietnamese from the header', async () => {
+  it('lets visitors choose and persist language preferences from the header', async () => {
     const wrapper = mount(App)
     await flushPromises()
     expect(wrapper.get('select').attributes('aria-label')).toBe('Language')
-    expect(wrapper.get('select').findAll('option').map((option) => option.attributes('value'))).toEqual(['en', 'vi'])
+    expect(wrapper.get('select').findAll('option').map((option) => option.attributes('value'))).toEqual(['en', 'vi', 'ru', 'zh'])
     await wrapper.get('select').setValue('vi')
     expect(wrapper.text()).toContain('Tài liệu API')
     expect(document.documentElement.lang).toBe('vi')
     expect(localStorage.getItem('tmail.locale')).toBe('vi')
+
+    await wrapper.get('select').setValue('ru')
+    expect(wrapper.text()).toContain('API документация')
+    expect(document.documentElement.lang).toBe('ru')
+    expect(localStorage.getItem('tmail.locale')).toBe('ru')
+
+    await wrapper.get('select').setValue('zh')
+    expect(wrapper.text()).toContain('API 文档')
+    expect(document.documentElement.lang).toBe('zh-Hans')
+    expect(localStorage.getItem('tmail.locale')).toBe('zh')
   })
 
   it('keeps configured site and ad HTML inside opaque sandbox frames', async () => {
