@@ -2,7 +2,7 @@
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { config, enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AdminApp from '../admin/AdminApp.vue'
 import ContentTab from '../admin/ContentTab.vue'
@@ -61,6 +61,8 @@ vi.mock('../api', async () => {
 })
 
 enableAutoUnmount(afterEach)
+// jsdom has no matchMedia; the theme toggle is covered by its own tests.
+config.global.stubs = { ThemeToggle: true }
 
 function mountToastStack() {
   const toast = useToast()
@@ -176,9 +178,9 @@ describe('administration frontend', () => {
 
   it('keeps the admin shell compact at the shared tablet breakpoint and themed on real tokens', () => {
     expect(styles).not.toContain('@media (max-width: 900px)')
-    expect(styles).toMatch(/@media \(max-width: 952px\) \{[\s\S]*?\.admin-shell \{[\s\S]*?\.admin-content \{\s*grid-column: 2;/)
+    expect(styles).toMatch(/@media \(max-width: 952px\) \{[\s\S]*?\.admin-shell \{\s*display: block;[\s\S]*?\.admin-sidebar \{\s*position: static;/)
     expect(styles).toMatch(/\.admin-section \{[^}]*padding: 0;/)
-    expect(styles).toMatch(/\.admin-section > h1,[^}]*font-size: clamp\(1\.6rem, 3vw, var\(--text-2xl\)\);/)
+    expect(styles).toMatch(/\.admin-section > h1,[^}]*font-size: 2rem;/)
     expect(styles).toMatch(/\.admin-login-panel h1 \{[^}]*font-size: clamp\(1\.6rem, 3vw, var\(--text-2xl\)\);/)
     expect(styles).toMatch(/\[data-theme=['"]dark['"]\]\s*\{/)
     expect(styles).toMatch(/@media \(prefers-color-scheme: dark\)[\s\S]*?:root:not\(\[data-theme=['"]light['"]\]\)/)
@@ -204,14 +206,16 @@ describe('administration frontend', () => {
     expect(storage).not.toHaveBeenCalled()
     expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual([
       'Dashboard',
+      'Domains & Inbox',
+      'Deleted Mail',
       'General',
       'Mail Server',
-      'Domains & Inbox',
       'Access',
       'HTML & Ads',
-      'Deleted Mail',
     ])
-    expect(wrapper.get('.admin-sidebar .admin-account-controls').text()).toContain('Healthy')
+    expect(wrapper.findAll('.admin-nav-label').map((label) => label.text())).toEqual(['Operations', 'Configuration'])
+    expect(wrapper.get('.admin-sidebar .admin-account-controls').text()).not.toContain('Healthy')
+    expect(wrapper.get('.admin-public-link').attributes('href')).toBe('/')
     expect(wrapper.get('.admin-shell').element.children).toHaveLength(3)
     expect(wrapper.get('.admin-sidebar').text()).toContain('Dashboard')
     expect(wrapper.get('.admin-content [role="tabpanel"]').exists()).toBe(true)
@@ -299,6 +303,21 @@ describe('administration frontend', () => {
     expect(wrapper.get('[role="tabpanel"]').attributes('aria-labelledby')).toBe(tabs[1]?.attributes('id'))
   })
 
+  it('moves across drawer groups with arrow keys', async () => {
+    const wrapper = mount(AdminApp, { attachTo: document.body })
+    await wrapper.get('input[type="password"]').setValue('correct horse')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    const tabs = wrapper.findAll('[role="tab"]')
+
+    await tabs[2]?.trigger('click')
+    await tabs[2]?.trigger('keydown', { key: 'ArrowDown' })
+
+    expect(tabs[3]?.text()).toBe('General')
+    expect(tabs[3]?.attributes('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(tabs[3]?.element)
+  })
+
   it('manages access credentials from the Access tab', async () => {
     const password = { id: 'password-id', kind: 'password' as const, label: 'Main password', createdAt: '2026-08-13T00:00:00Z' }
     const token = { id: 'token-id', kind: 'token' as const, label: 'CI token', createdAt: '2026-08-13T00:00:00Z' }
@@ -369,12 +388,12 @@ describe('administration frontend', () => {
     const wrapper = mount(DashboardTab)
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Stored messages')
-    expect(wrapper.text()).toContain('41')
-    expect(wrapper.text()).toContain('Messages today')
-    expect(wrapper.text()).toContain('Messages in seven days')
+    const mail = wrapper.get('[aria-labelledby="kpi-mail-title"]')
+    expect(mail.get('h2').text()).toBe('Mail')
+    expect(mail.findAll('dt').map((term) => term.text())).toEqual(['Stored', 'Today', '7 days'])
+    expect(mail.text()).toContain('41')
     expect(wrapper.find('canvas').exists()).toBe(false)
-    expect(wrapper.text()).not.toMatch(/CPU|memory|host uptime|provision|domain sync|auto-sync/i)
+    expect(wrapper.text()).not.toMatch(/CPU|memory|host uptime|provision|auto-sync/i)
   })
 
   it('saves general settings with the in-memory CSRF token', async () => {

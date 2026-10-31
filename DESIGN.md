@@ -76,9 +76,10 @@ Rules:
 3. **Latest code**: A `tertiary-container` card at the top of the inbox shows the newest extracted code with a "Copy code" button, so the user does not need to open the message. Each list row with a code shows it as a chip.
 4. **Inbox toolbar**: Copy is the only filled button. Refresh, QR, sound, notifications, and password are icon buttons with `aria-label`; toggled ones use `secondary-container` and `aria-pressed`. "New address" is an outlined button (FAB on mobile). The auto-refresh countdown sits in the address card label.
 5. **Language and theme**: The language button shows a globe icon plus the current language (full name on desktop, code such as `VI` on mobile) and opens a menu. It appears in the header of every public screen, including the inbox.
-6. **Navigation**: Public site uses pill nav items in the top app bar (active = `secondary-container`). Admin uses an M3 navigation drawer grouped into "Operations" and "Configuration", with an error badge for domains that need attention. The admin link lives in the public footer, not the main nav.
-7. **Sandbox boundary**: Arbitrary email HTML always renders inside a sandboxed iframe with nonce'd CSP and postMessage delivery.
-8. **Discovery twins**: Every public content page maintains a corresponding `.md` twin and accepts `Accept: text/markdown`.
+6. **Navigation**: Public site uses pill nav items in the top app bar (active = `secondary-container`). Admin uses an M3 navigation drawer grouped into "Operations" and "Configuration", with an error badge on Domains showing the number of MX failures in the last 24 hours. The drawer carries the brand, theme toggle, "View public site" link, and logout, so the admin hides the public top app bar; below 952px it collapses into a top section with a horizontally scrolling nav. The admin link lives in the public footer, not the main nav.
+7. **Admin dashboard**: Headline title with an "Updated at" line and a tonal Refresh button; a row of status chips (mail server, domain sync, MX errors in 24 hours; error chips use `error-container`); two KPI cards (Mail, Domains) with three numbers each; then the recent MX failures table with a "View domains" text button. Show only states the API reports; no placeholder health indicators.
+8. **Sandbox boundary**: Arbitrary email HTML always renders inside a sandboxed iframe with nonce'd CSP and postMessage delivery.
+9. **Discovery twins**: Every public content page maintains a corresponding `.md` twin and accepts `Accept: text/markdown`.
 
 ## Voice & Tone: Do and Don't
 - **Do**: Lead with the outcome in a few words ("Email tạm thời, dùng ngay." / "Nhận mã xác minh trong vài giây, không cần đăng ký.").
