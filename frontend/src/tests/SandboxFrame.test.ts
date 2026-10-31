@@ -1,10 +1,15 @@
 // @vitest-environment jsdom
 
 import { mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import SandboxFrame from '../components/SandboxFrame.vue'
 
 describe('SandboxFrame', () => {
+  afterEach(() => {
+    delete document.documentElement.dataset.theme
+    vi.restoreAllMocks()
+  })
+
   it('posts message HTML once to the nonce-protected opaque renderer', async () => {
     const postMessage = vi.fn()
     const contentWindow = vi.spyOn(HTMLIFrameElement.prototype, 'contentWindow', 'get')
@@ -52,8 +57,53 @@ describe('SandboxFrame', () => {
       html: '<script>void 0</script>',
       css: 'body { color: red }',
       mode: 'content',
+      colorScheme: 'light',
     }, '*')
     wrapper.unmount()
+    contentWindow.mockRestore()
+  })
+
+  it('passes the page dark theme to site content frames and reloads them when it changes', async () => {
+    const postMessage = vi.fn()
+    const contentWindow = vi.spyOn(HTMLIFrameElement.prototype, 'contentWindow', 'get')
+      .mockReturnValue({ postMessage } as unknown as Window)
+    document.documentElement.dataset.theme = 'dark'
+    const wrapper = mount(SandboxFrame, { props: { html: '<p>Ad</p>', mode: 'content' } })
+    await wrapper.get('iframe').trigger('load')
+    expect(postMessage).toHaveBeenLastCalledWith(expect.objectContaining({ colorScheme: 'dark' }), '*')
+
+    document.documentElement.dataset.theme = 'light'
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('iframe').attributes('src')).toBe('/sandbox?revision=1')
+    await wrapper.get('iframe').trigger('load')
+    expect(postMessage).toHaveBeenLastCalledWith(expect.objectContaining({ colorScheme: 'light' }), '*')
+
+    wrapper.unmount()
+    delete document.documentElement.dataset.theme
+    contentWindow.mockRestore()
+  })
+
+  it('stops following the theme after unmount', async () => {
+    const wrapper = mount(SandboxFrame, { props: { html: '<p>Ad</p>', mode: 'content' } })
+    const vm = wrapper.vm as unknown as { $el: Element }
+    const frame = vm.$el as HTMLIFrameElement
+    wrapper.unmount()
+    document.documentElement.dataset.theme = 'dark'
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(frame.getAttribute('src')).toBe('/sandbox?revision=0')
+  })
+
+  it('keeps message frames free of the page color scheme', async () => {
+    const postMessage = vi.fn()
+    const contentWindow = vi.spyOn(HTMLIFrameElement.prototype, 'contentWindow', 'get')
+      .mockReturnValue({ postMessage } as unknown as Window)
+    document.documentElement.dataset.theme = 'dark'
+    const wrapper = mount(SandboxFrame, { props: { html: '<p>Mail</p>', mode: 'message' } })
+    await wrapper.get('iframe').trigger('load')
+    expect(postMessage.mock.calls[0]?.[0]).not.toHaveProperty('colorScheme')
+    wrapper.unmount()
+    delete document.documentElement.dataset.theme
     contentWindow.mockRestore()
   })
 

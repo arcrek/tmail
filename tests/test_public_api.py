@@ -755,6 +755,9 @@ def test_sandbox_document_has_isolated_inline_policy_and_bootstrap(client):
     assert "tmail:sandbox-content" in response.text
     assert "tmail:sandbox-ready" in response.text
     assert "once: true" not in response.text
+    # The page's scheme is reduced to one of two literals before it reaches the document.
+    assert 'value.colorScheme === "dark" ? "dark" : "light"' in response.text
+    assert '<meta name="color-scheme" content="${scheme}">' in response.text
 
 
 def test_message_sandbox_allows_email_styles_but_only_its_nonce_script(client):
