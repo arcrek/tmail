@@ -422,7 +422,6 @@ describe('InboxView polling', () => {
     mocks.messages.mockResolvedValueOnce(collection([]))
     await wrapper.get('[data-action="refresh"]').trigger('click')
     await flushPromises()
-    expect(wrapper.find('.message-list').exists()).toBe(false)
     expect(wrapper.find('.message-reader').exists()).toBe(true)
   })
 
@@ -436,7 +435,10 @@ describe('InboxView polling', () => {
     await wrapper.get('.message-row').trigger('click')
     await flushPromises()
     expect(wrapper.find('.message-reader').exists()).toBe(true)
-    expect(wrapper.find('.message-list').exists()).toBe(false)
+    // List-detail layout: the list stays mounted beside the reader and marks the open row.
+    expect(wrapper.find('.message-list').exists()).toBe(true)
+    expect(wrapper.classes()).toContain('has-reader')
+    expect(wrapper.get('.message-row').attributes('aria-current')).toBe('true')
 
     await wrapper.get('[data-action="close"]').trigger('click')
     await flushPromises()
@@ -445,7 +447,7 @@ describe('InboxView polling', () => {
     expect(wrapper.find('.message-list').exists()).toBe(true)
   })
 
-  it('moves focus to the back button when the reader opens and back to the list on close', async () => {
+  it('moves focus to the back button when the reader opens and back to the opening row on close', async () => {
     const wrapper = mount(InboxView, {
       attachTo: document.body,
       props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 30 },
@@ -458,8 +460,20 @@ describe('InboxView polling', () => {
 
     await wrapper.get('[data-action="close"]').trigger('click')
     await flushPromises()
-    expect(document.activeElement).toBe(wrapper.get('.list-heading h2').element)
+    expect(document.activeElement).toBe(wrapper.get('.message-row').element)
 
+    wrapper.unmount()
+  })
+
+  it('focuses the inline creation form when the new-address action opens it', async () => {
+    const wrapper = mount(InboxView, {
+      attachTo: document.body,
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 30 },
+    })
+    await flushPromises()
+    await wrapper.get('[data-action="new-address"]').trigger('click')
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get('#inbox-create-local-part').element)
     wrapper.unmount()
   })
 
@@ -591,8 +605,9 @@ describe('InboxView polling', () => {
     expect(wrapper.get('.inbox-hero').text()).toContain(session.address)
     expect(wrapper.get('.message-list').exists()).toBe(true)
     expect(styles).toMatch(/\.page\.inbox-page \{[\s\S]*?86rem\);\s*\}/)
-    expect(styles).toMatch(/\.inbox-view \{[\s\S]*?grid-template-columns: minmax\(16rem, 18\.5rem\) minmax\(0, 1fr\);/)
-    expect(styles).toMatch(/@media \(max-width: 640px\) \{[\s\S]*?\.inbox-view \{ grid-template-columns: 1fr; \}/)
+    expect(styles).toMatch(/\.inbox-panes \{[\s\S]*?grid-template-columns: minmax\(20rem, 27\.5rem\) minmax\(0, 1fr\);/)
+    expect(styles).toMatch(/@media \(max-width: 952px\) \{[\s\S]*?\.inbox-panes \{ grid-template-columns: minmax\(0, 1fr\); \}/)
+    expect(styles).toMatch(/@media \(max-width: 952px\) \{[\s\S]*?\.inbox-view\.has-reader \.message-list \{ display: none; \}/)
     expect(wrapper.text()).not.toMatch(/Sent|Contacts|Addresses/)
   })
 
@@ -632,6 +647,67 @@ describe('InboxView polling', () => {
     expect(toastStack.text()).toContain('Verification code copied.')
     expect(wrapper.find('.message-reader').exists()).toBe(false)
     toastStack.unmount()
+  })
+
+  it('pins the newest extracted code in the latest-code card and copies the raw value', async () => {
+    mocks.message.mockResolvedValue({ ...summary('one'), cc: [], bcc: [], flagged: false, verifications: [], retention: false, retentionDate: null, text: 'Your code is 482913', html: [], attachments: [] })
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
+    })
+    await flushPromises()
+
+    const card = wrapper.get('.latest-code')
+    expect(card.get('.latest-code-value').text()).toBe('482 913')
+    await card.get('[data-action="copy-latest-code"]').trigger('click')
+    await flushPromises()
+    expect(writeText).toHaveBeenCalledWith('482913')
+  })
+
+  it('does not label an older code as latest when the newest message has none', async () => {
+    mocks.messages.mockResolvedValue({
+      ...collection(['new', 'old']),
+      'hydra:member': [
+        { ...summary('new'), createdAt: '2026-07-22T02:00:00Z' },
+        { ...summary('old'), createdAt: '2026-07-22T01:00:00Z' },
+      ],
+    })
+    mocks.message.mockImplementation(async (_token: string, id: string) => ({
+      ...summary(id), cc: [], bcc: [], flagged: false, verifications: [], retention: false, retentionDate: null,
+      text: id === 'old' ? 'Your code is 482913' : 'Welcome aboard', html: [], attachments: [],
+    }))
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
+    })
+    await flushPromises()
+
+    // The newest message with a code is still shown; it is the newest one that has a code.
+    expect(wrapper.get('.latest-code-value').text()).toBe('482 913')
+    expect(wrapper.get('.latest-code').text()).toContain('Sender')
+  })
+
+  it('hides the latest-code card while a newer message is still unresolved', async () => {
+    mocks.messages.mockResolvedValue({
+      ...collection(['new', 'old']),
+      'hydra:member': [
+        { ...summary('new'), createdAt: '2026-07-22T02:00:00Z' },
+        { ...summary('old'), createdAt: '2026-07-22T01:00:00Z' },
+      ],
+    })
+    let releaseNewest: (value: unknown) => void = () => {}
+    mocks.message.mockImplementation((_token: string, id: string) => id === 'new'
+      ? new Promise((resolve) => { releaseNewest = resolve })
+      : Promise.resolve({ ...summary(id), cc: [], bcc: [], flagged: false, verifications: [], retention: false, retentionDate: null, text: 'Your code is 111222', html: [], attachments: [] }))
+    const wrapper = mount(InboxView, {
+      props: { session: { address: 'box@example.com', token: 'signed' }, fetchSeconds: 20 },
+    })
+    await flushPromises()
+    expect(wrapper.find('.latest-code').exists()).toBe(false)
+
+    releaseNewest({ ...summary('new'), cc: [], bcc: [], flagged: false, verifications: [], retention: false, retentionDate: null, text: 'Your code is 999888', html: [], attachments: [] })
+    await flushPromises()
+    expect(wrapper.get('.latest-code-value').text()).toBe('999 888')
   })
 
   it('does not show a code chip when extraction finds no code', async () => {

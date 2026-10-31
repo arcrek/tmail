@@ -59,11 +59,29 @@ const remainingSeconds = ref(props.fetchSeconds)
 const createExpanded = ref(false)
 const showQrModal = ref(false)
 
-// The reader replaces the message list in-place (v-if), so closing it unmounts the reader's
-// own focused element; move focus back to the list region instead of dropping to <body>.
+// On phones the new-address FAB is fixed at the bottom while the form renders at the top
+// of the page; move focus (and with it the scroll position) to the form when it opens.
+watch(createExpanded, (open) => {
+  if (!open) return
+  void nextTick(() => document.getElementById('inbox-create-local-part')?.focus())
+})
+
+// The list stays mounted beside the reader (and is only hidden by CSS on narrow screens),
+// so closing the reader returns focus to the row that opened it, falling back to the
+// list heading when that row is gone (deleted, paged away, or filtered out).
+let lastSelectedId: string | null = null
 watch(selectedId, (value) => {
-  if (value !== null) return
-  void nextTick(() => listHeading.value?.focus())
+  if (value !== null) {
+    lastSelectedId = value
+    return
+  }
+  const previous = lastSelectedId
+  void nextTick(() => {
+    const row = previous
+      ? [...document.querySelectorAll<HTMLElement>('.message-row')].find((node) => node.dataset.messageId === previous)
+      : undefined
+    ;(row ?? listHeading.value)?.focus()
+  })
 })
 
 const pageMessages = computed(() => {
@@ -81,6 +99,31 @@ const messages = computed(() => {
     (item.from.name ?? '').toLowerCase().includes(needle),
   )
 })
+const latestCode = computed(() => {
+  if (page.value !== 1) return null
+  // Walk newest-first; stop at a message whose code is still unresolved so an older
+  // code is never shown as "latest" while the newest message is being inspected.
+  for (const item of pageMessages.value) {
+    if (!codeCache.value.has(item.id)) return null
+    const code = codeCache.value.get(item.id)
+    if (code) return { code, from: item.from.name || item.from.address }
+  }
+  return null
+})
+const passwordLabel = computed(() => {
+  if (!props.session.protected) return t('password.set')
+  return props.session.accessKind === 'admin' ? t('password.reset') : t('password.change')
+})
+
+/** Groups numeric codes in threes for reading (482913 -> 482 913); copy uses the raw value. */
+function groupCode(code: string): string {
+  return /^\d{6,}$/.test(code) ? code.replace(/(\d{3})(?=\d)/g, '$1 ') : code
+}
+
+function initial(item: MessageSummary): string {
+  return (item.from.name || item.from.address || '?').trim().charAt(0).toUpperCase() || '?'
+}
+
 const canPrevious = computed(() => Boolean(collection.value?.['hydra:view']['hydra:previous']))
 const canNext = computed(() => Boolean(collection.value?.['hydra:view']['hydra:next']))
 const createAddress = computed(() =>
@@ -461,253 +504,311 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="inbox-view" aria-labelledby="inbox-title">
-    <div class="panel inbox-hero">
-      <div class="inbox-hero-address">
-        <small>{{ t('inbox.address') }}</small>
-        <h1 id="inbox-title" class="inbox-address">{{ session.address }}</h1>
-      </div>
-
-      <div class="inbox-hero-actions">
-        <button class="primary-button" type="button" @click="copyAddress">
-          <AppIcon name="copy" />
-          {{ t('address.copy') }}
-        </button>
-        <button
-          class="secondary-button"
-          type="button"
-          data-action="refresh"
-          :disabled="refreshing"
-          @click="refresh"
-        >
-          <AppIcon name="refresh-cw" :class="{ spinning: refreshing }" />
-          {{ refreshing ? t('inbox.refreshing') : t('inbox.refresh') }}
-        </button>
-        <button
-          class="secondary-button"
-          type="button"
-          data-action="new-address"
-          :aria-expanded="createExpanded"
-          aria-controls="inbox-create-address"
-          @click="createExpanded = !createExpanded"
-        >
-          <AppIcon :name="createExpanded ? 'x' : 'mail-plus'" />
-          {{ t('inbox.new') }}
-        </button>
-        <button
-          class="secondary-button"
-          type="button"
-          data-action="qr-code"
-          :aria-label="t('inbox.showQr')"
-          @click="showQrModal = true"
-        >
-          <AppIcon name="qr" />
-          <span>QR</span>
-        </button>
-        <button
-          class="secondary-button"
-          type="button"
-          data-action="sound"
-          :aria-label="soundEnabled ? t('inbox.soundOff') : t('inbox.soundOn')"
-          @click="toggleSound"
-        >
-          <AppIcon :name="soundEnabled ? 'volume-2' : 'volume-x'" />
-          <span>{{ soundEnabled ? t('inbox.soundOn') : t('inbox.soundOff') }}</span>
-        </button>
-        <button
-          class="secondary-button"
-          type="button"
-          data-action="notifications"
-          :disabled="notificationPermission === 'granted'"
-          @click="enableNotifications"
-        >
-          <AppIcon :name="notificationPermission === 'granted' ? 'bell-ring' : 'bell'" />
-          {{ notificationPermission === 'granted' ? t('inbox.notificationsOn') : t('inbox.enableNotifications') }}
-        </button>
-      </div>
-
-      <div class="mailbox-security">
-        <p v-if="session.accessKind === 'admin'">{{ t('password.admin') }}</p>
-        <p v-if="session.protectedUntil">{{ t('password.deadline', { date: localDate(session.protectedUntil, { dateStyle: 'long', timeStyle: 'short' }) }) }}</p>
-        <p v-else-if="!session.protected">{{ t('password.public') }}</p>
-        <button class="secondary-button" type="button" data-action="password" :disabled="accessInvalid" @click="emit('manage')">
-          <AppIcon :name="session.protected ? 'lock' : 'key'" />
-          {{ !session.protected ? t('password.set') : session.accessKind === 'admin' ? t('password.reset') : t('password.change') }}
-        </button>
-        <button v-if="session.accessKind === 'visitor' || session.accessKind === 'admin'" class="text-button" type="button" data-action="mailbox-logout" @click="emit('logout')">
-          <AppIcon name="log-out" />
-          {{ t('password.logout') }}
-        </button>
-      </div>
-      <p v-if="notice" class="toolbar-notice" aria-live="polite">{{ notice }}</p>
-      <div class="auto-refresh-indicator">
-        <span class="refresh-countdown-pill" aria-live="polite">
-          <span class="countdown-dot" aria-hidden="true" />
-          {{ refreshing ? t('inbox.refreshing') : t('inbox.refreshIn', { seconds: remainingSeconds }) }}
-        </span>
-      </div>
-      <section
-        v-show="createExpanded"
-        id="inbox-create-address"
-        class="inbox-create"
-        aria-labelledby="inbox-create-heading"
-      >
-        <h2 id="inbox-create-heading" class="sr-only">{{ t('address.create') }}</h2>
-        <div v-if="createLoadingDomains" class="inbox-create-state" aria-live="polite">
-          <span class="skeleton skeleton-field" />
-          <span class="sr-only">{{ t('address.loading') }}</span>
-        </div>
-
-        <div v-else-if="createDomainError" class="inbox-create-state" role="alert">
-          <p>{{ createDomainError }}</p>
-          <button class="secondary-button compact-button" type="button" @click="loadCreateDomains">
-            {{ t('address.retry') }}
-          </button>
-        </div>
-
-        <div v-else-if="!createDomains.length" class="inbox-create-state">
-          <p>{{ t('address.noneHelp') }}</p>
-        </div>
-
-        <form v-else class="address-form" @submit.prevent="submitCreate">
-          <div class="address-fields">
-            <div class="field local-field">
-              <label for="inbox-create-local-part">{{ t('address.name') }}</label>
-              <input
-                id="inbox-create-local-part"
-                v-model="createLocalPart"
-                name="inbox-create-local-part"
-                autocomplete="off"
-                autocapitalize="none"
-                minlength="1"
-                maxlength="64"
-                pattern="[A-Za-z0-9](?:[A-Za-z0-9._+\-]*[A-Za-z0-9])?"
-                required
-              >
-            </div>
-            <span class="at-sign" aria-hidden="true">@</span>
-            <div class="field domain-field">
-              <label for="inbox-create-domain">{{ t('address.domain') }}</label>
-              <select id="inbox-create-domain" v-model="createDomain" name="inbox-create-domain" required>
-                <option v-for="domain in createDomains" :key="domain.id" :value="domain.domain">
-                  {{ domain.domain }}
-                </option>
-              </select>
-            </div>
+  <section class="inbox-view" :class="{ 'has-reader': Boolean(selectedId) }" aria-labelledby="inbox-title">
+    <div class="inbox-top">
+      <div class="panel inbox-hero">
+        <div class="inbox-hero-main">
+          <div class="inbox-hero-address">
+            <small class="inbox-status mailbox-security">
+              <span class="countdown-dot" aria-hidden="true" />
+              <template v-if="session.accessKind === 'admin'">
+                <span>{{ t('password.admin') }}</span>
+                <span aria-hidden="true">·</span>
+              </template>
+              <span v-if="session.protectedUntil">{{ t('password.deadline', { date: localDate(session.protectedUntil, { dateStyle: 'long', timeStyle: 'short' }) }) }}</span>
+              <span v-else>{{ session.protected ? t('inbox.protected') : t('password.public') }}</span>
+              <span aria-hidden="true">·</span>
+              <span class="refresh-countdown-pill" aria-live="polite">
+                {{ refreshing ? t('inbox.refreshing') : t('inbox.refreshIn', { seconds: remainingSeconds }) }}
+              </span>
+            </small>
+            <h1 id="inbox-title" class="inbox-address">{{ session.address }}</h1>
           </div>
 
-          <button class="primary-button" type="submit" :disabled="createSubmitting || !createAddress">
-            <AppIcon name="inbox" />
-            {{ createSubmitting ? t('address.opening') : t('address.open') }}
-          </button>
-          <button class="text-button" type="button" :disabled="createSubmitting" @click="randomizeCreate">
-            <AppIcon name="shuffle" />
-            {{ t('address.random') }}
-          </button>
-        </form>
+          <div class="inbox-hero-actions">
+            <button class="primary-button" type="button" @click="copyAddress">
+              <AppIcon name="copy" />
+              {{ t('address.copy') }}
+            </button>
+            <div class="inbox-toolbar">
+            <button
+              class="icon-button"
+              type="button"
+              data-action="refresh"
+              :title="t('inbox.refresh')"
+              :disabled="refreshing"
+              @click="refresh"
+            >
+              <AppIcon name="refresh-cw" :class="{ spinning: refreshing }" />
+              <span class="sr-only">{{ refreshing ? t('inbox.refreshing') : t('inbox.refresh') }}</span>
+            </button>
+            <button
+              class="icon-button"
+              type="button"
+              data-action="qr-code"
+              :title="t('inbox.showQr')"
+              @click="showQrModal = true"
+            >
+              <AppIcon name="qr" />
+              <span class="sr-only">{{ t('inbox.showQr') }}</span>
+            </button>
+            <button
+              class="icon-button"
+              type="button"
+              data-action="sound"
+              :title="t('inbox.toggleSound')"
+              :aria-pressed="soundEnabled"
+              @click="toggleSound"
+            >
+              <AppIcon :name="soundEnabled ? 'volume-2' : 'volume-x'" />
+              <span class="sr-only">{{ t('inbox.toggleSound') }}</span>
+            </button>
+            <button
+              class="icon-button"
+              type="button"
+              data-action="notifications"
+              :title="notificationPermission === 'granted' ? t('inbox.notificationsOn') : t('inbox.enableNotifications')"
+              :aria-pressed="notificationPermission === 'granted'"
+              :disabled="notificationPermission === 'granted'"
+              @click="enableNotifications"
+            >
+              <AppIcon :name="notificationPermission === 'granted' ? 'bell-ring' : 'bell'" />
+              <span class="sr-only">{{ t('inbox.enableNotifications') }}</span>
+            </button>
+            <button
+              class="icon-button"
+              type="button"
+              data-action="password"
+              :title="passwordLabel"
+              :disabled="accessInvalid"
+              @click="emit('manage')"
+            >
+              <AppIcon :name="session.protected ? 'lock' : 'key'" />
+              <span class="sr-only">{{ passwordLabel }}</span>
+            </button>
+            <button
+              class="secondary-button new-address-button"
+              type="button"
+              data-action="new-address"
+              :aria-expanded="createExpanded"
+              aria-controls="inbox-create-address"
+              @click="createExpanded = !createExpanded"
+            >
+              <AppIcon :name="createExpanded ? 'x' : 'plus'" />
+              <span class="new-address-label">{{ t('inbox.new') }}</span>
+            </button>
+            </div>
+            <button
+              v-if="session.accessKind === 'visitor' || session.accessKind === 'admin'"
+              class="icon-button"
+              type="button"
+              data-action="mailbox-logout"
+              :title="t('password.logout')"
+              @click="emit('logout')"
+            >
+              <AppIcon name="log-out" />
+              <span class="sr-only">{{ t('password.logout') }}</span>
+            </button>
+          </div>
+        </div>
+
+        <p v-if="notice" class="toolbar-notice" aria-live="polite">{{ notice }}</p>
+
+        <section
+          v-show="createExpanded"
+          id="inbox-create-address"
+          class="inbox-create"
+          aria-labelledby="inbox-create-heading"
+        >
+          <h2 id="inbox-create-heading" class="sr-only">{{ t('address.create') }}</h2>
+          <div v-if="createLoadingDomains" class="inbox-create-state" aria-live="polite">
+            <span class="skeleton skeleton-field" />
+            <span class="sr-only">{{ t('address.loading') }}</span>
+          </div>
+
+          <div v-else-if="createDomainError" class="inbox-create-state" role="alert">
+            <p>{{ createDomainError }}</p>
+            <button class="secondary-button compact-button" type="button" @click="loadCreateDomains">
+              {{ t('address.retry') }}
+            </button>
+          </div>
+
+          <div v-else-if="!createDomains.length" class="inbox-create-state">
+            <p>{{ t('address.noneHelp') }}</p>
+          </div>
+
+          <form v-else class="address-form" @submit.prevent="submitCreate">
+            <div class="address-fields">
+              <div class="field local-field">
+                <label for="inbox-create-local-part">{{ t('address.name') }}</label>
+                <input
+                  id="inbox-create-local-part"
+                  v-model="createLocalPart"
+                  name="inbox-create-local-part"
+                  autocomplete="off"
+                  autocapitalize="none"
+                  minlength="1"
+                  maxlength="64"
+                  pattern="[A-Za-z0-9](?:[A-Za-z0-9._+\-]*[A-Za-z0-9])?"
+                  required
+                >
+              </div>
+              <span class="at-sign" aria-hidden="true">@</span>
+              <div class="field domain-field">
+                <label for="inbox-create-domain">{{ t('address.domain') }}</label>
+                <select id="inbox-create-domain" v-model="createDomain" name="inbox-create-domain" required>
+                  <option v-for="domain in createDomains" :key="domain.id" :value="domain.domain">
+                    {{ domain.domain }}
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <button class="primary-button" type="submit" :disabled="createSubmitting || !createAddress">
+              <AppIcon name="inbox" />
+              {{ createSubmitting ? t('address.opening') : t('address.open') }}
+            </button>
+            <button class="text-button" type="button" :disabled="createSubmitting" @click="randomizeCreate">
+              <AppIcon name="shuffle" />
+              {{ t('address.random') }}
+            </button>
+          </form>
+        </section>
+      </div>
+
+      <section v-if="latestCode" class="latest-code" :aria-label="t('inbox.latestCode')">
+        <div class="latest-code-text">
+          <span class="latest-code-label">
+            {{ t('inbox.latestCode') }} · {{ latestCode.from }}
+          </span>
+          <code class="latest-code-value">{{ groupCode(latestCode.code) }}</code>
+        </div>
+        <button
+          class="latest-code-copy"
+          type="button"
+          data-action="copy-latest-code"
+          @click="copyAction(latestCode.code, 'inbox.codeCopied')"
+        >
+          <AppIcon name="copy" />
+          {{ t('inbox.copyLatestCode') }}
+        </button>
       </section>
     </div>
 
-    <MessageReader
-      v-if="selectedId"
-      :id="selectedId"
-      :token="session.token"
-      @seen="markSeen"
-      @deleted="removeMessage"
-      @stale="removeStale"
-      @invalid="invalidateAccess"
-      @close="selectedId = null"
-    />
-
-    <aside v-else class="panel message-list" :aria-label="t('inbox.messages')">
-      <div class="list-heading">
-        <div>
-          <h2 ref="listHeading" tabindex="-1">{{ t('inbox.messages') }}</h2>
-          <span>{{ t('inbox.total', { count: collection?.['hydra:totalItems'] ?? 0 }) }}</span>
+    <div class="inbox-panes">
+      <aside class="panel message-list" :aria-label="t('inbox.messages')">
+        <div class="list-heading">
+          <div class="field">
+            <label class="sr-only" for="message-search">{{ t('inbox.searchLabel') }}</label>
+            <span class="search-bar">
+              <AppIcon name="search" />
+              <input
+                id="message-search"
+                v-model="query"
+                type="search"
+                :placeholder="t('inbox.searchPlaceholder')"
+              >
+            </span>
+          </div>
+          <div class="list-heading-title">
+            <h2 ref="listHeading" tabindex="-1">{{ t('inbox.messages') }}</h2>
+            <span>{{ t('inbox.total', { count: collection?.['hydra:totalItems'] ?? 0 }) }}</span>
+          </div>
         </div>
-        <div class="field">
-          <label for="message-search">{{ t('inbox.searchLabel') }}</label>
-          <input
-            id="message-search"
-            v-model="query"
-            type="search"
-            :placeholder="t('inbox.searchPlaceholder')"
-          >
+
+        <div v-if="loading" class="message-list-state" aria-live="polite">
+          <span class="skeleton skeleton-field" />
+          <span class="skeleton skeleton-field" />
+          <span class="skeleton skeleton-field" />
+          <span class="sr-only">{{ t('inbox.loading') }}</span>
         </div>
-      </div>
 
-      <div v-if="loading" class="message-list-state" aria-live="polite">
-        <span class="skeleton skeleton-field" />
-        <span class="skeleton skeleton-field" />
-        <span class="skeleton skeleton-field" />
-        <span class="sr-only">{{ t('inbox.loading') }}</span>
-      </div>
+        <div v-else-if="error && !collection" class="message-list-state">
+          <h3>{{ t('inbox.unavailable') }}</h3>
+          <p>{{ error }}</p>
+          <button class="secondary-button compact-button" type="button" @click="refresh">{{ t('address.retry') }}</button>
+        </div>
 
-      <div v-else-if="error && !collection" class="message-list-state">
-        <h3>{{ t('inbox.unavailable') }}</h3>
-        <p>{{ error }}</p>
-        <button class="secondary-button compact-button" type="button" @click="refresh">{{ t('address.retry') }}</button>
-      </div>
+        <div v-else-if="query && pageMessages.length && !messages.length" class="message-list-state">
+          <h3>{{ t('inbox.noSearchResults') }}</h3>
+        </div>
 
-      <div v-else-if="query && pageMessages.length && !messages.length" class="message-list-state">
-        <h3>{{ t('inbox.noSearchResults') }}</h3>
-      </div>
+        <div v-else-if="!messages.length" class="message-list-state">
+          <h3>{{ t('inbox.waiting') }}</h3>
+          <p>{{ t('inbox.waitingHelp') }}</p>
+        </div>
 
-      <div v-else-if="!messages.length" class="message-list-state">
-        <h3>{{ t('inbox.waiting') }}</h3>
-        <p>{{ t('inbox.waitingHelp') }}</p>
-      </div>
-
-      <template v-else>
-        <p v-if="error" class="list-error" role="alert">{{ error }}</p>
-        <ul class="message-rows">
-          <li
-          v-for="item in messages"
-          :key="item.id"
-          class="message-row-item"
-          >
-            <button
-              class="message-row"
-              :class="{ unread: !item.seen }"
-              type="button"
-              @click="selectedId = item.id"
+        <template v-else>
+          <p v-if="error" class="list-error" role="alert">{{ error }}</p>
+          <ul class="message-rows">
+            <li
+              v-for="item in messages"
+              :key="item.id"
+              class="message-row-item"
+              :class="{ selected: item.id === selectedId }"
             >
-              <span class="message-row-top">
-                <strong>{{ item.from.name || item.from.address }}</strong>
-                <time :datetime="item.createdAt">{{ formatDate(item.createdAt) }}</time>
-              </span>
-              <span v-if="!item.seen" class="sr-only">{{ t('inbox.unread') }}</span>
-              <span class="message-subject">{{ item.subject || t('inbox.noSubject') }}</span>
-              <span class="message-intro">{{ item.intro || t('inbox.noPreview') }}</span>
-              <span v-if="item.hasAttachments" class="attachment-flag">
-                <AppIcon name="paperclip" />
-                <span class="sr-only">{{ t('inbox.attachment') }}</span>
-              </span>
-            </button>
-            <button
-              v-if="codeCache.get(item.id)"
-              class="message-row-code"
-              type="button"
-              :aria-label="t('inbox.copyCodeFor', { address: item.from.address })"
-              @click="copyAction(codeCache.get(item.id) ?? '', 'inbox.codeCopied')"
-            >
-              <span class="code-value">{{ codeCache.get(item.id) }}</span>
-              <AppIcon name="copy" />
-            </button>
-          </li>
-        </ul>
-      </template>
+              <button
+                class="message-row"
+                :data-message-id="item.id"
+                :class="{ unread: !item.seen }"
+                type="button"
+                :aria-current="item.id === selectedId ? 'true' : undefined"
+                @click="selectedId = item.id"
+              >
+                <span class="message-avatar" aria-hidden="true">{{ initial(item) }}</span>
+                <span class="message-row-top">
+                  <strong>{{ item.from.name || item.from.address }}</strong>
+                  <time :datetime="item.createdAt">{{ formatDate(item.createdAt) }}</time>
+                </span>
+                <span v-if="!item.seen" class="sr-only">{{ t('inbox.unread') }}</span>
+                <span class="message-subject">{{ item.subject || t('inbox.noSubject') }}</span>
+                <span class="message-intro">{{ item.intro || t('inbox.noPreview') }}</span>
+                <span v-if="item.hasAttachments" class="attachment-flag">
+                  <AppIcon name="paperclip" />
+                  <span class="sr-only">{{ t('inbox.attachment') }}</span>
+                </span>
+              </button>
+              <button
+                v-if="codeCache.get(item.id)"
+                class="message-row-code"
+                type="button"
+                :aria-label="t('inbox.copyCodeFor', { address: item.from.address })"
+                @click="copyAction(codeCache.get(item.id) ?? '', 'inbox.codeCopied')"
+              >
+                <span class="code-value">{{ codeCache.get(item.id) }}</span>
+                <AppIcon name="copy" />
+              </button>
+            </li>
+          </ul>
+        </template>
+
+        <nav v-if="canPrevious || canNext" class="pagination" :aria-label="t('inbox.pages')">
+          <button type="button" :disabled="!canPrevious" @click="changePage(page - 1)">{{ t('inbox.previous') }}</button>
+          <span>{{ t('inbox.page', { page }) }}</span>
+          <button type="button" :disabled="!canNext" @click="changePage(page + 1)">{{ t('inbox.next') }}</button>
+        </nav>
+      </aside>
+
+      <MessageReader
+        v-if="selectedId"
+        :id="selectedId"
+        :key="selectedId"
+        :token="session.token"
+        @seen="markSeen"
+        @deleted="removeMessage"
+        @stale="removeStale"
+        @invalid="invalidateAccess"
+        @close="selectedId = null"
+      />
+      <div v-else class="panel reader-placeholder" aria-hidden="true">
+        <AppIcon name="mail-open" />
+      </div>
+    </div>
 
     <QrCodeModal
       v-if="showQrModal"
       :address="session.address"
       @close="showQrModal = false"
     />
-      <nav v-if="canPrevious || canNext" class="pagination" :aria-label="t('inbox.pages')">
-        <button type="button" :disabled="!canPrevious" @click="changePage(page - 1)">{{ t('inbox.previous') }}</button>
-        <span>{{ t('inbox.page', { page }) }}</span>
-        <button type="button" :disabled="!canNext" @click="changePage(page + 1)">{{ t('inbox.next') }}</button>
-      </nav>
-    </aside>
   </section>
 </template>

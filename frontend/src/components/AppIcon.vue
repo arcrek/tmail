@@ -40,6 +40,9 @@ export type IconName =
   | 'sliders'
   | 'server'
   | 'globe'
+  | 'chevron-down'
+  | 'search'
+  | 'arrow-right'
   | 'globe-plus'
   | 'key'
   | 'lock'
@@ -302,6 +305,17 @@ const ICONS: Record<IconName, Shape[]> = {
     { tag: 'line', attrs: { x1: '10', x2: '18', y1: '6', y2: '6' } },
     { tag: 'line', attrs: { x1: '6', x2: '6.01', y1: '18', y2: '18' } },
     { tag: 'line', attrs: { x1: '10', x2: '18', y1: '18', y2: '18' } },
+  ],
+  'arrow-right': [
+    { tag: 'path', attrs: { d: 'M5 12h14' } },
+    { tag: 'path', attrs: { d: 'm12 5 7 7-7 7' } },
+  ],
+  search: [
+    { tag: 'circle', attrs: { cx: '11', cy: '11', r: '8' } },
+    { tag: 'path', attrs: { d: 'm21 21-4.3-4.3' } },
+  ],
+  'chevron-down': [
+    { tag: 'path', attrs: { d: 'm6 9 6 6 6-6' } },
   ],
   globe: [
     { tag: 'circle', attrs: { cx: '12', cy: '12', r: '10' } },

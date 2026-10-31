@@ -169,7 +169,7 @@ describe('address flow', () => {
 
     expect(wrapper.get('.app-header .brand').text()).toContain('Temporary Inbox')
     expect(wrapper.get('.saved-inboxes').exists()).toBe(true)
-    expect(wrapper.get('.home-hero').text()).toContain('Receive mail. Keep your address.')
+    expect(wrapper.get('.home-hero').text()).toContain('Disposable email, ready now.')
     expect(wrapper.get('.address-form').text()).toContain('Create an address')
   })
 
@@ -374,7 +374,7 @@ describe('address flow', () => {
     } })
     const wrapper = mount(AddressPanel)
     await flushPromises()
-    await wrapper.get('.address-form .panel-heading button').trigger('click')
+    await wrapper.get('.address-form .random-button').trigger('click')
     await flushPromises()
 
     expect(mocks.token).toHaveBeenCalledTimes(1)
@@ -485,6 +485,37 @@ describe('address flow', () => {
     expect(toastStack.get('[role="status"]').text()).toContain('Address copied')
   })
 
+  it('switches between new and existing address modes with clicks and arrow keys', async () => {
+    const wrapper = mount(AddressPanel, { attachTo: document.body })
+    await flushPromises()
+    const newMode = wrapper.get('[data-mode="new"]')
+    const existingMode = wrapper.get('[data-mode="existing"]')
+    expect(newMode.attributes('aria-checked')).toBe('true')
+    expect(newMode.attributes('tabindex')).toBe('0')
+    expect(existingMode.attributes('tabindex')).toBe('-1')
+    expect(wrapper.get('.quick-access').isVisible()).toBe(false)
+
+    await existingMode.trigger('click')
+    expect(existingMode.attributes('aria-checked')).toBe('true')
+    expect(wrapper.get('.quick-access').isVisible()).toBe(true)
+    expect(wrapper.get('.composer-pane').isVisible()).toBe(false)
+
+    await existingMode.trigger('keydown', { key: 'ArrowLeft' })
+    await flushPromises()
+    expect(newMode.attributes('aria-checked')).toBe('true')
+    expect(document.activeElement).toBe(newMode.element)
+    wrapper.unmount()
+  })
+
+  it('shows the docs and admin links in the public footer but not on the admin console', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+    const footer = wrapper.get('.site-footer')
+    expect(footer.get('a[href="/admin"]').text()).toBe('Admin')
+    expect(footer.find('a[href="/docs"]').exists()).toBe(true)
+    expect(wrapper.find('.app-header .admin-link').exists()).toBe(false)
+  })
+
   it('shows a useful empty-domain state', async () => {
     mocks.domains.mockResolvedValue(domains([]))
     const wrapper = mount(AddressPanel)
@@ -528,7 +559,7 @@ describe('address flow', () => {
 
     await travel(() => history.back())
     expect(location.pathname).toBe('/')
-    expect(wrapper.text()).toContain('Receive mail. Keep your address.')
+    expect(wrapper.text()).toContain('Disposable email, ready now.')
 
     await travel(() => history.back())
     expect(location.pathname).toBe('/alpha%40example.com')
@@ -554,7 +585,7 @@ describe('address flow', () => {
 
     expect(location.pathname).toBe('/')
     expect(wrapper.find('.inbox-view').exists()).toBe(false)
-    expect(wrapper.get('.home-hero').text()).toContain('Receive mail. Keep your address.')
+    expect(wrapper.get('.home-hero').text()).toContain('Disposable email, ready now.')
   })
 
   it('shows bulk generation from the header and returns home from the brand link', async () => {
@@ -570,7 +601,7 @@ describe('address flow', () => {
     await flushPromises()
     expect(wrapper.find('#bulk-title').exists()).toBe(false)
     expect(wrapper.get('.address-form').exists()).toBe(true)
-    expect(wrapper.get('.home-hero').text()).toContain('Receive mail. Keep your address.')
+    expect(wrapper.get('.home-hero').text()).toContain('Disposable email, ready now.')
   })
 
   it('shows bulk code reading from the header and returns home from the brand link', async () => {

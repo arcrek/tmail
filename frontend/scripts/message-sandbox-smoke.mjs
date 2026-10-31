@@ -99,6 +99,7 @@ try {
     delivered = true
   })
   await page.goto(`${baseUrl}/`)
+  await page.locator('.mode-switch [data-mode="existing"]').click()
   await page.locator('#quick-email').fill('not-an-email')
   await page.locator('.quick-access button[type="submit"]').click()
   assert.equal(await page.locator('#quick-email').evaluate((input) => input.validity.typeMismatch), true)
