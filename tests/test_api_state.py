@@ -55,6 +55,21 @@ def test_activity_summary_counts_domains_today_and_seven_days(tmp_path):
         f"failure-{index}.example" for index in range(10, 0, -1)
     ]
     assert len(summary["recentMxFailures"]) == 10
+    assert summary["mxFailures24h"] == 11
+
+
+def test_activity_summary_counts_mx_failures_only_within_24_hours(tmp_path):
+    store = StateStore(str(tmp_path / "state.db"))
+    store.record_event("mx_mismatch", "stale.example")
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "UPDATE activity SET created_at = ? WHERE domain = ?",
+            ((datetime.now(timezone.utc) - timedelta(days=2)).isoformat(), "stale.example"),
+        )
+    store.record_event("mx_lookup_error", "fresh.example")
+    store.record_event("domain_provisioned", "ok.example")
+
+    assert store.activity_summary()["mxFailures24h"] == 1
 
 
 def test_sync_history_retains_success_and_error_independently(tmp_path):

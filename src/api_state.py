@@ -480,6 +480,7 @@ class StateStore:
         now = self.clock()
         today = now.date().isoformat()
         seven_days = (now - timedelta(days=7)).isoformat()
+        one_day = (now - timedelta(days=1)).isoformat()
         with self._connect() as conn:
             domains_today = conn.execute(
                 "SELECT COUNT(*) FROM activity WHERE kind = 'domain_provisioned' AND created_at >= ?",
@@ -496,6 +497,12 @@ class StateStore:
                     "ORDER BY id DESC LIMIT 10"
                 )
             ]
+            # Counted separately: the recent-failures list below is capped at 10 rows.
+            mx_failures_24h = conn.execute(
+                "SELECT COUNT(*) FROM activity "
+                "WHERE kind IN ('mx_mismatch', 'mx_lookup_error') AND created_at >= ?",
+                (one_day,),
+            ).fetchone()[0]
             recent_mx_failures = [
                 dict(row)
                 for row in conn.execute(
@@ -508,4 +515,5 @@ class StateStore:
                 "domainsSevenDays": domains_seven_days,
                 "recentDomains": recent_domains,
                 "recentMxFailures": recent_mx_failures,
+                "mxFailures24h": mx_failures_24h,
             }

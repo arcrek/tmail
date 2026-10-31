@@ -202,6 +202,7 @@ export interface DashboardResource extends SyncHistory {
     domainsSevenDays: number
     recentDomains: Array<{ domain: string; created_at: string }>
     recentMxFailures: Array<{ kind: string; domain: string; detail: string | null; created_at: string }>
+    mxFailures24h: number
   }
   autoSyncDomains: boolean
 }

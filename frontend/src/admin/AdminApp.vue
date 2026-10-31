@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import AppIcon from '../components/AppIcon.vue'
+import ThemeToggle from '../components/ThemeToggle.vue'
 import type { IconName } from '../components/AppIcon.vue'
 import type { AdminSettings } from '../types'
 import AccessTab from './AccessTab.vue'
@@ -14,16 +15,30 @@ import MailServerTab from './MailServerTab.vue'
 import { useI18n } from '../i18n'
 import type { MessageKey } from '../i18n'
 
-const tabs: Array<{ id: Tab; key: MessageKey; icon: IconName }> = [
-  { id: 'dashboard', key: 'admin.dashboard', icon: 'layout-dashboard' },
-  { id: 'general', key: 'admin.general', icon: 'sliders' },
-  { id: 'mail', key: 'admin.mail', icon: 'server' },
-  { id: 'domains', key: 'admin.domains', icon: 'globe' },
-  { id: 'access', key: 'admin.access', icon: 'key' },
-  { id: 'content', key: 'admin.content', icon: 'code-2' },
-  { id: 'deleted', key: 'admin.deleted', icon: 'trash-2' },
-]
 type Tab = 'dashboard' | 'general' | 'mail' | 'domains' | 'access' | 'content' | 'deleted'
+type TabItem = { id: Tab; key: MessageKey; icon: IconName }
+
+// Drawer order follows the two groups; keyboard navigation walks this flat list.
+const tabGroups: Array<{ key: MessageKey; tabs: TabItem[] }> = [
+  {
+    key: 'admin.groupOperations',
+    tabs: [
+      { id: 'dashboard', key: 'admin.dashboard', icon: 'layout-dashboard' },
+      { id: 'domains', key: 'admin.domains', icon: 'globe' },
+      { id: 'deleted', key: 'admin.deleted', icon: 'trash-2' },
+    ],
+  },
+  {
+    key: 'admin.groupConfiguration',
+    tabs: [
+      { id: 'general', key: 'admin.general', icon: 'sliders' },
+      { id: 'mail', key: 'admin.mail', icon: 'server' },
+      { id: 'access', key: 'admin.access', icon: 'key' },
+      { id: 'content', key: 'admin.content', icon: 'code-2' },
+    ],
+  },
+]
+const tabs: TabItem[] = tabGroups.flatMap((group) => group.tabs)
 const { t } = useI18n()
 
 const password = ref('')
@@ -34,6 +49,10 @@ const pending = ref(false)
 const childBusy = ref(false)
 const cleanupCsrf = ref('')
 const error = ref('')
+// MX failures in the last 24 hours from the dashboard's latest load; shown as a badge on the Domains item.
+const domainAttention = ref(0)
+const appName = computed(() => settings.value?.site.appName || t('app.defaultName'))
+const logoDataUrl = computed(() => settings.value?.site.logoDataUrl || '')
 
 onMounted(async () => {
   try {
@@ -58,7 +77,7 @@ function moveTab(event: KeyboardEvent, index: number): void {
   const tab = tabs[next]
   if (!tab) return
   activeTab.value = tab.id
-  const buttons = (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLElement>('[role="tab"]')
+  const buttons = (event.currentTarget as HTMLElement).closest('[role="tablist"]')?.querySelectorAll<HTMLElement>('[role="tab"]')
   buttons?.[next]?.focus()
 }
 
@@ -147,6 +166,12 @@ async function logout(): Promise<void> {
 <template>
   <section v-if="!settings" class="admin-login" aria-labelledby="admin-login-title">
     <div class="admin-login-panel panel">
+      <div class="admin-login-top">
+        <a class="admin-login-brand" href="/" :aria-label="t('admin.viewSite')">
+          <span class="brand-mark" aria-hidden="true"><AppIcon name="brand-mail" /></span>
+        </a>
+        <ThemeToggle />
+      </div>
       <p class="eyebrow">{{ t('admin.loginEyebrow') }}</p>
       <h1 id="admin-login-title">{{ t('admin.loginTitle') }}</h1>
       <p class="admin-note">{{ t('admin.loginNote') }}</p>
@@ -162,26 +187,43 @@ async function logout(): Promise<void> {
   <div v-else class="admin-shell">
     <a class="skip-link" href="#admin-main-content">{{ t('a11y.skipToContent') }}</a>
     <aside class="admin-sidebar">
-      <div class="list-heading"><div><h2>{{ t('admin.settings') }}</h2><span>{{ t('admin.config') }}</span></div></div>
+      <div class="admin-brand">
+        <img v-if="logoDataUrl" :src="logoDataUrl" alt="">
+        <span v-else class="brand-mark" aria-hidden="true"><AppIcon name="brand-mail" /></span>
+        <div class="admin-brand-text">
+          <span class="admin-brand-name">{{ appName }}</span>
+          <span class="admin-brand-caption">{{ t('admin.console') }}</span>
+        </div>
+        <ThemeToggle />
+      </div>
       <nav role="tablist" :aria-label="t('admin.sections')">
-        <button
-          v-for="(tab, index) in tabs"
-          :id="`admin-tab-${index}`"
-          :key="tab.id"
-          role="tab"
-          type="button"
-          :disabled="childBusy"
-          :aria-selected="activeTab === tab.id"
-          :tabindex="activeTab === tab.id ? 0 : -1"
-          @click="selectTab(tab.id)"
-          @keydown="moveTab($event, index)"
-        >
-          <AppIcon :name="tab.icon" />
-          <span>{{ t(tab.key) }}</span>
-        </button>
+        <div v-for="group in tabGroups" :key="group.key" class="admin-nav-group" role="none">
+          <span class="admin-nav-label" aria-hidden="true">{{ t(group.key) }}</span>
+          <button
+            v-for="tab in group.tabs"
+            :id="`admin-tab-${tabs.indexOf(tab)}`"
+            :key="tab.id"
+            role="tab"
+            type="button"
+            :disabled="childBusy"
+            :aria-selected="activeTab === tab.id"
+            :tabindex="activeTab === tab.id ? 0 : -1"
+            @click="selectTab(tab.id)"
+            @keydown="moveTab($event, tabs.indexOf(tab))"
+          >
+            <AppIcon :name="tab.icon" />
+            <span>{{ t(tab.key) }}</span>
+            <span v-if="tab.id === 'domains' && domainAttention" class="admin-nav-badge">
+              {{ domainAttention }}<span class="sr-only"> {{ t('admin.needsAttention') }}</span>
+            </span>
+          </button>
+        </div>
       </nav>
       <div class="admin-account-controls">
-        <div class="api-status"><span class="pulse-dot" aria-hidden="true" /> {{ t('admin.apiStatus') }} <strong>{{ t('admin.healthy') }}</strong></div>
+        <a class="admin-public-link" href="/">
+          <span>{{ t('admin.viewSite') }}</span>
+          <AppIcon name="external-link" />
+        </a>
         <button class="rail-signout" type="button" :disabled="pending || childBusy" @click="logout">
           <AppIcon name="log-out" />
           <span>{{ pending ? t('admin.loggingOut') : t('admin.logout') }}</span>
@@ -192,7 +234,7 @@ async function logout(): Promise<void> {
 
     <section id="admin-main-content" class="admin-content" tabindex="-1">
       <div role="tabpanel" tabindex="0" :aria-labelledby="`admin-tab-${tabs.findIndex((tab) => tab.id === activeTab)}`">
-        <DashboardTab v-if="activeTab === 'dashboard'" />
+        <DashboardTab v-if="activeTab === 'dashboard'" @attention="domainAttention = $event" @open-domains="selectTab('domains')" />
         <GeneralTab v-else-if="activeTab === 'general'" :site="settings.site" :csrf="csrf" @busy="childBusy = $event" @updated="settings = $event" />
         <MailServerTab v-else-if="activeTab === 'mail'" :mail-server="settings.mailServer" :csrf="csrf" @busy="childBusy = $event" @updated="settings = $event" />
         <DomainsTab v-else-if="activeTab === 'domains'" :site="settings.site" :domains="settings.domains" :last-sync="settings.lastSync" :last-successful-sync="settings.lastSuccessfulSync" :last-sync-error="settings.lastSyncError" :csrf="csrf" @busy="childBusy = $event" @synced="applyDomainSync" @updated="settings = $event" />

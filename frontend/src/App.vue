@@ -337,10 +337,9 @@ onBeforeUnmount(() => {
     />
 
     <AppHeader
+      v-if="view !== 'admin'"
       :app-name="site?.appName"
       :logo-data-url="site?.logoDataUrl"
-      :show-locale-picker="view !== 'admin'"
-      :show-unlock="view !== 'admin'"
       :access-token="accessToken"
       :unlocking="unlocking"
       :bulk-active="view === 'bulk'"
