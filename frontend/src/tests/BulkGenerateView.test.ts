@@ -40,6 +40,21 @@ describe('BulkGenerateView', () => {
     vi.restoreAllMocks()
   })
 
+  it('uses the compact page header and its own panel instead of the home hero styles', async () => {
+    const wrapper = mount(BulkGenerateView)
+    await flushPromises()
+    expect(wrapper.find('.home-hero').exists()).toBe(false)
+    expect(wrapper.find('.saved-inboxes').exists()).toBe(false)
+    expect(wrapper.get('.page-header h1').text()).toBe('Generate multiple addresses')
+    expect(wrapper.find('.bulk-panel .bulk-controls').exists()).toBe(true)
+  })
+
+  it('draws the key icon with its bow below the shaft', async () => {
+    const { default: AppIcon } = await import('../components/AppIcon.vue')
+    const circle = mount(AppIcon, { props: { name: 'key' } }).get('circle')
+    expect(circle.attributes()).toMatchObject({ cx: '7.5', cy: '15.5', r: '5.5' })
+  })
+
   it('renders loading, error, and empty domain states', async () => {
     let resolveDomains: (value: ReturnType<typeof domains>) => void
     mocks.domains.mockImplementationOnce(() => new Promise((resolve) => { resolveDomains = resolve }))

@@ -199,17 +199,18 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="home-hero" aria-labelledby="bulk-code-title">
+  <header class="page-header">
     <h1 id="bulk-code-title">{{ t('bulkCode.title') }}</h1>
     <p class="lede">{{ t('bulkCode.lede') }}</p>
-  </section>
+  </header>
 
-  <section class="panel saved-inboxes" aria-labelledby="bulk-code-title">
-    <form class="bulk-controls" @submit.prevent="submit">
+  <section class="panel bulk-panel bulk-code-panel" aria-labelledby="bulk-code-title">
+    <form class="bulk-controls bulk-code-form" @submit.prevent="submit">
       <div class="field">
         <label for="bulk-code-addresses">{{ t('bulkCode.addresses') }}</label>
-        <textarea id="bulk-code-addresses" v-model="input" rows="5" :placeholder="t('bulkCode.placeholder')" />
+        <textarea id="bulk-code-addresses" v-model="input" rows="6" :spellcheck="false" autocapitalize="none" :placeholder="t('bulkCode.placeholder')" />
       </div>
+      <div class="bulk-form-actions">
       <button class="primary-button" type="submit" :disabled="addresses.length === 0">
         <AppIcon name="scan-code" />
         {{ t('bulkCode.submit') }}
@@ -222,6 +223,7 @@ onBeforeUnmount(() => {
         <AppIcon name="download" />
         {{ t('bulkCode.exportCsv') }}
       </button>
+      </div>
     </form>
     <p v-if="partialCount !== null" class="bulk-partial" role="status">{{ t('bulkCode.partial', { count: partialCount }) }}</p>
 

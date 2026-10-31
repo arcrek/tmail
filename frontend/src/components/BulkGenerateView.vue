@@ -89,10 +89,10 @@ function exportCsv(): void {
 </script>
 
 <template>
-  <section class="home-hero" aria-labelledby="bulk-title">
+  <header class="page-header">
     <h1 id="bulk-title">{{ t('bulk.title') }}</h1>
     <p class="lede">{{ t('bulk.lede') }}</p>
-  </section>
+  </header>
 
   <div v-if="loadingDomains" class="panel loading-panel" aria-live="polite">
     <span class="skeleton skeleton-label" />
@@ -113,7 +113,7 @@ function exportCsv(): void {
     <button type="button" disabled>{{ t('bulk.generate') }}</button>
   </div>
 
-  <section v-else class="panel saved-inboxes" aria-labelledby="bulk-title">
+  <section v-else class="panel bulk-panel" aria-labelledby="bulk-title">
     <form class="bulk-controls" @submit.prevent="generate">
       <div class="field">
         <label for="bulk-count">{{ t('bulk.countLabel') }}</label>

@@ -63,6 +63,7 @@
   --radius-xl: 40px;
   --radius-pill: 999px;
   --header-height: 64px;
+  --site-footer-height: 2.75rem;
 
   /* Spacing scale */
   --space-1: 0.25rem;
@@ -297,6 +298,13 @@ textarea {
   resize: vertical;
 }
 
+/* Native option popups don't inherit a transparent select background; paint them from
+   theme tokens so dark mode never shows light text on the browser's light popup. */
+select option {
+  background-color: var(--surface-lowest);
+  color: var(--ink);
+}
+
 /* Shared card/form primitives: reused by the public address/inbox views and every admin tab. */
 
 .panel {
@@ -500,6 +508,8 @@ button:active:not(:disabled) {
    ========================================================================== */
 
 .app-frame {
+  display: flex;
+  flex-direction: column;
   width: 100%;
   min-height: 100dvh;
   background: var(--canvas);
@@ -513,7 +523,7 @@ button:active:not(:disabled) {
 }
 
 main {
-  min-height: calc(100dvh - var(--header-height));
+  flex: 1 0 auto;
 }
 
 .app-icon {
@@ -712,15 +722,37 @@ main {
   background: color-mix(in srgb, var(--ink) 8%, transparent);
 }
 
+/* Slim footer pinned to the viewport bottom so Docs/Admin are reachable without scrolling;
+   the frame reserves its height so it never covers page content. */
 .site-footer {
-  width: min(100% - 2rem, 70rem);
-  margin-inline: auto;
-  padding: var(--space-5) var(--space-2);
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 80;
+  padding: 0 var(--space-5) env(safe-area-inset-bottom);
+  border-top: 1px solid var(--line);
+  background: var(--canvas);
+}
+
+.app-frame:has(> .site-footer) {
+  padding-bottom: calc(var(--site-footer-height) + 1px + env(safe-area-inset-bottom));
+}
+
+/* Keep keyboard focus and in-page jumps clear of the sticky header and the fixed footer. */
+html:has(.app-frame > .site-footer) {
+  scroll-padding-top: var(--header-height);
+  scroll-padding-bottom: calc(var(--site-footer-height) + 1px + env(safe-area-inset-bottom));
+}
+
+/* Toasts sit above the fixed footer instead of covering its links. */
+.app-frame:has(> .site-footer) .toast-stack {
+  bottom: calc(var(--site-footer-height) + 1px + env(safe-area-inset-bottom) + var(--space-4));
 }
 
 .site-footer-links {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   gap: var(--space-2);
 }
@@ -728,7 +760,7 @@ main {
 .site-footer-links a {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
+  min-height: var(--site-footer-height);
   padding-inline: var(--space-3);
   border-radius: var(--radius-pill);
   color: var(--muted);
@@ -777,17 +809,14 @@ main {
 
 .bulk-actions-bar {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 0.5rem;
   margin-bottom: 1rem;
 }
 
 .inbox-address {
   font-size: clamp(1.1rem, 3.8vw, 1.6rem);
-  word-break: break-word;
-  overflow-wrap: anywhere;
-}
-
-.saved-address {
   word-break: break-word;
   overflow-wrap: anywhere;
 }
@@ -857,10 +886,6 @@ main {
   line-height: 1.5;
 }
 
-.bulk-copy-all {
-  margin-bottom: 0.85rem;
-}
-
 .bulk-list {
   margin: 0;
   padding: 0;
@@ -907,6 +932,10 @@ main {
   white-space: nowrap;
   font-family: var(--font-mono);
   color: var(--ink);
+  border: 0;
+  background: transparent;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .forget-button {
@@ -2016,6 +2045,82 @@ main {
   .mode-switch button[aria-checked='true'] { padding-left: var(--space-2); }
 }
 
+/* --- Bulk pages: compact page header, one tonal panel per tool --- */
+
+.page:has(> .page-header) {
+  width: min(100% - 2rem, 56rem);
+  gap: var(--space-4);
+}
+
+.page-header {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-1) 0;
+}
+
+.page-header h1 {
+  max-width: none;
+  margin: 0;
+  font-size: clamp(1.75rem, 3.2vw, 2.25rem);
+  font-weight: 400;
+}
+
+.page-header .lede {
+  max-width: 60ch;
+  margin: 0;
+}
+
+.bulk-panel {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.bulk-panel .bulk-controls {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.bulk-panel .bulk-controls .field {
+  flex: 0 1 12rem;
+  min-width: 8rem;
+}
+
+.bulk-panel .bulk-results {
+  margin-top: 0;
+}
+
+.bulk-panel .empty-copy,
+.bulk-panel .bulk-partial {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.bulk-code-panel .bulk-code-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.bulk-code-panel .bulk-code-form .field {
+  min-width: 0;
+}
+
+#bulk-code-addresses {
+  min-height: 9.5rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.bulk-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
 /* --- Inbox: address card, latest code, list-detail panes (M3) --- */
 
 .inbox-view {
@@ -2393,6 +2498,10 @@ main {
 /* Phone: inbox actions move to an M3 bottom app bar with the new-address FAB. */
 @media (max-width: 640px) {
   .app-frame:has(.inbox-toolbar) { padding-bottom: calc(5rem + env(safe-area-inset-bottom)); }
+  /* The phone inbox already pins its app bar to the bottom; keep the footer in flow there. */
+  .app-frame:has(.inbox-toolbar) > .site-footer { position: static; border-top: 0; background: transparent; }
+  html:has(.inbox-toolbar) { scroll-padding-bottom: calc(5rem + env(safe-area-inset-bottom)); }
+  .app-frame:has(.inbox-toolbar) .toast-stack { bottom: calc(5rem + env(safe-area-inset-bottom) + var(--space-4)); }
   .inbox-view .inbox-hero { padding: var(--space-4); }
   .inbox-view .inbox-hero-actions { width: 100%; }
   .inbox-view .inbox-hero-actions .primary-button { flex: 1 1 auto; margin-right: 0; min-height: 3rem; }

@@ -331,9 +331,9 @@ const ICONS: Record<IconName, Shape[]> = {
     { tag: 'path', attrs: { d: 'M16 19h6' } },
   ],
   key: [
-    { tag: 'circle', attrs: { cx: '7.5', cy: '7.5', r: '4.5' } },
+    { tag: 'path', attrs: { d: 'm15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4' } },
     { tag: 'path', attrs: { d: 'm21 2-9.6 9.6' } },
-    { tag: 'path', attrs: { d: 'm15.5 7.5 3 3' } },
+    { tag: 'circle', attrs: { cx: '7.5', cy: '15.5', r: '5.5' } },
   ],
   lock: [
     { tag: 'rect', attrs: { width: '18', height: '11', x: '3', y: '11', rx: '2', ry: '2' } },
