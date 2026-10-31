@@ -5,8 +5,8 @@ export type ThemeMode = 'light' | 'dark'
 const STORAGE_KEY = 'tmail.theme'
 
 const THEME_COLORS: Record<ThemeMode, string> = {
-  light: '#f6f4ef',
-  dark: '#1a1611',
+  light: '#f9f9ff',
+  dark: '#111318',
 }
 
 const SYSTEM_MEDIA: Record<ThemeMode, string> = {

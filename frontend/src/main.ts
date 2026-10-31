@@ -1,5 +1,5 @@
-import '@fontsource-variable/libre-franklin'
-import '@fontsource-variable/jetbrains-mono'
+import '@fontsource-variable/roboto-flex'
+import '@fontsource-variable/roboto-mono'
 import { createApp } from 'vue'
 import App from './App.vue'
 import './styles.css'

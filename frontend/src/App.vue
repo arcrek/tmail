@@ -346,7 +346,6 @@ onBeforeUnmount(() => {
       :bulk-active="view === 'bulk'"
       :bulk-code-active="view === 'bulkCode'"
       :home-active="view === 'address' || view === 'inbox'"
-      :admin-active="view === 'admin'"
       v-model:unlock-open="unlockOpen"
       v-model:unlock-value="unlockValue"
       @home="newAddress"
@@ -423,6 +422,13 @@ onBeforeUnmount(() => {
         />
       </div>
     </main>
+
+    <footer v-if="view !== 'admin'" class="site-footer">
+      <nav class="site-footer-links" :aria-label="t('nav.footer')">
+        <a href="/docs">{{ t('nav.docs') }}</a>
+        <a class="admin-link" href="/admin">{{ t('nav.admin') }}</a>
+      </nav>
+    </footer>
 
     <section
       v-if="site?.cookieEnabled && site.cookieText"

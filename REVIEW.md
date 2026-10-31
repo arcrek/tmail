@@ -8,7 +8,7 @@ Capture full-page screenshots across all three standard viewports plus reflow:
 - [ ] **Tablet (768×1024)**: Responsive header collapses navigation cleanly into hamburger menu; reader modal/panel scales naturally.
 - [ ] **Mobile (375×812)**: Single-column flow; touch targets are at least 44×44px; card headers do not wrap titles into awkward multi-line fragments.
 - [ ] **Reflow (320px width)**: Zero horizontal scrollbars; header retains single-line brand and action layout; skip-link does not overlap interactive elements when unfocused.
-- [ ] **Themes**: Both Light (`#f6f8fc`) and Dark (`#131314`) themes exhibit legible contrast (minimum 4.5:1 for body copy).
+- [ ] **Themes**: Both Light (`#f9f9ff`) and Dark (`#111318`) Material 3 themes exhibit legible contrast (minimum 4.5:1 for body copy).
 - [ ] **Languages**: English and Vietnamese layouts both render without text truncation or broken flex wrappers.
 
 ## 2. AX & Machine Discovery Surface Checks

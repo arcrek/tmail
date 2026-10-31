@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import AppIcon from './AppIcon.vue'
 import ThemeToggle from './ThemeToggle.vue'
 import UnlockControl from './UnlockControl.vue'
@@ -15,7 +15,6 @@ const props = withDefaults(defineProps<{
   bulkActive?: boolean
   bulkCodeActive?: boolean
   homeActive?: boolean
-  adminActive?: boolean
 }>(), {
   appName: '', logoDataUrl: '', showLocalePicker: true, showUnlock: true, accessToken: '', unlocking: false, bulkActive: false, bulkCodeActive: false,
 })
@@ -25,6 +24,13 @@ const unlockOpen = defineModel<boolean>('unlockOpen', { required: true })
 const unlockValue = defineModel<string>('unlockValue', { required: true })
 const { locale, selectLocale, t } = useI18n()
 const mobileOpen = ref(false)
+const LOCALE_NAMES = {
+  en: 'locale.english',
+  vi: 'locale.vietnamese',
+  ru: 'locale.russian',
+  zh: 'locale.chinese',
+} as const
+const localeName = computed(() => t(LOCALE_NAMES[locale.value]))
 
 function closeMobileMenu(): void {
   mobileOpen.value = false
@@ -32,6 +38,11 @@ function closeMobileMenu(): void {
 
 function toggleMobileMenu(): void {
   mobileOpen.value = !mobileOpen.value
+  // The toggle sits after the nav in DOM order (it lives with the always-visible header
+  // actions), so move focus into the menu it just opened instead of leaving Tab to exit.
+  if (mobileOpen.value) {
+    void nextTick(() => document.querySelector<HTMLElement>('#app-header-nav a')?.focus())
+  }
 }
 
 function onKeydown(event: KeyboardEvent): void {
@@ -79,21 +90,6 @@ function onLocaleChange(event: Event): void {
       <span class="brand-name">{{ appName || t('app.defaultName') }}</span>
     </a>
 
-    <div class="header-right-actions">
-      <ThemeToggle />
-      <button
-        class="mobile-menu-button"
-        type="button"
-        :aria-expanded="mobileOpen"
-        :aria-label="t('nav.toggleMenu')"
-        aria-controls="app-header-nav"
-        @click="toggleMobileMenu"
-      >
-        <AppIcon :name="mobileOpen ? 'x' : 'menu'" />
-        <span class="sr-only">{{ t('nav.menu') }}</span>
-      </button>
-    </div>
-
     <nav
       id="app-header-nav"
       class="app-header-nav"
@@ -104,10 +100,6 @@ function onLocaleChange(event: Event): void {
         <AppIcon name="home" />
         {{ t('nav.home') }}
       </a>
-      <a href="/docs" @click="closeMobileMenu">
-        <AppIcon name="book-open" />
-        {{ t('nav.docs') }}
-      </a>
       <a class="bulk-link" href="#" :aria-current="props.bulkActive ? 'page' : undefined" @click.prevent="onBulkClick">
         <AppIcon name="mails" />
         {{ t('nav.bulk') }}
@@ -116,9 +108,9 @@ function onLocaleChange(event: Event): void {
         <AppIcon name="scan-code" />
         {{ t('nav.bulkCode') }}
       </a>
-      <a class="admin-link" href="/admin" :aria-current="props.adminActive ? 'page' : undefined" @click="closeMobileMenu">
-        <AppIcon name="shield-cog" />
-        {{ t('nav.admin') }}
+      <a href="/docs" @click="closeMobileMenu">
+        <AppIcon name="book-open" />
+        {{ t('nav.docs') }}
       </a>
       <div v-if="props.showUnlock" class="header-unlock">
         <UnlockControl
@@ -131,8 +123,14 @@ function onLocaleChange(event: Event): void {
           @lock="emit('lock')"
         />
       </div>
+    </nav>
+
+    <div class="header-actions">
       <label v-if="props.showLocalePicker" class="locale-picker">
-        <span class="sr-only">{{ t('locale.label') }}</span>
+        <AppIcon name="globe" />
+        <span class="locale-current locale-current-long" aria-hidden="true">{{ localeName }}</span>
+        <span class="locale-current locale-current-short" aria-hidden="true">{{ locale.toUpperCase() }}</span>
+        <AppIcon name="chevron-down" />
         <select :value="locale" :aria-label="t('locale.label')" @change="onLocaleChange">
           <option value="en">{{ t('locale.english') }}</option>
           <option value="vi">{{ t('locale.vietnamese') }}</option>
@@ -140,9 +138,18 @@ function onLocaleChange(event: Event): void {
           <option value="zh">{{ t('locale.chinese') }}</option>
         </select>
       </label>
-      <div class="desktop-theme-toggle">
-        <ThemeToggle />
-      </div>
-    </nav>
+      <ThemeToggle />
+      <button
+        class="mobile-menu-button icon-button"
+        type="button"
+        :aria-expanded="mobileOpen"
+        :aria-label="t('nav.toggleMenu')"
+        aria-controls="app-header-nav"
+        @click="toggleMobileMenu"
+      >
+        <AppIcon :name="mobileOpen ? 'x' : 'menu'" />
+        <span class="sr-only">{{ t('nav.menu') }}</span>
+      </button>
+    </div>
   </header>
 </template>

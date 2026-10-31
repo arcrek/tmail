@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import AppHeader from '../components/AppHeader.vue'
 import { initLocale } from '../i18n'
@@ -32,14 +32,29 @@ describe('AppHeader', () => {
     expect(link.attributes('aria-current')).toBe('page')
     await link.trigger('click')
     expect(wrapper.emitted('home')).toHaveLength(1)
-    await wrapper.setProps({ homeActive: false, adminActive: true })
+    await wrapper.setProps({ homeActive: false })
     expect(link.attributes('aria-current')).toBeUndefined()
-    expect(wrapper.get('.admin-link').attributes('aria-current')).toBe('page')
+    expect(wrapper.find('.admin-link').exists()).toBe(false)
+  })
+
+  it('keeps the language picker outside the collapsible menu and labels the current language', async () => {
+    initLocale()
+    const wrapper = mount(AppHeader, {
+      props: { unlockOpen: false, unlockValue: '', showLocalePicker: true, showUnlock: false },
+      global: { stubs: { ThemeToggle: true } },
+    })
+
+    const picker = wrapper.get('.header-actions .locale-picker')
+    expect(wrapper.find('.app-header-nav .locale-picker').exists()).toBe(false)
+    expect(picker.get('select').attributes('aria-label')).toBe('Language')
+    expect(picker.get('.locale-current-long').text()).toBe('English')
+    expect(picker.get('.locale-current-short').text()).toBe('EN')
   })
 
   it('toggles mobile menu and closes on escape', async () => {
     initLocale()
     const wrapper = mount(AppHeader, {
+      attachTo: document.body,
       props: { unlockOpen: false, unlockValue: '', showLocalePicker: true, showUnlock: true },
       global: { stubs: { ThemeToggle: true, UnlockControl: true } },
     })
@@ -51,6 +66,9 @@ describe('AppHeader', () => {
     await toggleBtn.trigger('click')
     expect(toggleBtn.attributes('aria-expanded')).toBe('true')
     expect(wrapper.get('.app-header-nav').classes()).toContain('mobile-open')
+
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get('#app-header-nav a').element)
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     await wrapper.vm.$nextTick()
@@ -85,7 +103,7 @@ describe('AppHeader', () => {
     })
 
     const navSvgs = wrapper.findAll('.app-header-nav a svg.app-icon').map((svg) => svg.html())
-    expect(navSvgs).toHaveLength(5)
-    expect(new Set(navSvgs).size).toBe(5)
+    expect(navSvgs).toHaveLength(4)
+    expect(new Set(navSvgs).size).toBe(4)
   })
 })

@@ -1,11 +1,11 @@
 # Frontend Design Guidelines
 
-TMail uses a Google-inspired product interface: cool neutral backgrounds, white rounded workspaces, blue actions, and pill-shaped navigation. It keeps TMail’s identity and existing mail workflows. There are no Google logos or external font services.
+TMail follows Material Design 3: tonal surface layers instead of borders, pill buttons and navigation, large rounded containers, and a teal tertiary role reserved for verification codes. [DESIGN.md](../DESIGN.md) holds the full token and component rules. It keeps TMail’s identity and existing mail workflows. There are no Google logos or external font services.
 
 ## Executable owners
 
 - [Shared tokens and responsive styles](../frontend/src/styles.css) own both public and admin styling.
-- [Application header](../frontend/src/components/AppHeader.vue) owns navigation, locale, theme, and unlock controls.
+- [Application header](../frontend/src/components/AppHeader.vue) owns navigation, locale, theme, and unlock controls. The locale picker sits outside the collapsible menu so it stays visible on every public screen. [The app shell](../frontend/src/App.vue) owns the public footer with the API docs and admin links.
 - [Home address panel](../frontend/src/components/AddressPanel.vue) owns quick email access, address creation, random addresses, and saved inbox actions; [mailbox access](../frontend/src/mailbox-access.ts) owns their shared authorization flow, and [server address normalization](../src/api_auth.py) validates receiving domains.
 - [Admin shell](../frontend/src/admin/AdminApp.vue) groups settings navigation and account controls in one sidebar beside the content workspace.
 - [Default site settings](../src/api_state.py) supply default brand colors. [Site customization](../frontend/src/App.vue) applies administrator colors at runtime.
@@ -15,29 +15,31 @@ TMail uses a Google-inspired product interface: cool neutral backgrounds, white 
 
 | Role | Light | Dark |
 |---|---|---|
-| Canvas | `#f6f8fc` | `#131314` |
-| Workspace surface | `#ffffff` | `#1e1f20` |
-| Secondary surface | `#e9eef6` | `#282a2c` |
-| Main text | `#1f1f1f` | `#e3e3e3` |
-| Secondary text | `#444746` | `#c4c7c5` |
-| Divider | `#c4c7c5` | `#444746` |
+| Canvas (`--canvas`, M3 surface) | `#f9f9ff` | `#111318` |
+| Workspace surface (`--surface`, container-low) | `#f1f3fa` | `#191c20` |
+| Field / inner card (`--surface-lowest`) | `#ffffff` | `#0c0e13` |
+| Secondary surface (`--surface-2`, container-high) | `#e5e7ee` | `#282a2f` |
+| Main text | `#1a1b20` | `#e2e2e9` |
+| Secondary text | `#44474f` | `#c4c6d0` |
+| Divider (outline-variant) | `#c4c6d0` | `#44474f` |
+| Verification code (tertiary container) | `#9cf1f0` | `#004f4f` |
 
 New installations default to primary `#0b57d0` and accent `#0842a0`. Existing saved settings retain their colors, including the previous ember palette. Change them through General settings to adopt blue on an existing installation. The existing migration of the original paired blue defaults remains in place.
 
-All brand-derived action, selection, and focus colors flow through `--brand-primary` and `--brand-accent`. Dark mode derives lighter brand tones through `color-mix()`. Success, warning, and error colors stay independent of branding. Review contrast when setting custom colors.
+All brand-derived action, selection, and focus colors flow through `--brand-primary` and `--brand-accent`; the primary, primary-container and secondary-container roles derive from them through `color-mix()` in both themes. The tertiary (verification code), success, warning, and error roles stay independent of branding. Success, warning, and error colors stay independent of branding. Review contrast when setting custom colors.
 
 ## Typography and shape
 
-Libre Franklin is the self-hosted display and body family, including Vietnamese. Use size and weight for hierarchy instead of a second display face. JetBrains Mono remains for addresses, codes, and technical content. Dashboard numbers use the body family with tabular numerals.
+Roboto Flex is the self-hosted display and body family (`@fontsource-variable/roboto-flex`, including Vietnamese). Use size and weight for hierarchy instead of a second display face. Roboto Mono covers addresses, codes, and technical content. Dashboard numbers use the body family with tabular numerals.
 
-Use the radius tokens: 8px for small elements, 12px for fields and inner cards, 24px for workspaces and dialogs, and the pill token for main buttons and navigation. Use the existing spacing scale. Keep static surfaces flat; reserve shadows for floating controls and notifications.
+Use the radius tokens: 8px for chips and fields, 12px for brand marks, 16px for icon containers, 28px for workspaces, cards and dialogs, 40px for the home hero, and the pill token for buttons, search and navigation. Use the existing spacing scale. Keep static surfaces flat; reserve shadows for floating controls and notifications.
 
 ## Layout and interaction
 
-- Home centers quick email access above the address form and saved inboxes. Quick access accepts a full email address and opens it without a domain-selection step; the existing create and random-address flows remain available. Both forms use the same mailbox authorization and password flow, with the server validating receiving domains.
-- Inbox keeps address tools beside the message workspace on larger screens and stacks them at 640px and below. Its rail sticks below the header.
+- Home centers one hero block: headline, a segmented switch between “New address” (one rounded composer `name @ [domain]` with random and open actions) and “Existing address” (quick access by full email), and saved inboxes as input chips. Quick access opens a full address without a domain-selection step; the create and random-address flows are unchanged. Both forms use the same mailbox authorization and password flow, with the server validating receiving domains.
+- Inbox shows an address card (status, address, copy, icon actions, new address) beside a latest-code card, then a list-detail layout: the message list stays visible next to the reader above 952px; at 952px and below the reader replaces the list. At 640px and below the icon actions move to a fixed bottom app bar with the new-address FAB.
 - Admin uses a sidebar and content column, narrows the sidebar at 952px, and switches to horizontally scrollable tabs at 640px. Account controls remain available above mobile content.
-- Public navigation becomes a menu at 952px. Active destinations use a tinted pill and `aria-current`.
+- Public navigation becomes a menu at 952px; the language pill (full name on wide screens, ISO code on narrow ones) and theme toggle stay in the header. Active destinations use a tinted pill and `aria-current`.
 - Search uses a tinted pill field. Form controls retain visible labels and outlines.
 - Keep visible keyboard focus and at least 44px touch targets. Reduced-motion mode disables animation and transitions.
 - QR sharing centers its dialog, keeps it within the viewport, and restores focus to the trigger when dismissed. QR symbols encode the complete plain address and include a white four-module quiet zone on every side. Generation failure shows a localized alert and keeps the address and copy button available. Copy success and error feedback stays inside the dialog so it remains accessible. The shared clipboard fallback places its temporary textarea inside the focused dialog to avoid the inert background.

@@ -231,9 +231,8 @@ watch(() => [props.token, props.id], (current, previous) => {
   }
   void loadMessage()
 }, { immediate: true })
-// The reader replaces the message list in-place, so the click that opened it unmounts the
-// previously focused row; move focus onto the back button so keyboard/AT users land somewhere
-// meaningful instead of dropping to <body>.
+// Opening a message moves focus into the reader (onto the back button) so keyboard/AT users
+// land on the content they asked for; on narrow screens the list is hidden while it is open.
 onMounted(() => backButton.value?.focus())
 onBeforeUnmount(() => { ++requestVersion; ++sessionVersion })
 </script>
