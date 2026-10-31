@@ -15,13 +15,23 @@ const props = withDefaults(defineProps<{
 const sandbox = computed(() => 'allow-scripts allow-popups allow-popups-to-escape-sandbox')
 
 const frame = ref<HTMLIFrameElement | null>(null)
+
+/** Resolved page scheme: an explicit `data-theme` choice wins, otherwise the OS preference. */
+function pageScheme(): 'light' | 'dark' {
+  const explicit = document.documentElement.dataset.theme
+  if (explicit === 'light' || explicit === 'dark') return explicit
+  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+// Site content frames follow the page theme; message frames keep the email's own light canvas.
+const colorScheme = ref(pageScheme())
+let stopSchemeWatch = () => {}
 const revision = ref(0)
 const { t } = useI18n()
 let sentMessageRevision = -1
 const sourceUrl = computed(() => `${props.mode === 'message' ? '/message-sandbox' : '/sandbox'}?revision=${revision.value}`)
 
 watch(
-  () => [props.html, props.css, props.mode] as const,
+  () => [props.html, props.css, props.mode, props.mode === 'content' ? colorScheme.value : ''] as const,
   () => {
     revision.value += 1
     sentMessageRevision = -1
@@ -37,6 +47,7 @@ function sendContent(): void {
     html: props.html,
     css: props.css,
     mode: props.mode,
+    ...(props.mode === 'content' ? { colorScheme: colorScheme.value } : {}),
   }, '*')
 }
 
@@ -50,10 +61,21 @@ function handleWindowMessage(event: MessageEvent): void {
 
 onMounted(() => {
   window.addEventListener('message', handleWindowMessage)
+  if (props.mode !== 'content') return
+  const update = () => { colorScheme.value = pageScheme() }
+  const observer = new MutationObserver(update)
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+  const media = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null
+  media?.addEventListener?.('change', update)
+  stopSchemeWatch = () => {
+    observer.disconnect()
+    media?.removeEventListener?.('change', update)
+  }
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('message', handleWindowMessage)
+  stopSchemeWatch()
 })
 </script>
 

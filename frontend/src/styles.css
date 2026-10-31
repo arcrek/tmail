@@ -1681,6 +1681,7 @@ html:has(.app-frame > .site-footer) {
 .site-content-frame.sandbox-frame {
   min-height: 0;
   border: 0;
+  background: transparent;
   border-radius: 0;
   border-bottom: 1px solid var(--line);
 }
@@ -3051,11 +3052,12 @@ html:has(.app-frame > .site-footer) {
   min-width: 0;
 }
 
-/* Configured header/footer/ad HTML assumes a light canvas regardless of app theme
-   (same rationale as .sandbox-frame), so the preview stays light always. */
+/* Configured header/footer/ad HTML follows the page theme on the public site (the sandbox
+   document adopts the embedder's color scheme), so the preview matches it: a theme-aware
+   surface rather than a fixed white canvas. */
 .content-editor-grid .sandbox-frame {
   min-height: 15rem;
-  background: #fff;
+  background: var(--canvas);
 }
 
 .ad-settings {

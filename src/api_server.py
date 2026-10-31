@@ -108,7 +108,7 @@ _SOURCE_RESPONSES = {
 _PUBLIC_BODY_LIMIT = 8 * 1024
 _ADMIN_SETTINGS_BODY_LIMIT = 4 * 1024 * 1024
 _SANDBOX_DOCUMENT = """<!doctype html>
-<html><head><meta charset="utf-8"><title>Sandboxed content</title></head><body>
+<html><head><meta charset="utf-8"><meta name="color-scheme" content="light dark"><title>Sandboxed content</title></head><body>
 <script>
 "use strict";
 function onMessage(event) {
@@ -117,8 +117,11 @@ function onMessage(event) {
   if (typeof value.html !== "string" || typeof value.css !== "string") return;
   if (value.mode !== "content") return;
   removeEventListener("message", onMessage);
+  // Match the embedding page's scheme so the browser keeps the frame transparent instead of
+  // painting an opaque light canvas behind it in dark mode. Only two literal values pass.
+  const scheme = value.colorScheme === "dark" ? "dark" : "light";
   document.open();
-  document.write(`<!doctype html><html><head><base target="_blank"><style>${value.css}</style></head><body>`);
+  document.write(`<!doctype html><html><head><meta name="color-scheme" content="${scheme}"><base target="_blank"><style>:root{color-scheme:${scheme}}html,body{background:transparent}</style><style>${value.css}</style></head><body>`);
   document.write(value.html);
   document.write("</body></html>");
   document.close();
