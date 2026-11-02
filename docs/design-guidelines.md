@@ -9,6 +9,8 @@ TMail follows Material Design 3: tonal surface layers instead of borders, pill b
 - [Home address panel](../frontend/src/components/AddressPanel.vue) owns quick email access, address creation, random addresses, and saved inbox actions; [mailbox access](../frontend/src/mailbox-access.ts) owns their shared authorization flow, and [server address normalization](../src/api_auth.py) validates receiving domains.
 - [Admin shell](../frontend/src/admin/AdminApp.vue) groups settings navigation and account controls in one sidebar beside the content workspace.
 - [Default site settings](../src/api_state.py) supply default brand colors. [Site customization](../frontend/src/App.vue) applies administrator colors at runtime.
+- [Brand kit](../brand-kit/) owns the canonical Direction B ("Instant OTP Pulse") vector logos ([logo/](../brand-kit/logo/)), social and hero banners ([banners/](../brand-kit/banners/)), standalone dual-tone icon pack ([icons/](../brand-kit/icons/)), and interactive specification ([tmail-identity.html](../brand-kit/tmail-identity.html)).
+- [Default favicon](../frontend/src/favicon.svg), [Open Graph banner](../frontend/public/assets/og-image.png), and [inline icon registry](../frontend/src/components/AppIcon.vue) own the shipped runtime brand assets.
 - [QR dialog](../frontend/src/components/QrCodeModal.vue) uses the native modal dialog for keyboard containment, Escape, and focus restoration.
 
 ## Color and branding
@@ -27,6 +29,8 @@ TMail follows Material Design 3: tonal surface layers instead of borders, pill b
 New installations default to primary `#0b57d0` and accent `#0842a0`. Existing saved settings retain their colors, including the previous ember palette. Change them through General settings to adopt blue on an existing installation. The existing migration of the original paired blue defaults remains in place.
 
 All brand-derived action, selection, and focus colors flow through `--brand-primary` and `--brand-accent`; the primary, primary-container and secondary-container roles derive from them through `color-mix()` in both themes. The tertiary (verification code), success, warning, and error roles stay independent of branding. Success, warning, and error colors stay independent of branding. Review contrast when setting custom colors.
+
+The brand identity commits to **Direction B (Instant OTP Pulse)**: a Primary Blue (`#0b57d0` light / `#adc6ff` dark) envelope paired with a Verification Teal (`#9cf1f0` / `#006a6a`) lightning pulse and `482 913` OTP landmark badge. This visually links the brand mark to TMail's primary user outcome—instant verification code extraction—while rejecting a plain geometric `T`-monogram (Direction A, too generic for an OTP-first utility) and a terminal-only monospace mark (Direction C, too heavy for casual light-mode visitors).
 
 ## Typography and shape
 

@@ -1,5 +1,13 @@
 # TMail
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand-kit/banners/hero-banner-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="brand-kit/banners/hero-banner-light.png">
+    <img alt="TMail — Disposable Email &amp; Instant OTPs" src="brand-kit/banners/hero-banner-dark.png" width="100%">
+  </picture>
+</p>
+
 Temporary inboxes for domains served by Postfix and Stalwart. TMail verifies
 receiving domains, provisions them in Stalwart, and provides a web inbox, a REST
 API, and an administrator console.

@@ -1,7 +1,7 @@
 # TMail Design System & UX/AX Guidelines
 
 ## Brand Essence
-**TMail**: Fast, passwordless disposable email with instant verification code extraction and custom domain routing.
+**TMail**: Fast, passwordless disposable email with instant verification code extraction and custom domain routing. Canonical Direction B ("Instant OTP Pulse") logos, banners, icons, and live token previews live in [brand-kit/](brand-kit/) (see [docs/design-guidelines.md](docs/design-guidelines.md)).
 
 ## Art Direction
 - **Material 3**: The UI follows Material Design 3: tonal surface layers instead of borders and shadows, pill-shaped buttons, large rounded containers, chips, and segmented buttons. One blue primary color and one teal tertiary color reserved for verification codes.

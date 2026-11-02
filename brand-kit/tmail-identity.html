@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TMail Brand Identity System — Direction B (Instant OTP Pulse)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,400;8..144,500;8..144,600;8..144,700;8..144,800&family=Roboto+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --font-sans: 'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+      /* Live Tunable Brand Tokens */
+      --brand-primary: #0B57D0;
+      --brand-primary-dark: #ADC6FF;
+      --brand-teal-light: #9CF1F0;
+      --brand-teal-dark: #006A6A;
+      --brand-teal-surface: #004F4F;
+      --brand-teal-stroke: #80D5D4;
+      --mark-radius: 16px;
+      --icon-stroke: 2;
+
+      /* Light M3 Tokens */
+      --light-canvas: #F9F9FF;
+      --light-surface-lowest: #FFFFFF;
+      --light-surface-low: #F1F3FA;
+      --light-surface-high: #E5E7EE;
+      --light-ink: #1A1B20;
+      --light-muted: #44474F;
+      --light-line: #C4C6D0;
+      --light-primary-container: #D8E2FF;
+      --light-on-primary-container: #001A41;
+      --light-on-tertiary-container: #002020;
+
+      /* Dark M3 Tokens */
+      --dark-canvas: #111318;
+      --dark-surface-lowest: #0C0E13;
+      --dark-surface-low: #191C20;
+      --dark-surface-high: #282A2F;
+      --dark-surface-highest: #33353A;
+      --dark-ink: #E2E2E9;
+      --dark-muted: #C4C6D0;
+      --dark-outline: #8E9099;
+      --dark-line: #44474F;
+      --dark-primary-container: #1B4487;
+      --dark-on-primary: #002E69;
+      --dark-green: #8FD88A;
+      --white: #FFFFFF;
+
+      --canvas: var(--light-canvas);
+      --surface-lowest: var(--light-surface-lowest);
+      --surface-low: var(--light-surface-low);
+      --surface-high: var(--light-surface-high);
+      --ink: var(--light-ink);
+      --muted: var(--light-muted);
+      --line: var(--light-line);
+      --primary: var(--brand-primary);
+      --on-primary: var(--white);
+      --tertiary-container: var(--brand-teal-light);
+      --on-tertiary-container: var(--light-on-tertiary-container);
+    }
+
+    html[data-theme="dark"] {
+      --canvas: var(--dark-canvas);
+      --surface-lowest: var(--dark-surface-lowest);
+      --surface-low: var(--dark-surface-low);
+      --surface-high: var(--dark-surface-high);
+      --ink: var(--dark-ink);
+      --muted: var(--dark-muted);
+      --line: var(--dark-line);
+      --primary: var(--brand-primary-dark);
+      --on-primary: var(--dark-on-primary);
+      --tertiary-container: var(--brand-teal-surface);
+      --on-tertiary-container: var(--brand-teal-light);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      line-height: 1.5;
+      padding-bottom: 4rem;
+    }
+
+    .studio-header {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: color-mix(in srgb, var(--surface-low) 92%, transparent);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--line);
+      padding: 0.9rem 1.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .badge {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.25rem 0.7rem;
+      border-radius: 999px;
+      background: var(--tertiary-container);
+      color: var(--on-tertiary-container);
+    }
+
+    .header-left h1 {
+      font-size: 1.05rem;
+      font-weight: 700;
+    }
+
+    .tweak-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .tweak-control {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .tweak-control input[type="color"] {
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .tweak-control input[type="range"] {
+      width: 80px;
+      accent-color: var(--brand-primary);
+    }
+
+    .theme-btn {
+      border: 1px solid var(--line);
+      background: var(--surface-high);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.4rem 0.9rem;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    .container {
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 2rem 1.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2.5rem;
+    }
+
+    .section-block {
+      background: var(--surface-low);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .section-head {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.75rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-head h2 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .section-meta {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    /* Logo Showcase */
+    .logo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .logo-card {
+      border-radius: 20px;
+      padding: 2rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      border: 1px solid var(--line);
+      min-height: 190px;
+      position: relative;
+    }
+
+    .logo-card.on-light {
+      background: var(--light-canvas);
+      color: var(--light-ink);
+    }
+
+    .logo-card.on-dark {
+      background: var(--dark-canvas);
+      color: var(--dark-ink);
+    }
+
+    .card-tag {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      opacity: 0.7;
+    }
+
+    /* Banner Grid */
+    .banner-showcase {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 1024px) {
+      .banner-showcase {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .banner-box {
+      border-radius: 20px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background: var(--dark-surface-lowest);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .banner-box svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .banner-caption {
+      padding: 0.75rem 1.1rem;
+      background: var(--surface-high);
+      font-family: var(--font-mono);
+      font-size: 0.76rem;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Icon Grid */
+    .icons-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+    }
+
+    .icon-item {
+      background: var(--surface-lowest);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 1.25rem 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.65rem;
+      text-align: center;
+    }
+
+    .icon-box {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      background: var(--surface-low);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .icon-name {
+      font-size: 0.84rem;
+      font-weight: 600;
+    }
+
+    .icon-file {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+  <header class="studio-header">
+    <div class="header-left">
+      <span class="badge">DIRECTION B · LOCKED</span>
+      <h1>TMail Brand Identity System — Instant OTP Pulse</h1>
+    </div>
+    <div class="tweak-bar">
+      <label class="tweak-control">
+        Primary
+        <input type="color" value="#0B57D0" oninput="updatePrimary(this.value)" />
+      </label>
+      <label class="tweak-control">
+        OTP Teal
+        <input type="color" value="#9CF1F0" oninput="updateTeal(this.value)" />
+      </label>
+      <label class="tweak-control">
+        Mark Radius
+        <input type="range" min="8" max="28" value="16" oninput="updateRadius(this.value)" />
+      </label>
+      <button class="theme-btn" onclick="toggleTheme()" id="themeToggleBtn">Switch to Light Canvas</button>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- 1. LOGO SYSTEM -->
+    <section class="section-block" data-od-id="logo-system">
+      <div class="section-head">
+        <h2>1. Logo System &amp; Favicon Scale</h2>
+        <span class="section-meta">brand-kit/logo/*.svg + frontend/src/favicon.svg</span>
+      </div>
+      <div class="logo-grid">
+        <!-- Light Lockup -->
+        <div class="logo-card on-light">
+          <svg width="250" height="64" viewBox="0 0 264 64" fill="none">
+            <rect class="js-mark-rect" x="4" y="4" width="56" height="56" rx="16" fill="var(--brand-primary)"/>
+            <path d="M50 32V43C50 45.7614 47.7614 48 45 48H19C16.2386 48 14 45.7614 14 43V23C14 20.2386 16.2386 18 19 18H36" stroke="var(--white)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M15.5 20L30.2 30.2C31.28 30.95 32.72 30.95 33.8 30.2L40.5 25.5" stroke="var(--white)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M46.5 11L39.5 22.5H49.5L42.5 34" stroke="var(--brand-teal-light)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+            <text x="74" y="43" font-family="'Roboto Flex', sans-serif" font-weight="700" font-size="32" letter-spacing="-0.6"><tspan fill="var(--brand-primary)" font-weight="800">T</tspan><tspan fill="var(--light-ink)">Mail</tspan></text>
+            <rect x="168" y="20" width="88" height="24" rx="12" fill="var(--brand-teal-light)" stroke="var(--brand-teal-dark)" stroke-width="1.2"/>
+            <text x="212" y="36" text-anchor="middle" fill="var(--light-on-tertiary-container)" font-family="'Roboto Mono', monospace" font-weight="700" font-size="12" letter-spacing="1">482 913</text>
+          </svg>
+          <span class="card-tag">Primary Lockup · Light (#F9F9FF)</span>
+        </div>
+
+        <!-- Dark Lockup -->
+        <div class="logo-card on-dark">
+          <svg width="250" height="64" viewBox="0 0 264 64" fill="none">
+            <rect class="js-mark-rect" x="4" y="4" width="56" height="56" rx="16" fill="var(--brand-primary)"/>
+            <path d="M50 32V43C50 45.7614 47.7614 48 45 48H19C16.2386 48 14 45.7614 14 43V23C14 20.2386 16.2386 18 19 18H36" stroke="var(--white)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M15.5 20L30.2 30.2C31.28 30.95 32.72 30.95 33.8 30.2L40.5 25.5" stroke="var(--white)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M46.5 11L39.5 22.5H49.5L42.5 34" stroke="var(--brand-teal-light)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+            <text x="74" y="43" font-family="'Roboto Flex', sans-serif" font-weight="700" font-size="32" letter-spacing="-0.6"><tspan fill="var(--brand-primary-dark)" font-weight="800">T</tspan><tspan fill="var(--dark-ink)">Mail</tspan></text>
+            <rect x="168" y="20" width="88" height="24" rx="12" fill="var(--brand-teal-surface)" stroke="var(--brand-teal-stroke)" stroke-width="1.2"/>
+            <text x="212" y="36" text-anchor="middle" fill="var(--brand-teal-light)" font-family="'Roboto Mono', monospace" font-weight="700" font-size="12" letter-spacing="1">482 913</text>
+          </svg>
+          <span class="card-tag">Primary Lockup · Dark (#111318)</span>
+        </div>
+
+        <!-- Multi-Size App Icon & Favicon -->
+        <div class="logo-card on-dark">
+          <div style="display:flex;align-items:center;gap:1.25rem;">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+              <rect class="js-mark-rect" width="64" height="64" rx="18" fill="var(--brand-primary)"/>
+              <path d="M53 35V44C53 47.3137 50.3137 50 47 50H17C13.6863 50 11 47.3137 11 44V22C11 18.6863 13.6863 16 17 16H36" stroke="var(--white)" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M12.5 18.5L29.6 30.2C31.04 31.18 32.96 31.18 34.4 30.2L41.8 25.1" stroke="var(--white)" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M49 9L41 22H52L44 35" stroke="var(--brand-teal-light)" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <rect width="32" height="32" rx="9" fill="var(--brand-primary)"/>
+              <path d="M26.5 17.5V22a2.5 2.5 0 0 1-2.5 2.5H7.5A2.5 2.5 0 0 1 5 22V11a2.5 2.5 0 0 1 2.5-2.5H18" stroke="var(--white)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="m5.5 11.5 9.2 6.2a2.3 2.3 0 0 0 2.6 0l3.7-2.5" stroke="var(--white)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="m24.5 5.5-3.2 5h4.7L22.8 16" stroke="var(--brand-teal-light)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
+              <rect width="32" height="32" rx="9" fill="var(--brand-primary)"/>
+              <path d="M26.5 17.5V22a2.5 2.5 0 0 1-2.5 2.5H7.5A2.5 2.5 0 0 1 5 22V11a2.5 2.5 0 0 1 2.5-2.5H18" stroke="var(--white)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="m24.5 5.5-3.2 5h4.7L22.8 16" stroke="var(--brand-teal-light)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <span class="card-tag">App Mark 64px · Favicon 32px · Tab 16px</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. BANNERS -->
+    <section class="section-block" data-od-id="banner-suite">
+      <div class="section-head">
+        <h2>2. Banner Suite (Open Graph 1200×630 &amp; Hero Covers 1500×500)</h2>
+        <span class="section-meta">brand-kit/banners/*.svg + *.png · frontend/public/assets/og-image.png</span>
+      </div>
+      <div class="banner-showcase">
+        <div class="banner-box">
+          <svg viewBox="0 0 1200 630" fill="none">
+            <rect width="1200" height="630" fill="var(--dark-canvas)"/>
+            <rect x="36" y="36" width="1128" height="558" rx="40" fill="var(--dark-surface-low)" stroke="var(--dark-surface-high)" stroke-width="2"/>
+            <rect class="js-mark-rect" x="80" y="84" width="60" height="60" rx="18" fill="var(--brand-primary)"/>
+            <path d="M128 117V126C128 128.5 126 130.5 123.5 130.5H96.5C94 130.5 92 128.5 92 126V105C92 102.5 94 100.5 96.5 100.5H114" stroke="var(--white)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M93.5 102.5L108 112.5C109.2 113.3 110.8 113.3 112 112.5L118.5 108" stroke="var(--white)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M125 93L118 104H128L121 115" stroke="var(--brand-teal-light)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+            <text x="158" y="126" font-family="'Roboto Flex', sans-serif" font-weight="700" font-size="36" letter-spacing="-0.6"><tspan fill="var(--brand-primary-dark)" font-weight="800">T</tspan><tspan fill="var(--dark-ink)">Mail</tspan></text>
+            <text x="80" y="232" fill="var(--dark-ink)" font-family="'Roboto Flex', sans-serif" font-weight="700" font-size="54" letter-spacing="-1">Disposable Email,</text>
+            <text x="80" y="296" fill="var(--brand-primary-dark)" font-family="'Roboto Flex', sans-serif" font-weight="700" font-size="54" letter-spacing="-1">Instant OTP Codes.</text>
+            <text x="80" y="348" fill="var(--dark-muted)" font-family="'Roboto Flex', sans-serif" font-weight="400" font-size="21">Public by default · Optional 90-day lock · Postfix &amp; Stalwart</text>
+            <rect x="80" y="396" width="568" height="76" rx="38" fill="var(--dark-surface-lowest)" stroke="var(--dark-line)" stroke-width="2"/>
+            <text x="114" y="443" font-family="'Roboto Mono', monospace" font-size="23"><tspan fill="var(--dark-ink)" font-weight="500">verify-now</tspan><tspan fill="var(--brand-primary-dark)" font-weight="600">@tmail.domain</tspan></text>
+            <rect x="492" y="408" width="144" height="52" rx="26" fill="var(--brand-primary)"/>
+            <text x="564" y="441" text-anchor="middle" fill="var(--white)" font-family="'Roboto Flex', sans-serif" font-weight="600" font-size="18">Copy</text>
+            <circle cx="94" cy="526" r="6" fill="var(--dark-green)"/>
+            <text x="112" y="532" fill="var(--dark-muted)" font-family="'Roboto Mono', monospace" font-weight="500" font-size="16">SSE Live Stream  ·  Custom MX  ·  No Sign-Up</text>
+            <rect x="692" y="84" width="428" height="462" rx="32" fill="var(--dark-surface-lowest)" stroke="var(--dark-surface-highest)" stroke-width="2"/>
+            <rect x="720" y="112" width="372" height="204" rx="24" fill="var(--brand-teal-surface)" stroke="var(--brand-teal-stroke)" stroke-width="2"/>
+            <rect x="748" y="138" width="144" height="28" rx="14" fill="var(--brand-teal-light)"/>
+            <text x="820" y="157" text-anchor="middle" fill="var(--light-on-tertiary-container)" font-family="'Roboto Mono', monospace" font-weight="700" font-size="13" letter-spacing="0.5">INSTANT OTP</text>
+            <text x="748" y="236" fill="var(--white)" font-family="'Roboto Mono', monospace" font-weight="700" font-size="56" letter-spacing="4">482 913</text>
+            <text x="748" y="284" fill="var(--brand-teal-light)" font-family="'Roboto Flex', sans-serif" font-weight="500" font-size="16">GitHub verification code · 0.2s ago</text>
+            <rect x="720" y="336" width="372" height="82" rx="20" fill="var(--dark-surface-high)"/>
+            <circle cx="758" cy="377" r="20" fill="var(--dark-primary-container)"/>
+            <text x="758" y="383" text-anchor="middle" fill="var(--light-primary-container)" font-family="'Roboto Flex', sans-serif" font-weight="700" font-size="15">GH</text>
+            <text x="792" y="370" fill="var(--dark-ink)" font-family="'Roboto Flex', sans-serif" font-weight="600" font-size="16">GitHub Login Code</text>
+            <text x="792" y="395" fill="var(--dark-muted)" font-family="'Roboto Mono', monospace" font-weight="400" font-size="13">noreply@github.com</text>
+            <rect x="988" y="361" width="84" height="32" rx="8" fill="var(--brand-teal-light)"/>
+            <text x="1030" y="382" text-anchor="middle" fill="var(--light-on-tertiary-container)" font-family="'Roboto Mono', monospace" font-weight="700" font-size="13">482 913</text>
+            <rect x="720" y="432" width="372" height="82" rx="20" fill="var(--dark-surface-low)"/>
+            <circle cx="758" cy="473" r="20" fill="var(--dark-surface-highest)"/>
+            <text x="758" y="479" text-anchor="middle" fill="var(--dark-muted)" font-family="'Roboto Flex', sans-serif" font-weight="700" font-size="15">AC</text>
+            <text x="792" y="466" fill="var(--dark-muted)" font-family="'Roboto Flex', sans-serif" font-weight="500" font-size="16">Acme Cloud Sign-In</text>
+            <text x="792" y="491" fill="var(--dark-outline)" font-family="'Roboto Mono', monospace" font-weight="400" font-size="13">auth@acme.dev · 2m</text>
+          </svg>
+          <div class="banner-caption">
+            <span>Open Graph Social Banner (1200 × 630)</span>
+            <span>frontend/public/assets/og-image.png</span>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:1.25rem;">
+          <div class="banner-box">
+            <svg viewBox="0 0 1500 500" fill="none">
+              <rect width="1500" height="500" fill="var(--dark-canvas)"/>
+              <rect x="40" y="40" width="1420" height="420" rx="36" fill="var(--dark-surface-low)" stroke="var(--dark-surface-high)" stroke-width="2"/>
+              <rect class="js-mark-rect" x="88" y="84" width="60" height="60" rx="16" fill="var(--brand-primary)"/>
+              <path d="M135 117V126C135 128.5 133 130.5 130.5 130.5H104.5C102 130.5 100 128.5 100 126V105.5C100 103 102 101 104.5 101H121" stroke="var(--white)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M101.5 103L116 113C117.2 113.8 118.8 113.8 120 113L126.5 108.5" stroke="var(--white)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M132 93L125 104H135L128 115" stroke="var(--brand-teal-light)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+              <text x="168" y="126" font-family="'Roboto Flex', sans-serif" font-weight="700" font-size="38" letter-spacing="-0.6"><tspan fill="var(--brand-primary-dark)" font-weight="800">T</tspan><tspan fill="var(--dark-ink)">Mail</tspan></text>
+              <text x="88" y="226" fill="var(--dark-ink)" font-family="'Roboto Flex', sans-serif" font-weight="700" font-size="46" letter-spacing="-0.8">Disposable Email &amp; Instant OTPs</text>
+              <text x="88" y="278" fill="var(--dark-muted)" font-family="'Roboto Flex', sans-serif" font-weight="400" font-size="22">Self-hosted temporary inboxes for Postfix &amp; Stalwart domains.</text>
+              <rect x="88" y="328" width="560" height="72" rx="36" fill="var(--dark-surface-lowest)" stroke="var(--dark-line)" stroke-width="2"/>
+              <text x="122" y="372" font-family="'Roboto Mono', monospace" font-size="23"><tspan fill="var(--dark-ink)" font-weight="500">dev</tspan><tspan fill="var(--brand-primary-dark)" font-weight="600">@yourdomain.com</tspan></text>
+              <rect x="476" y="338" width="160" height="52" rx="26" fill="var(--brand-primary)"/>
+              <text x="556" y="371" text-anchor="middle" fill="var(--white)" font-family="'Roboto Flex', sans-serif" font-weight="600" font-size="18">Open Inbox</text>
+              <rect x="940" y="84" width="470" height="332" rx="28" fill="var(--brand-teal-surface)" stroke="var(--brand-teal-light)" stroke-width="2"/>
+              <rect x="980" y="122" width="176" height="30" rx="15" fill="var(--brand-teal-light)"/>
+              <text x="1068" y="142" text-anchor="middle" fill="var(--light-on-tertiary-container)" font-family="'Roboto Mono', monospace" font-weight="700" font-size="13" letter-spacing="0.8">INSTANT OTP CODE</text>
+              <text x="980" y="246" fill="var(--white)" font-family="'Roboto Mono', monospace" font-weight="700" font-size="70" letter-spacing="5">482 913</text>
+              <rect x="980" y="294" width="196" height="56" rx="28" fill="var(--brand-teal-light)"/>
+              <text x="1078" y="329" text-anchor="middle" fill="var(--light-on-tertiary-container)" font-family="'Roboto Flex', sans-serif" font-weight="700" font-size="20">Copy Code</text>
+              <text x="1204" y="329" fill="var(--brand-teal-light)" font-family="'Roboto Mono', monospace" font-weight="500" font-size="18">SSE · JMAP</text>
+            </svg>
+            <div class="banner-caption">
+              <span>Hero Banner · Dark (1500 × 500)</span>
+              <span>brand-kit/banners/hero-banner-dark.png</span>
+            </div>
+          </div>
+
+          <div class="banner-box">
+            <svg viewBox="0 0 1500 500" fill="none">
+              <rect width="1500" height="500" fill="var(--light-canvas)"/>
+              <rect x="40" y="40" width="1420" height="420" rx="36" fill="var(--light-surface-low)" stroke="var(--light-line)" stroke-width="2"/>
+              <rect class="js-mark-rect" x="88" y="84" width="60" height="60" rx="16" fill="var(--brand-primary)"/>
+              <path d="M135 117V126C135 128.5 133 130.5 130.5 130.5H104.5C102 130.5 100 128.5 100 126V105.5C100 103 102 101 104.5 101H121" stroke="var(--white)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M101.5 103L116 113C117.2 113.8 118.8 113.8 120 113L126.5 108.5" stroke="var(--white)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M132 93L125 104H135L128 115" stroke="var(--brand-teal-light)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+              <text x="168" y="126" font-family="'Roboto Flex', sans-serif" font-weight="700" font-size="38" letter-spacing="-0.6"><tspan fill="var(--brand-primary)" font-weight="800">T</tspan><tspan fill="var(--light-ink)">Mail</tspan></text>
+              <text x="88" y="226" fill="var(--light-ink)" font-family="'Roboto Flex', sans-serif" font-weight="700" font-size="46" letter-spacing="-0.8">Disposable Email &amp; Instant OTPs</text>
+              <text x="88" y="278" fill="var(--light-muted)" font-family="'Roboto Flex', sans-serif" font-weight="400" font-size="22">Self-hosted temporary inboxes for Postfix &amp; Stalwart domains.</text>
+              <rect x="88" y="328" width="560" height="72" rx="36" fill="var(--light-surface-lowest)" stroke="var(--light-line)" stroke-width="2"/>
+              <text x="122" y="372" font-family="'Roboto Mono', monospace" font-size="23"><tspan fill="var(--light-ink)" font-weight="500">dev</tspan><tspan fill="var(--brand-primary)" font-weight="600">@yourdomain.com</tspan></text>
+              <rect x="476" y="338" width="160" height="52" rx="26" fill="var(--brand-primary)"/>
+              <text x="556" y="371" text-anchor="middle" fill="var(--white)" font-family="'Roboto Flex', sans-serif" font-weight="600" font-size="18">Open Inbox</text>
+              <rect x="940" y="84" width="470" height="332" rx="28" fill="var(--brand-teal-light)" stroke="var(--brand-teal-dark)" stroke-width="2"/>
+              <rect x="980" y="122" width="176" height="30" rx="15" fill="var(--brand-teal-dark)"/>
+              <text x="1068" y="142" text-anchor="middle" fill="var(--white)" font-family="'Roboto Mono', monospace" font-weight="700" font-size="13" letter-spacing="0.8">INSTANT OTP CODE</text>
+              <text x="980" y="246" fill="var(--light-on-tertiary-container)" font-family="'Roboto Mono', monospace" font-weight="700" font-size="70" letter-spacing="5">482 913</text>
+              <rect x="980" y="294" width="196" height="56" rx="28" fill="var(--brand-teal-dark)"/>
+              <text x="1078" y="329" text-anchor="middle" fill="var(--white)" font-family="'Roboto Flex', sans-serif" font-weight="700" font-size="20">Copy Code</text>
+              <text x="1204" y="329" fill="var(--light-on-tertiary-container)" font-family="'Roboto Mono', monospace" font-weight="600" font-size="18">SSE · JMAP</text>
+            </svg>
+            <div class="banner-caption">
+              <span>Hero Banner · Light (1500 × 500)</span>
+              <span>brand-kit/banners/hero-banner-light.png</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. ICON SET -->
+    <section class="section-block" data-od-id="icon-pack">
+      <div class="section-head">
+        <h2>3. Direction B Custom SVG Icon Pack (24×24 Dual-Tone)</h2>
+        <span class="section-meta">brand-kit/icons/*.svg</span>
+      </div>
+      <div class="icons-grid">
+        <div class="icon-item">
+          <div class="icon-box">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <path d="M22 13v5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h9" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="m2 8 8.97 5.7a1.94 1.94 0 0 0 2.06 0L16 11.8" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="m19.5 2-2.5 4h4L18.5 10" stroke="var(--brand-teal-stroke)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <span class="icon-name">Brand Mail Pulse</span>
+          <span class="icon-file">brand-mail.svg</span>
+        </div>
+
+        <div class="icon-item">
+          <div class="icon-box">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M6.5 12h2.5M11 12h2.5" stroke="var(--brand-teal-stroke)" stroke-width="2.2" stroke-linecap="round"/>
+              <path d="m15.5 10.5 1.5 1.5 3-3" stroke="var(--brand-teal-stroke)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <span class="icon-name">Instant OTP Scan</span>
+          <span class="icon-file">scan-code.svg</span>
+        </div>
+
+        <div class="icon-item">
+          <div class="icon-box">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <path d="M21 12a9 9 0 1 1-3.2-6.9" stroke="var(--primary)" stroke-width="2" stroke-linecap="round"/>
+              <path d="M12 7v5l3.5 2" stroke="var(--brand-teal-stroke)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="19" cy="5" r="2" fill="var(--brand-teal-stroke)"/>
+            </svg>
+          </div>
+          <span class="icon-name">Live Auto-Refresh</span>
+          <span class="icon-file">live-timer.svg</span>
+        </div>
+
+        <div class="icon-item">
+          <div class="icon-box">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <path d="M20 11V6a1 1 0 0 0-1-1c-2 0-4.5-1.2-6.24-2.72a1.17 1.17 0 0 0-1.52 0C9.51 3.81 7 5 5 5a1 1 0 0 0-1 1v7c0 4.5 3 7 6.5 8.5" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="17" cy="17" r="5" stroke="var(--brand-teal-stroke)" stroke-width="2"/>
+              <polyline points="17 14.5 17 17 18.8 18" stroke="var(--brand-teal-stroke)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <span class="icon-name">90-Day Guard</span>
+          <span class="icon-file">clock-shield.svg</span>
+        </div>
+
+        <div class="icon-item">
+          <div class="icon-box">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="9" stroke="var(--primary)" stroke-width="2"/>
+              <path d="M3.6 9h16.8M3.6 15h16.8" stroke="var(--primary)" stroke-width="1.8"/>
+              <path d="m15.5 18.5 2 2 4-4" stroke="var(--brand-teal-stroke)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <span class="icon-name">Verified MX Domain</span>
+          <span class="icon-file">domain-verified.svg</span>
+        </div>
+
+        <div class="icon-item">
+          <div class="icon-box">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <path d="M22 12h-3l-2.5 7-5-14-2.5 7H6" stroke="var(--brand-teal-stroke)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="3.5" cy="12" r="2" fill="var(--primary)"/>
+            </svg>
+          </div>
+          <span class="icon-name">SSE Event Stream</span>
+          <span class="icon-file">sse-stream.svg</span>
+        </div>
+
+        <div class="icon-item">
+          <div class="icon-box">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h8" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M19 16v6M16 19h6" stroke="var(--brand-teal-stroke)" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <span class="icon-name">New Inbox Address</span>
+          <span class="icon-file">mail-plus.svg</span>
+        </div>
+
+        <div class="icon-item">
+          <div class="icon-box">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="var(--primary)" stroke-width="2"/>
+              <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="var(--primary)" stroke-width="2"/>
+              <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="var(--primary)" stroke-width="2"/>
+              <path d="M14 14h3v3h-3zM18 18h3v3h-3zM14 19h2v2M19 14h2v2" stroke="var(--brand-teal-stroke)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <span class="icon-name">QR Mobile Handoff</span>
+          <span class="icon-file">qr-share.svg</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    function updatePrimary(val) {
+      document.documentElement.style.setProperty('--brand-primary', val);
+    }
+    function updateTeal(val) {
+      document.documentElement.style.setProperty('--brand-teal-light', val);
+      document.documentElement.style.setProperty('--brand-teal-stroke', val);
+    }
+    function updateRadius(val) {
+      document.querySelectorAll('.js-mark-rect').forEach(r => r.setAttribute('rx', val));
+    }
+    function toggleTheme() {
+      const html = document.documentElement;
+      const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      document.getElementById('themeToggleBtn').textContent =
+        next === 'dark' ? 'Switch to Light Canvas' : 'Switch to Dark Canvas';
+    }
+  </script>
+</body>
+</html>
