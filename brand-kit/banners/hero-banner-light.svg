@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="500" viewBox="0 0 1500 500" fill="none">
+  <rect width="1500" height="500" fill="#F9F9FF"/>
+  <rect x="40" y="40" width="1420" height="420" rx="36" fill="#F1F3FA" stroke="#C4C6D0" stroke-width="2"/>
+
+  <!-- Brand Lockup -->
+  <rect x="88" y="84" width="60" height="60" rx="16" fill="#0B57D0"/>
+  <path d="M135 117V126C135 128.5 133 130.5 130.5 130.5H104.5C102 130.5 100 128.5 100 126V105.5C100 103 102 101 104.5 101H121" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M101.5 103L116 113C117.2 113.8 118.8 113.8 120 113L126.5 108.5" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M132 93L125 104H135L128 115" stroke="#9CF1F0" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="168" y="126" font-family="'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="700" font-size="38" letter-spacing="-0.6"><tspan fill="#0B57D0" font-weight="800">T</tspan><tspan fill="#1A1B20">Mail</tspan></text>
+
+  <!-- Headline -->
+  <text x="88" y="226" fill="#1A1B20" font-family="'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="700" font-size="46" letter-spacing="-0.8">Disposable Email &amp; Instant OTPs</text>
+  <text x="88" y="278" fill="#44474F" font-family="'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="400" font-size="22">Self-hosted temporary inboxes for Postfix &amp; Stalwart domains.</text>
+
+  <!-- Address Composer Bar -->
+  <rect x="88" y="328" width="560" height="72" rx="36" fill="#FFFFFF" stroke="#C4C6D0" stroke-width="2"/>
+  <text x="122" y="372" font-family="'Roboto Mono', ui-monospace, monospace" font-size="23"><tspan fill="#1A1B20" font-weight="500">dev</tspan><tspan fill="#0B57D0" font-weight="600">@yourdomain.com</tspan></text>
+  <rect x="476" y="338" width="160" height="52" rx="26" fill="#0B57D0"/>
+  <text x="556" y="371" text-anchor="middle" fill="#FFFFFF" font-family="'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="600" font-size="18">Open Inbox</text>
+
+  <!-- Right OTP Landmark Card -->
+  <rect x="940" y="84" width="470" height="332" rx="28" fill="#9CF1F0" stroke="#006A6A" stroke-width="2"/>
+  <rect x="980" y="122" width="176" height="30" rx="15" fill="#006A6A"/>
+  <text x="1068" y="142" text-anchor="middle" fill="#FFFFFF" font-family="'Roboto Mono', ui-monospace, monospace" font-weight="700" font-size="13" letter-spacing="0.8">INSTANT OTP CODE</text>
+  <text x="980" y="246" fill="#002020" font-family="'Roboto Mono', ui-monospace, monospace" font-weight="700" font-size="70" letter-spacing="5">482 913</text>
+  <rect x="980" y="294" width="196" height="56" rx="28" fill="#006A6A"/>
+  <text x="1078" y="329" text-anchor="middle" fill="#FFFFFF" font-family="'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="700" font-size="20">Copy Code</text>
+  <text x="1204" y="329" fill="#002020" font-family="'Roboto Mono', ui-monospace, monospace" font-weight="600" font-size="18">SSE · JMAP</text>
+</svg>

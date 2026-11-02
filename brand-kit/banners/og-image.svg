@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <!-- M3 Dark Canvas -->
+  <rect width="1200" height="630" fill="#111318"/>
+  <rect x="36" y="36" width="1128" height="558" rx="40" fill="#191C20" stroke="#282A2F" stroke-width="2"/>
+
+  <!-- Left Column (x=80..650) -->
+  <rect x="80" y="84" width="60" height="60" rx="18" fill="#0B57D0"/>
+  <path d="M128 117V126C128 128.5 126 130.5 123.5 130.5H96.5C94 130.5 92 128.5 92 126V105C92 102.5 94 100.5 96.5 100.5H114" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M93.5 102.5L108 112.5C109.2 113.3 110.8 113.3 112 112.5L118.5 108" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M125 93L118 104H128L121 115" stroke="#9CF1F0" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="158" y="126" font-family="'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="700" font-size="36" letter-spacing="-0.6"><tspan fill="#ADC6FF" font-weight="800">T</tspan><tspan fill="#E2E2E9">Mail</tspan></text>
+
+  <!-- Main Value Proposition -->
+  <text x="80" y="232" fill="#E2E2E9" font-family="'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="700" font-size="54" letter-spacing="-1">Disposable Email,</text>
+  <text x="80" y="296" fill="#ADC6FF" font-family="'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="700" font-size="54" letter-spacing="-1">Instant OTP Codes.</text>
+  <text x="80" y="348" fill="#C4C6D0" font-family="'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="400" font-size="21">Public by default · Optional 90-day lock · Postfix &amp; Stalwart</text>
+
+  <!-- Live Address Composer Landmark -->
+  <rect x="80" y="396" width="568" height="76" rx="38" fill="#0C0E13" stroke="#44474F" stroke-width="2"/>
+  <text x="114" y="443" font-family="'Roboto Mono', ui-monospace, monospace" font-size="23"><tspan fill="#E2E2E9" font-weight="500">verify-now</tspan><tspan fill="#ADC6FF" font-weight="600">@tmail.domain</tspan></text>
+  <rect x="492" y="408" width="144" height="52" rx="26" fill="#0B57D0"/>
+  <text x="564" y="441" text-anchor="middle" fill="#FFFFFF" font-family="'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="600" font-size="18">Copy</text>
+
+  <!-- Status Footer -->
+  <circle cx="94" cy="526" r="6" fill="#8FD88A"/>
+  <text x="112" y="532" fill="#C4C6D0" font-family="'Roboto Mono', ui-monospace, monospace" font-weight="500" font-size="16">SSE Live Stream  ·  Custom MX  ·  No Sign-Up</text>
+
+  <!-- Right Column: Floating OTP Extraction Card + Inbox Preview (x=692..1120) -->
+  <rect x="692" y="84" width="428" height="462" rx="32" fill="#0C0E13" stroke="#33353A" stroke-width="2"/>
+
+  <!-- Tertiary OTP Card -->
+  <rect x="720" y="112" width="372" height="204" rx="24" fill="#004F4F" stroke="#80D5D4" stroke-width="2"/>
+  <rect x="748" y="138" width="144" height="28" rx="14" fill="#9CF1F0"/>
+  <text x="820" y="157" text-anchor="middle" fill="#002020" font-family="'Roboto Mono', ui-monospace, monospace" font-weight="700" font-size="13" letter-spacing="0.5">INSTANT OTP</text>
+  <text x="748" y="236" fill="#FFFFFF" font-family="'Roboto Mono', ui-monospace, monospace" font-weight="700" font-size="56" letter-spacing="4">482 913</text>
+  <text x="748" y="284" fill="#9CF1F0" font-family="'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="500" font-size="16">GitHub verification code · 0.2s ago</text>
+
+  <!-- Message List Row 1 -->
+  <rect x="720" y="336" width="372" height="82" rx="20" fill="#282A2F"/>
+  <circle cx="758" cy="377" r="20" fill="#1B4487"/>
+  <text x="758" y="383" text-anchor="middle" fill="#D8E2FF" font-family="'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="700" font-size="15">GH</text>
+  <text x="792" y="370" fill="#E2E2E9" font-family="'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="600" font-size="16">GitHub Login Code</text>
+  <text x="792" y="395" fill="#C4C6D0" font-family="'Roboto Mono', ui-monospace, monospace" font-weight="400" font-size="13">noreply@github.com</text>
+  <rect x="988" y="361" width="84" height="32" rx="8" fill="#9CF1F0"/>
+  <text x="1030" y="382" text-anchor="middle" fill="#002020" font-family="'Roboto Mono', ui-monospace, monospace" font-weight="700" font-size="13">482 913</text>
+
+  <!-- Message List Row 2 -->
+  <rect x="720" y="432" width="372" height="82" rx="20" fill="#191C20"/>
+  <circle cx="758" cy="473" r="20" fill="#33353A"/>
+  <text x="758" y="479" text-anchor="middle" fill="#C4C6D0" font-family="'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="700" font-size="15">AC</text>
+  <text x="792" y="466" fill="#C4C6D0" font-family="'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="500" font-size="16">Acme Cloud Sign-In</text>
+  <text x="792" y="491" fill="#8E9099" font-family="'Roboto Mono', ui-monospace, monospace" font-weight="400" font-size="13">auth@acme.dev · 2m</text>
+</svg>
