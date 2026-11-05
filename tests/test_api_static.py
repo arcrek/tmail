@@ -77,7 +77,7 @@ def test_api_and_docs_are_not_shadowed_by_spa(client):
 
 
 def test_assets_are_served_with_immutable_cache(client):
-    response = client.get("/assets/app.js")
+    response = client.get("/assets/app.js?v=2")
     assert response.status_code == 200
     assert response.text == "console.log('tmail')"
     assert response.headers["cache-control"] == "public, max-age=31536000, immutable"
@@ -214,3 +214,8 @@ def test_discovery_describes_optional_protection_without_credentials(client):
     shell = (Path(__file__).resolve().parents[1] / "frontend/index.html").read_text()
     assert "optional mailbox password protection" in shell
     assert "without passwords or signups" not in shell
+    assert 'property="og:image" content="__BASE_URL__/assets/og-image.png?v=2"' in shell
+    assert 'name="twitter:image" content="__BASE_URL__/assets/og-image.png?v=2"' in shell
+    assert '"logo": "__BASE_URL__/assets/og-image.png?v=2"' in shell
+    og_image = Path(__file__).resolve().parents[1] / "frontend/public/assets/og-image.png"
+    assert og_image.is_file() and og_image.stat().st_size > 10000
