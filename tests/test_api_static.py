@@ -214,8 +214,8 @@ def test_discovery_describes_optional_protection_without_credentials(client):
     shell = (Path(__file__).resolve().parents[1] / "frontend/index.html").read_text()
     assert "optional mailbox password protection" in shell
     assert "without passwords or signups" not in shell
-    assert 'property="og:image" content="__BASE_URL__/assets/og-image.png?v=2"' in shell
-    assert 'name="twitter:image" content="__BASE_URL__/assets/og-image.png?v=2"' in shell
-    assert '"logo": "__BASE_URL__/assets/og-image.png?v=2"' in shell
+    assert 'property="og:image" content="__BASE_URL__/assets/og-image.png?v=3"' in shell
+    assert 'name="twitter:image" content="__BASE_URL__/assets/og-image.png?v=3"' in shell
+    assert '"logo": "__BASE_URL__/assets/og-image.png?v=3"' in shell
     og_image = Path(__file__).resolve().parents[1] / "frontend/public/assets/og-image.png"
     assert og_image.is_file() and og_image.stat().st_size > 10000
