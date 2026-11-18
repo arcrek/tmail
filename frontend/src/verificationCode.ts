@@ -100,3 +100,9 @@ export function extractVerificationCode(subject: string = '', text: string = '',
 
   return ''
 }
+
+/** Groups numeric codes in threes for reading (482913 -> 482 913); copy uses the raw value. */
+export function groupCode(code: string): string {
+  return /^\d{6,}$/.test(code) ? code.replace(/(\d{3})(?=\d)/g, '$1 ') : code
+}
+
