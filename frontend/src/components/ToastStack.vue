@@ -6,6 +6,23 @@ import { groupCode } from '../verificationCode'
 
 const { toasts, dismiss, pause, resume } = useToast()
 const { t } = useI18n()
+
+function onMouseLeave(id: number, event: MouseEvent): void {
+  const el = event.currentTarget as HTMLElement | null
+  if (el && typeof document !== 'undefined' && document.activeElement && el.contains(document.activeElement)) {
+    return
+  }
+  resume(id)
+}
+
+function onFocusOut(id: number, event: FocusEvent): void {
+  const el = event.currentTarget as HTMLElement | null
+  const next = event.relatedTarget as Node | null
+  if (el && ((next && el.contains(next)) || el.matches?.(':hover'))) {
+    return
+  }
+  resume(id)
+}
 </script>
 
 <template>
@@ -18,9 +35,9 @@ const { t } = useI18n()
         :role="toast.kind === 'error' ? 'alert' : 'status'"
         :aria-live="toast.kind === 'error' ? 'assertive' : 'polite'"
         @mouseenter="pause(toast.id)"
-        @mouseleave="resume(toast.id)"
+        @mouseleave="onMouseLeave(toast.id, $event)"
         @focusin="pause(toast.id)"
-        @focusout="resume(toast.id)"
+        @focusout="onFocusOut(toast.id, $event)"
       >
         <div class="toast-main">
           <span class="toast-icon-badge">

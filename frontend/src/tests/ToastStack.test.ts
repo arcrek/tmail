@@ -103,6 +103,12 @@ describe('ToastStack', () => {
       await nextTick()
       expect(wrapper.find('.toast').exists()).toBe(true)
 
+      const dismissButton = wrapper.get('.toast-dismiss').element
+      await item.trigger('focusout', { relatedTarget: dismissButton })
+      vi.advanceTimersByTime(10000)
+      await nextTick()
+      expect(wrapper.find('.toast').exists()).toBe(true)
+
       await item.trigger('focusout')
       vi.advanceTimersByTime(5000)
       await nextTick()

@@ -3284,7 +3284,8 @@ html:has(.app-frame > .site-footer) {
   line-height: 1;
 }
 
-.toast-error .toast-dismiss { color: var(--on-error-container); }
+.toast-error .toast-dismiss,
+.toast-error .toast-dismiss:hover { color: var(--on-error-container); }
 
 .toast-dismiss:hover { color: var(--ink); }
 

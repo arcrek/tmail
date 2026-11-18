@@ -116,6 +116,22 @@ describe('toast', () => {
     expect(toast.toasts.value).toHaveLength(0)
   })
 
+  it('keeps timer paused when an active paused toast is deduplicated in-place', async () => {
+    vi.useFakeTimers()
+    const toast = useToast()
+
+    const id = toast.success('Paused copy')!
+    toast.pause(id)
+    toast.success('Paused copy')
+
+    await vi.advanceTimersByTimeAsync(10000)
+    expect(toast.toasts.value).toHaveLength(1)
+
+    toast.resume(id)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(toast.toasts.value).toHaveLength(0)
+  })
+
   it('clears the underlying timer cleanly on dismiss(id)', async () => {
     vi.useFakeTimers()
     const clearSpy = vi.spyOn(globalThis, 'clearTimeout')

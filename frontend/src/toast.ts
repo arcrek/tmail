@@ -65,7 +65,12 @@ function push(kind: ToastKind, message: string, actions?: ToastAction[], options
       ...(actions ? { actions: [...actions] } : {}),
     }
     toasts.value = toasts.value.map((entry, idx) => (idx === existingIndex ? updated : entry))
-    startTimer(existing.id, duration)
+    const currentTimer = timers.get(existing.id)
+    if (currentTimer && currentTimer.timer === undefined) {
+      currentTimer.duration = duration
+    } else {
+      startTimer(existing.id, duration)
+    }
     return existing.id
   }
 
