@@ -117,7 +117,14 @@ describe('InboxView polling', () => {
 
     const { default: ToastStack } = await import('../components/ToastStack.vue')
     const { useToast } = await import('../toast')
-    useToast()
+    const { toasts } = useToast()
+    const entry = toasts.value.find((item) => item.message === 'Message two')
+    expect(entry).toMatchObject({
+      kind: 'mail',
+      code: '482913',
+    })
+    expect(entry?.actions?.find((action) => action.label === 'Copy code')?.primary).toBe(true)
+
     const wrapper2 = mount(ToastStack)
     await flushPromises()
 

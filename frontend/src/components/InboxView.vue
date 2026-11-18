@@ -6,7 +6,7 @@ import { copyText } from '../clipboard'
 import { randomDomain, randomLocalPart } from '../randomAddress'
 import { useToast } from '../toast'
 import type { AddressSession, DomainResource, HydraCollection, MessageSummary } from '../types'
-import { extractVerificationCode } from '../verificationCode'
+import { extractVerificationCode, groupCode } from '../verificationCode'
 import AppIcon from './AppIcon.vue'
 import MessageReader from './MessageReader.vue'
 import QrCodeModal from './QrCodeModal.vue'
@@ -114,11 +114,6 @@ const passwordLabel = computed(() => {
   if (!props.session.protected) return t('password.set')
   return props.session.accessKind === 'admin' ? t('password.reset') : t('password.change')
 })
-
-/** Groups numeric codes in threes for reading (482913 -> 482 913); copy uses the raw value. */
-function groupCode(code: string): string {
-  return /^\d{6,}$/.test(code) ? code.replace(/(\d{3})(?=\d)/g, '$1 ') : code
-}
 
 function initial(item: MessageSummary): string {
   return (item.from.name || item.from.address || '?').trim().charAt(0).toUpperCase() || '?'
@@ -277,9 +272,9 @@ async function announceToast(item: MessageSummary): Promise<void> {
   if (version !== sessionVersion || accessInvalid) return
   const actions = [
     { label: t('inbox.copyEmailAction'), onClick: () => void copyAction(address) },
-    ...(code ? [{ label: t('inbox.copyCodeAction'), onClick: () => void copyAction(code, 'inbox.codeCopied') }] : []),
+    ...(code ? [{ label: t('inbox.copyCodeAction'), onClick: () => void copyAction(code, 'inbox.codeCopied'), primary: true }] : []),
   ]
-  const id = toast.success(item.subject || t('inbox.noSubject'), actions)
+  const id = toast.mail(item.subject || t('inbox.noSubject'), { code, actions })
   if (id !== undefined) mailToasts.add(id)
 }
 
