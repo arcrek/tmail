@@ -110,6 +110,85 @@ describe('BulkCodeView', () => {
     await flushPromises()
   })
 
+  it('removes the ten-address cap when full access is unlocked', async () => {
+    const wrapper = mount(BulkCodeView, { props: { accessToken: 'access-token', fetchSeconds: 20 } })
+    await wrapper.get('#bulk-code-addresses').setValue([
+      ' ONE@example.com ', 'one@example.com', ...Array.from({ length: 14 }, (_, index) => `box${index}@example.com`),
+    ].join(', '))
+
+    expect(wrapper.get('.page-header .lede').text()).toBe('Paste addresses to read their latest verification codes.')
+    expect(wrapper.find('.bulk-partial').exists()).toBe(false)
+    await wrapper.get('.bulk-controls').trigger('submit')
+    await flushPromises()
+
+    expect(mocks.token).toHaveBeenCalledTimes(15)
+    expect(wrapper.findAll('tbody tr')).toHaveLength(15)
+  })
+
+  it('copies all extracted codes separated by newlines and disables copy all when none exist', async () => {
+    mocks.token.mockImplementation((address: string) => address === 'bad@example.com'
+      ? Promise.reject(new ApiError(422, 'Domain not accepted'))
+      : Promise.resolve({ token: `signed-${address}` }))
+    mocks.messages.mockImplementation((token: string) => Promise.resolve(
+      token === 'signed-empty@example.com' ? messages('') : messages(token),
+    ))
+    mocks.message.mockImplementation((token: string) => Promise.resolve({
+      id: token,
+      subject: token === 'signed-one@example.com'
+        ? 'Your code is 111111'
+        : token === 'signed-two@example.com'
+          ? 'Your code is 222222'
+          : 'Welcome aboard',
+      text: '',
+      html: [],
+    }))
+
+    const wrapper = mount(BulkCodeView, { props: { fetchSeconds: 20 } })
+    await wrapper.get('#bulk-code-addresses').setValue('empty@example.com, nocode@example.com')
+    await wrapper.get('.bulk-controls').trigger('submit')
+    await flushPromises()
+
+    const disabledCopyAll = wrapper.get('.bulk-copy-all')
+    expect(disabledCopyAll.attributes('disabled')).toBeDefined()
+
+    await wrapper.get('#bulk-code-addresses').setValue('one@example.com, empty@example.com, bad@example.com, two@example.com')
+    await wrapper.get('.bulk-controls').trigger('submit')
+    await flushPromises()
+
+    const copyAllBtn = wrapper.get('.bulk-copy-all')
+    expect(copyAllBtn.attributes('disabled')).toBeUndefined()
+    await copyAllBtn.trigger('click')
+    await flushPromises()
+
+    expect(mocks.copyText).toHaveBeenCalledWith('111111\n222222')
+    expect(mocks.toastSuccess).toHaveBeenCalledWith('All verification codes copied.')
+
+    mocks.copyText.mockRejectedValueOnce(new Error('Clipboard unavailable'))
+    await copyAllBtn.trigger('click')
+    await flushPromises()
+    expect(mocks.toastError).toHaveBeenCalledWith('Copy failed. Select the address and copy it manually.')
+  })
+
+  it('clears cached rows and stops polling when accessToken changes', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    const wrapper = mount(BulkCodeView, { props: { accessToken: 'access-token', fetchSeconds: 1 } })
+    await wrapper.get('#bulk-code-addresses').setValue('one@example.com')
+    await wrapper.get('.bulk-controls').trigger('submit')
+    await flushPromises()
+    expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+
+    await wrapper.setProps({ accessToken: '' })
+    await flushPromises()
+    expect(wrapper.findAll('tbody tr')).toHaveLength(0)
+    expect(wrapper.find('.bulk-copy-all').exists()).toBe(false)
+
+    vi.advanceTimersByTime(3000)
+    await flushPromises()
+    expect(mocks.messages).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
   it('copies code and email and surfaces success toasts', async () => {
     const wrapper = mount(BulkCodeView, { props: { fetchSeconds: 20 } })
     await wrapper.get('#bulk-code-addresses').setValue('one@example.com')

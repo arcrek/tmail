@@ -1221,13 +1221,14 @@ def create_app(config_path: str) -> FastAPI:
                     password_bearing = isinstance(payload, dict) and payload.get("password") is not None
                 except ValueError:
                     pass
+            bypass_rate_limit = False
             if request.url.path == "/token" and not password_bearing:
                 scheme, raw_token = get_authorization_scheme_param(request.headers.get("Authorization"))
                 if scheme.lower() == "bearer":
                     token_hash = await run_in_threadpool(_elevated_token_hash, request, raw_token)
                     if token_hash:
-                        key = (request.url.path, f"elevated:{token_hash}")
-            if not limiter.allow(key):
+                        bypass_rate_limit = True
+            if not bypass_rate_limit and not limiter.allow(key):
                 response = _error(429, "Too many requests", "Try again later")
                 _set_security_headers(request, response)
                 return response
