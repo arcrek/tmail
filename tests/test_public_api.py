@@ -713,15 +713,43 @@ def test_elevated_token_rate_limit_is_independent_from_anonymous(client):
     assert client.post("/token", json={"address": "box@example.com"}, headers=headers).status_code == 200
 
 
-def test_anonymous_token_rate_limit_is_independent_from_elevated(client):
+def test_elevated_passwordless_token_bypasses_rate_limit_without_affecting_anonymous(client):
+    credential, _ = _access_credential(client)
+    access_token = client.post("/unlock", json={"credential": credential["secret"]}).json()["accessToken"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    for _ in range(25):
+        assert client.post("/token", json={"address": "box@example.com"}, headers=headers).status_code == 200
+    for _ in range(10):
+        assert client.post("/token", json={"address": "box@example.com"}).status_code == 200
+    assert client.post("/token", json={"address": "box@example.com"}).status_code == 429
+    assert client.post("/token", json={"address": "box@example.com"}, headers=headers).status_code == 200
+
+
+def test_elevated_password_bearing_token_is_still_rate_limited(client):
     credential, _ = _access_credential(client)
     access_token = client.post("/unlock", json={"credential": credential["secret"]}).json()["accessToken"]
     headers = {"Authorization": f"Bearer {access_token}"}
 
     for _ in range(10):
+        response = client.post(
+            "/token", json={"address": "box@example.com", "password": "wrong-password-123"}, headers=headers,
+        )
+        assert response.status_code != 429
+    assert client.post(
+        "/token", json={"address": "box@example.com", "password": "wrong-password-123"}, headers=headers,
+    ).status_code == 429
+
+
+def test_revoked_elevated_token_no_longer_bypasses_rate_limit(client):
+    credential, _ = _access_credential(client)
+    access_token = client.post("/unlock", json={"credential": credential["secret"]}).json()["accessToken"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    assert client.delete("/lock", headers=headers).status_code == 204
+    for _ in range(10):
         assert client.post("/token", json={"address": "box@example.com"}, headers=headers).status_code == 200
     assert client.post("/token", json={"address": "box@example.com"}, headers=headers).status_code == 429
-    assert client.post("/token", json={"address": "box@example.com"}).status_code == 200
 
 
 def test_invalid_elevated_token_shares_anonymous_rate_limit_bucket(client):

@@ -25,6 +25,9 @@ type BulkCodeRow = {
   version?: number
 }
 
+const LOCKED_ADDRESS_LIMIT = 10
+const ROW_CONCURRENCY = 6
+
 const input = ref('')
 const rows = ref<BulkCodeRow[]>([])
 const refreshing = ref(false)
@@ -32,11 +35,24 @@ const tokenCache = new Map<string, AddressSession>()
 let interval: number | undefined
 let refreshVersion = 0
 let submitVersion = 0
+const isUnlocked = computed(() => Boolean(props.accessToken))
 const parsedAddresses = computed(() => [...new Set(
   input.value.split(/[\s,]+/).map((address) => address.trim().toLowerCase()).filter(Boolean),
 )])
-const addresses = computed(() => parsedAddresses.value.slice(0, 10))
-const partialCount = computed(() => parsedAddresses.value.length > 10 ? addresses.value.length : null)
+const addresses = computed(() => (isUnlocked.value ? parsedAddresses.value : parsedAddresses.value.slice(0, LOCKED_ADDRESS_LIMIT)))
+const partialCount = computed(() => (!isUnlocked.value && parsedAddresses.value.length > LOCKED_ADDRESS_LIMIT ? addresses.value.length : null))
+const extractedCodes = computed(() => rows.value.map((row) => row.code).filter((code): code is string => Boolean(code)))
+
+async function runBounded<T>(items: T[], limit: number, worker: (item: T) => Promise<void>): Promise<void> {
+  let index = 0
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (index < items.length) {
+      const current = items[index++]
+      if (current !== undefined) await worker(current)
+    }
+  })
+  await Promise.allSettled(runners)
+}
 
 const message = (value: unknown) =>
   value instanceof ApiError ? value.message : t('bulkCode.rowError')
@@ -105,7 +121,7 @@ async function refresh(options: { retryErrors?: boolean } = {}): Promise<void> {
   const version = ++refreshVersion
   refreshing.value = true
   try {
-    await Promise.allSettled(targets.map((row) => resolveRow(row, { silent: true })))
+    await runBounded(targets, ROW_CONCURRENCY, (row) => resolveRow(row, { silent: true }))
   } finally {
     if (version === refreshVersion) refreshing.value = false
   }
@@ -140,24 +156,29 @@ async function submit(): Promise<void> {
   const version = ++submitVersion
   tokenCache.clear()
   ++refreshVersion
-  const submittedRows = addresses.value.map((address) => ({ address, status: 'loading' as const }))
-  rows.value = submittedRows
+  rows.value = addresses.value.map((address) => ({ address, status: 'loading' as const }))
+  const submittedRows = rows.value
   refreshing.value = true
   try {
-    await Promise.allSettled(submittedRows.map((row) => resolveRow(row)))
+    await runBounded(submittedRows, ROW_CONCURRENCY, (row) => resolveRow(row))
   } finally {
     if (version === submitVersion) refreshing.value = false
   }
   if (version === submitVersion) startPolling()
 }
 
-async function copy(value: string, notice: 'bulkCode.codeCopied' | 'bulkCode.emailCopied'): Promise<void> {
+async function copy(value: string, notice: 'bulkCode.codeCopied' | 'bulkCode.emailCopied' | 'bulkCode.allCodesCopied'): Promise<void> {
   try {
     await copyText(value)
     toast.success(t(notice))
   } catch {
     toast.error(t('error.copy'))
   }
+}
+
+async function copyAllCodes(): Promise<void> {
+  if (!extractedCodes.value.length) return
+  await copy(extractedCodes.value.join('\n'), 'bulkCode.allCodesCopied')
 }
 function exportCsv(): void {
   if (!rows.value.length) return
@@ -188,6 +209,14 @@ function handleStorage(event: StorageEvent): void {
 onMounted(() => window.addEventListener('storage', handleStorage))
 onMounted(() => document.addEventListener('visibilitychange', handleVisibility))
 watch(() => props.fetchSeconds, startPolling)
+watch(() => props.accessToken, () => {
+  ++refreshVersion
+  ++submitVersion
+  stopPolling()
+  tokenCache.clear()
+  rows.value = []
+  refreshing.value = false
+})
 onBeforeUnmount(() => {
   ++refreshVersion
   ++submitVersion
@@ -201,7 +230,7 @@ onBeforeUnmount(() => {
 <template>
   <header class="page-header">
     <h1 id="bulk-code-title">{{ t('bulkCode.title') }}</h1>
-    <p class="lede">{{ t('bulkCode.lede') }}</p>
+    <p class="lede">{{ t(isUnlocked ? 'bulkCode.ledeUnlocked' : 'bulkCode.lede') }}</p>
   </header>
 
   <section class="panel bulk-panel bulk-code-panel" aria-labelledby="bulk-code-title">
@@ -218,6 +247,10 @@ onBeforeUnmount(() => {
       <button v-if="rows.length" class="secondary-button" type="button" data-action="refresh" :disabled="refreshing" @click="manualRefresh">
         <AppIcon name="refresh-cw" :class="{ spinning: refreshing }" />
         {{ refreshing ? t('bulkCode.refreshing') : t('bulkCode.refresh') }}
+      </button>
+      <button v-if="rows.length" class="secondary-button bulk-copy-all" type="button" :disabled="extractedCodes.length === 0" @click="copyAllCodes">
+        <AppIcon name="copy" />
+        {{ t('bulkCode.copyAll') }}
       </button>
       <button v-if="rows.length" class="secondary-button bulk-export-csv" type="button" @click="exportCsv">
         <AppIcon name="download" />
