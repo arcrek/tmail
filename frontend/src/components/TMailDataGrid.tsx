@@ -1,6 +1,7 @@
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import { DataGrid, type DataGridProps, type GridValidRowModel } from '@mui/x-data-grid'
+import { getCspNonce } from '../emotionCache'
 import { MONO_FONT_FAMILY } from '../muiTheme'
 
 export interface TMailDataGridProps<R extends GridValidRowModel = GridValidRowModel>
@@ -39,6 +40,7 @@ export function TMailDataGrid<R extends GridValidRowModel = GridValidRowModel>({
         <DataGrid<R>
           rows={rows}
           columns={columns}
+          nonce={getCspNonce()}
           aria-label={ariaLabel}
           disableRowSelectionOnClick
           disableColumnMenu={false}
