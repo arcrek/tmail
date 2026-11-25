@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi as vitest } from 'vitest'
-import { en, initLocale, normalizeLocale, ru, selectLocale, setLocale, setSiteLocale, useI18n, vi, zh } from '../i18n'
+import { en, getI18n, initLocale, normalizeLocale, ru, selectLocale, setLocale, setSiteLocale, vi, zh } from '../i18n'
 
 describe('i18n', () => {
   afterEach(() => {
@@ -24,7 +25,7 @@ describe('i18n', () => {
   })
 
   it('translates, interpolates, and formats with the resolved locale', () => {
-    const { t, formatNumber, formatDate } = useI18n()
+    const { t, formatNumber, formatDate } = getI18n()
     const testDate = '2026-10-21T12:00:00Z'
 
     setLocale('vi')
@@ -47,7 +48,7 @@ describe('i18n', () => {
   })
 
   it('falls back to English for untranslated administrative keys in Russian and Chinese', () => {
-    const { t } = useI18n()
+    const { t } = getI18n()
 
     setLocale('ru')
     expect(t('admin.dashboard')).toBe(en['admin.dashboard'])
@@ -83,8 +84,7 @@ describe('i18n', () => {
   })
 
   it('safely handles prototype properties in parameter interpolation', () => {
-    const { t } = useI18n()
-    // Should not evaluate Object.prototype.toString
+    const { t } = getI18n()
     expect(t('address.forget')).toBe('Forget {address}')
   })
 
@@ -92,11 +92,11 @@ describe('i18n', () => {
     localStorage.setItem('tmail.locale', 'ru')
     initLocale()
     setSiteLocale('en')
-    expect(useI18n().locale.value).toBe('ru')
+    expect(getI18n().locale).toBe('ru')
 
     selectLocale('zh')
     expect(localStorage.getItem('tmail.locale')).toBe('zh')
-    expect(useI18n().locale.value).toBe('zh')
+    expect(getI18n().locale).toBe('zh')
 
     selectLocale('en')
     expect(localStorage.getItem('tmail.locale')).toBe('en')
@@ -105,13 +105,12 @@ describe('i18n', () => {
   it('uses the site default when there is no visitor override', () => {
     initLocale()
     setSiteLocale('zh')
-    expect(useI18n().locale.value).toBe('zh')
+    expect(getI18n().locale).toBe('zh')
   })
 
   it('keeps a visitor choice in memory when storage is blocked', () => {
     vitest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked') })
     selectLocale('ru')
-    expect(useI18n().locale.value).toBe('ru')
+    expect(getI18n().locale).toBe('ru')
   })
 })
-// @vitest-environment jsdom

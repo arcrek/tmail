@@ -7,10 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 TMail: a temporary-mail service that sits in front of Postfix and Stalwart. Three cooperating pieces:
 
 - **`policy_daemon`** (`src/policy_daemon.py`) — a tiny TCP line-protocol server Postfix's `check_recipient_access` calls per recipient. Looks up the domain's MX, and if it points at this server, provisions the domain in Stalwart via JMAP and caches it so future lookups skip the MX check.
-- **`api_server`** (`src/api_server.py`, `src/admin_api.py`) — a FastAPI app serving both a public JMAP-flavored ("Hydra") REST API for the passwordless inbox and an `/admin/api/*` console for site settings, domain blocking, and access credentials. Also serves the built Vue SPA as static files and has a catch-all SPA route.
+- **`api_server`** (`src/api_server.py`, `src/admin_api.py`) — a FastAPI app serving both a public JMAP-flavored ("Hydra") REST API for the passwordless inbox and an `/admin/api/*` console for site settings, domain blocking, and access credentials. Also serves the built React SPA as static files and has a catch-all SPA route.
 - **`email_janitor`** (`src/email_janitor.py`) — a standalone script (run via systemd timer, see `deploy/`) that deletes messages past `retention_days` from Stalwart.
 
-Frontend is a Vue 3 + TypeScript SPA (`frontend/`) built with Vite, covering both the public inbox (`/`, `/{address}`) and the admin console (`/admin`).
+Frontend is a React 19 + TypeScript + MUI v9 / MUI X v9 (`@mui/material`, `@mui/x-data-grid`) SPA (`frontend/`) built with Vite, covering both the public inbox (`/`, `/{address}`) and the admin console (`/admin`).
 
 This project does not manage DNS, configure TLS, or replace Postfix/Stalwart. A domain blocked in the admin console stays configured for mail delivery — blocking only removes it from the public site/API.
 
@@ -48,15 +48,15 @@ There's no `pytest.ini`/`pyproject.toml`/conftest — plain pytest discovery ove
 ```bash
 npm install
 npm run dev      # Vite dev server; proxies API paths (see vite.config.ts) to 127.0.0.1:8000
-npm run build     # vue-tsc --noEmit type check, then vite build to frontend/dist
+npm run build     # tsc --noEmit type check, then vite build to frontend/dist
 npm run test      # vitest run — single-run unit tests in frontend/src/tests/
-npx vitest run frontend/src/tests/InboxView.test.ts   # single test file
+npx vitest run src/tests/InboxView.test.tsx   # single test file
 npm run test:sandbox-browser   # scripts/message-sandbox-smoke.mjs, real-browser sandbox iframe check
 ```
 
 ### Running the whole app for a live check
 
-Use the `run-tmail` skill (`.claude/skills/run-tmail/`) rather than improvising a manual setup — it starts a fake-JMAP FastAPI backend (real `create_app()` with only the JMAP client mocked), drives the real Vue app with Playwright, probes the policy daemon's MX-health path over a raw socket, and can take screenshots. No root/Stalwart required.
+Use the `run-tmail` skill (`.claude/skills/run-tmail/`) rather than improvising a manual setup — it starts a fake-JMAP FastAPI backend (real `create_app()` with only the JMAP client mocked), drives the real React app with Playwright, probes the policy daemon's MX-health path over a raw socket, and can take screenshots. No root/Stalwart required.
 
 ### Docker Compose
 
@@ -75,11 +75,11 @@ docker compose up -d --build   # serves at http://127.0.0.1:8080 (TMAIL_HTTP_POR
 
 **The public API mimics JMAP/Hydra shapes** (`src/api_models.py`: `HydraDomains`, `HydraMessages`, `HydraSearch`, etc.) even though it's a bespoke REST API, not literal JMAP — this is deliberate API design, not a JMAP passthrough. `admin_api.py`'s `/admin/api/*` router is separate, session-cookie-authenticated (`_session`/`_csrf` dependencies), and covers site config, domain sync/blocking, access credentials, and the dashboard.
 
-**Message content is sandboxed via `postMessage` into a nonce'd iframe**, not rendered inline — see `_message_sandbox()` / `_SANDBOX_DOCUMENT` in `api_server.py` and `frontend/src/components/SandboxFrame.vue`. Don't bypass this when touching message rendering; it's the XSS boundary for arbitrary email HTML. `assetsInlineLimit: 0` in `vite.config.ts` is load-bearing for the same reason — the production CSP has no `font-src` override, so inlined fonts as `data:` URIs would be blocked.
+**Message content is sandboxed via `postMessage` into a nonce'd iframe**, not rendered inline — see `_message_sandbox()` / `_SANDBOX_DOCUMENT` in `api_server.py` and `frontend/src/components/SandboxFrame.tsx`. Don't bypass this when touching message rendering; it's the XSS boundary for arbitrary email HTML. `assetsInlineLimit: 0` in `vite.config.ts` is load-bearing for the same reason — the production CSP has no `font-src` override, so inlined fonts as `data:` URIs would be blocked. Emotion runtime `<style>` tags are authorized via per-request CSP nonces (`__CSP_NONCE__` in `frontend/index.html`, substituted by `api_server.py` and `docker/nginx.conf.template`, consumed by `frontend/src/emotionCache.ts`).
 
 **SPA routing collides with API routes at the top level** (`/`, `/{address}`, `/admin`, `/sandbox`, etc. all live under `/`). `_SPA_RESERVED` and `_POST_ONLY_ROUTES` in `api_server.py` are the reserved-word list that keeps a mailbox local-part like `admin@…` from being swallowed by the SPA catch-all — check them when adding new top-level routes.
 
-**Lock separation and debounced domain sync.** `api_server.py` creates two independent locks: `app.state.jmap_lock` protects the JMAP client runtime for high-throughput mailbox and token readers (`mail_runtime`), while `app.state.admin_lock` serializes administrative configuration updates. Never hold locks during network I/O. `refresh_domains` in `admin_api.py` fetches domain lists outside `admin_lock` and applies a double-checked 60-second debounce. `active_domains` in `api_auth.py` falls back to `state.get_frozen_domains()` when the cache is cold/empty to guarantee 100% domain list availability. In the frontend, `resolveCodes` in `frontend/src/components/InboxView.vue` batches message inspection with concurrency = 2 to prevent backend worker saturation.
+**Lock separation and debounced domain sync.** `api_server.py` creates two independent locks: `app.state.jmap_lock` protects the JMAP client runtime for high-throughput mailbox and token readers (`mail_runtime`), while `app.state.admin_lock` serializes administrative configuration updates. Never hold locks during network I/O. `refresh_domains` in `admin_api.py` fetches domain lists outside `admin_lock` and applies a double-checked 60-second debounce. `active_domains` in `api_auth.py` falls back to `state.get_frozen_domains()` when the cache is cold/empty to guarantee 100% domain list availability. In the frontend, `resolveCodes` in `frontend/src/components/InboxView.tsx` batches message inspection with concurrency = 2 to prevent backend worker saturation.
 
 ## Repo conventions
 

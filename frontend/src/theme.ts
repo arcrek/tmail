@@ -1,4 +1,4 @@
-import { computed, onBeforeUnmount, onMounted, ref, type ComputedRef } from 'vue'
+import { useEffect, useState } from 'react'
 
 export type ThemeMode = 'light' | 'dark'
 
@@ -12,6 +12,12 @@ const THEME_COLORS: Record<ThemeMode, string> = {
 const SYSTEM_MEDIA: Record<ThemeMode, string> = {
   light: '(prefers-color-scheme: light)',
   dark: '(prefers-color-scheme: dark)',
+}
+
+const themeListeners = new Set<(mode: ThemeMode) => void>()
+
+function emitTheme(mode: ThemeMode): void {
+  for (const listener of themeListeners) listener(mode)
 }
 
 function darkMediaQuery(): MediaQueryList {
@@ -43,6 +49,7 @@ function listen(mq: MediaQueryList, handler: (event: MediaQueryListEvent) => voi
 }
 
 function systemMode(): ThemeMode {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'light'
   return darkMediaQuery().matches ? 'dark' : 'light'
 }
 
@@ -67,9 +74,6 @@ function writeStored(mode: ThemeMode): void {
 /**
  * Keeps the two static <meta name="theme-color"> tags (declared in index.html with
  * data-theme-color="light|dark" and a matching prefers-color-scheme media query) in sync.
- * In system mode their native media queries already do the right thing, so we restore them.
- * With an explicit override we pin one meta "on" and the other "off" so the browser chrome
- * follows the user's choice instead of the OS setting.
  */
 function syncThemeColorMeta(stored: ThemeMode | null): void {
   const metas = document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"][data-theme-color]')
@@ -88,37 +92,68 @@ function applyTheme(stored: ThemeMode | null): void {
   syncThemeColorMeta(stored)
 }
 
+export function resolveCurrentTheme(): ThemeMode {
+  if (typeof document !== 'undefined') {
+    const explicit = document.documentElement.dataset.theme
+    if (explicit === 'light' || explicit === 'dark') return explicit
+  }
+  return readStored() ?? systemMode()
+}
+
 /**
- * Boots the theme system before the Vue app mounts. Must stay CSS-first (no inline <script>
- * is allowed under the strict CSP), so this only ever toggles the `data-theme` attribute and
- * dual dark-mode CSS blocks already do the painting - this just keeps `data-theme` and the
- * theme-color metas correct, including following the OS setting live while unset.
+ * Boots the theme system before the React app mounts. Keeps `data-theme` and the
+ * theme-color metas accurate and tracks OS changes while unset.
  */
 export function initTheme(): void {
   applyTheme(readStored())
   listen(darkMediaQuery(), () => {
-    if (readStored() === null) applyTheme(null)
+    if (readStored() === null) {
+      applyTheme(null)
+      emitTheme(systemMode())
+    }
   })
 }
 
-/** Reactive theme state for components (e.g. ThemeToggle). */
-export function useTheme(): { resolved: ComputedRef<ThemeMode>; toggle: () => void } {
-  const resolved = ref<ThemeMode>(readStored() ?? systemMode())
+/** Reactive theme hook for components (e.g. App ThemeProvider and ThemeToggle). */
+export function useTheme(): { resolved: ThemeMode; toggle: () => void } {
+  const [resolved, setResolved] = useState<ThemeMode>(() => readStored() ?? systemMode())
 
-  function handleSystemChange(): void {
-    if (readStored() === null) resolved.value = systemMode()
-  }
+  useEffect(() => {
+    const handleSystemChange = () => {
+      if (readStored() === null) {
+        const next = systemMode()
+        setResolved(next)
+      }
+    }
+    const stopMedia = listen(darkMediaQuery(), handleSystemChange)
+    const onEmit = (mode: ThemeMode) => setResolved(mode)
+    themeListeners.add(onEmit)
 
-  let stopListening = () => {}
-  onMounted(() => { stopListening = listen(darkMediaQuery(), handleSystemChange) })
-  onBeforeUnmount(() => stopListening())
+    // Also observe external mutations to <html data-theme="..."> (e.g. Playwright dark/light checks).
+    let observer: MutationObserver | undefined
+    if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined') {
+      observer = new MutationObserver(() => {
+        const attr = document.documentElement.dataset.theme
+        if (attr === 'light' || attr === 'dark') setResolved(attr)
+        else setResolved(readStored() ?? systemMode())
+      })
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    }
+
+    return () => {
+      stopMedia()
+      themeListeners.delete(onEmit)
+      observer?.disconnect()
+    }
+  }, [])
 
   function toggle(): void {
-    const next: ThemeMode = resolved.value === 'dark' ? 'light' : 'dark'
+    const next: ThemeMode = resolved === 'dark' ? 'light' : 'dark'
     writeStored(next)
     applyTheme(next)
-    resolved.value = next
+    setResolved(next)
+    emitTheme(next)
   }
 
-  return { resolved: computed(() => resolved.value), toggle }
+  return { resolved, toggle }
 }

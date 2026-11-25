@@ -1,4 +1,4 @@
-import { readonly, ref } from 'vue'
+import { useSyncExternalStore } from 'react'
 
 export type ToastKind = 'success' | 'error' | 'mail'
 export interface ToastAction { label: string; onClick: () => void; primary?: boolean }
@@ -9,9 +9,23 @@ export const MAX_TOASTS = 3
 
 const DEFAULT_DURATION_MS = 5000
 const ACTION_DURATION_MS = 8000
-const toasts = ref<ToastEntry[]>([])
+let entries: ToastEntry[] = []
+const listeners = new Set<() => void>()
 const timers = new Map<number, { timer?: ReturnType<typeof setTimeout>; duration: number }>()
 let nextId = 0
+
+function notify(): void {
+  for (const listener of listeners) listener()
+}
+
+export function subscribeToasts(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => { listeners.delete(listener) }
+}
+
+export function getToasts(): readonly ToastEntry[] {
+  return entries
+}
 
 function dismiss(id: number): void {
   const state = timers.get(id)
@@ -19,7 +33,8 @@ function dismiss(id: number): void {
     clearTimeout(state.timer)
   }
   timers.delete(id)
-  toasts.value = toasts.value.filter((entry) => entry.id !== id)
+  entries = entries.filter((entry) => entry.id !== id)
+  notify()
 }
 
 function pause(id: number): void {
@@ -33,7 +48,7 @@ function pause(id: number): void {
 function resume(id: number): void {
   const state = timers.get(id)
   if (!state || state.timer !== undefined) return
-  if (!toasts.value.some((entry) => entry.id === id)) return
+  if (!entries.some((entry) => entry.id === id)) return
   state.timer = setTimeout(() => dismiss(id), state.duration)
 }
 
@@ -52,11 +67,11 @@ function push(kind: ToastKind, message: string, actions?: ToastAction[], options
   const code = options?.code || undefined
   const duration = (actions?.length || code) ? ACTION_DURATION_MS : DEFAULT_DURATION_MS
 
-  const existingIndex = toasts.value.findIndex(
+  const existingIndex = entries.findIndex(
     (entry) => entry.kind === effectiveKind && entry.message === message && (entry.code ?? undefined) === code,
   )
   if (existingIndex !== -1) {
-    const existing = toasts.value[existingIndex]!
+    const existing = entries[existingIndex]!
     const updated: ToastEntry = {
       id: existing.id,
       kind: effectiveKind,
@@ -64,23 +79,24 @@ function push(kind: ToastKind, message: string, actions?: ToastAction[], options
       ...(code ? { code } : {}),
       ...(actions ? { actions: [...actions] } : {}),
     }
-    toasts.value = toasts.value.map((entry, idx) => (idx === existingIndex ? updated : entry))
+    entries = entries.map((entry, idx) => (idx === existingIndex ? updated : entry))
     const currentTimer = timers.get(existing.id)
     if (currentTimer && currentTimer.timer === undefined) {
       currentTimer.duration = duration
     } else {
       startTimer(existing.id, duration)
     }
+    notify()
     return existing.id
   }
 
-  while (toasts.value.length >= MAX_TOASTS) {
-    dismiss(toasts.value[0]!.id)
+  while (entries.length >= MAX_TOASTS) {
+    dismiss(entries[0]!.id)
   }
 
   const id = ++nextId
-  toasts.value = [
-    ...toasts.value,
+  entries = [
+    ...entries,
     {
       id,
       kind: effectiveKind,
@@ -90,20 +106,26 @@ function push(kind: ToastKind, message: string, actions?: ToastAction[], options
     },
   ]
   startTimer(id, duration)
+  notify()
   return id
 }
 
+export const toastActions = {
+  success: (message: string, actions?: ToastAction[], options?: ToastOptions) =>
+    push('success', message, actions, options),
+  error: (message: string, actions?: ToastAction[], options?: ToastOptions) =>
+    push('error', message, actions, options),
+  mail: (message: string, options?: { code?: string; actions?: ToastAction[] }) =>
+    push('mail', message, options?.actions, { kind: 'mail', code: options?.code }),
+  dismiss,
+  pause,
+  resume,
+}
+
 export function useToast() {
+  const toasts = useSyncExternalStore(subscribeToasts, getToasts, getToasts)
   return {
-    toasts: readonly(toasts),
-    success: (message: string, actions?: ToastAction[], options?: ToastOptions) =>
-      push('success', message, actions, options),
-    error: (message: string, actions?: ToastAction[], options?: ToastOptions) =>
-      push('error', message, actions, options),
-    mail: (message: string, options?: { code?: string; actions?: ToastAction[] }) =>
-      push('mail', message, options?.actions, { kind: 'mail', code: options?.code }),
-    dismiss,
-    pause,
-    resume,
+    toasts,
+    ...toastActions,
   }
 }

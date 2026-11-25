@@ -1266,11 +1266,20 @@ def create_app(config_path: str) -> FastAPI:
         if request is None:
             return FileResponse(index_file, headers={"Vary": "Accept"})
         base = _site_base_url(request)
+        nonce = secrets.token_urlsafe(16)
         content = _get_index_content()
         if "__BASE_URL__" in content:
             content = content.replace("__BASE_URL__", base)
-            return HTMLResponse(content, headers={"Vary": "Accept"})
-        return FileResponse(index_file, headers={"Vary": "Accept"})
+        if "__CSP_NONCE__" in content:
+            content = content.replace("__CSP_NONCE__", nonce)
+        return HTMLResponse(
+            content,
+            headers={
+                "Vary": "Accept",
+                "Cache-Control": "no-store",
+                "Content-Security-Policy": _spa_csp(nonce),
+            },
+        )
 
     @app.get("/robots.txt", include_in_schema=False)
     def robots_txt(request: Request):
@@ -1353,6 +1362,18 @@ def create_app(config_path: str) -> FastAPI:
     return app
 
 
+def _spa_csp(nonce: str) -> str:
+    return (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        f"style-src-elem 'self' 'nonce-{nonce}'; "
+        "style-src-attr 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "frame-src 'self'; "
+        "frame-ancestors 'none'"
+    )
+
+
 def _set_security_headers(request: Request, response: Response) -> None:
     if request.url.path.split("/")[1] in {"accounts", "token", "me", "messages", "sources", "unlock", "lock", "admin", "domains"}:
         response.headers["Cache-Control"] = "no-store"
@@ -1385,9 +1406,10 @@ def _set_security_headers(request: Request, response: Response) -> None:
             "frame-ancestors 'none'"
         )
     else:
-        response.headers["Content-Security-Policy"] = (
+        response.headers.setdefault(
+            "Content-Security-Policy",
             "default-src 'self'; img-src 'self' data:; frame-src 'self'; "
-            "frame-ancestors 'none'"
+            "frame-ancestors 'none'",
         )
 
 

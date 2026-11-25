@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { useSyncExternalStore } from 'react'
 
 const STORAGE_KEY = 'tmail.sound'
 
@@ -11,10 +11,30 @@ function loadSoundPreference(): boolean {
   }
 }
 
-export const soundEnabled = ref(loadSoundPreference())
+let enabledState = loadSoundPreference()
+const listeners = new Set<() => void>()
+
+function emitSoundChange(): void {
+  for (const listener of listeners) listener()
+}
+
+export function subscribeSound(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => { listeners.delete(listener) }
+}
+
+export function getSoundEnabled(): boolean {
+  return enabledState
+}
+
+export const soundEnabled = {
+  get value(): boolean { return enabledState },
+  set value(next: boolean) { setSoundEnabled(next) },
+}
 
 export function setSoundEnabled(enabled: boolean): void {
-  soundEnabled.value = enabled
+  enabledState = enabled
+  emitSoundChange()
   try {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(STORAGE_KEY, enabled ? 'true' : 'false')
@@ -22,6 +42,10 @@ export function setSoundEnabled(enabled: boolean): void {
   } catch {
     // Local storage is a preference convenience
   }
+}
+
+export function useSoundEnabled(): boolean {
+  return useSyncExternalStore(subscribeSound, getSoundEnabled, getSoundEnabled)
 }
 
 let audioCtx: AudioContext | null = null
@@ -45,7 +69,7 @@ export function getAudioContext(): AudioContext | null {
 }
 
 export function playNewMailChime(): void {
-  if (!soundEnabled.value) return
+  if (!enabledState) return
   try {
     const ctx = getAudioContext()
     if (!ctx) return
