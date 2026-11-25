@@ -1,0 +1,11 @@
+[Unit]
+Description=Sync Stalwart certificates to Nginx and Postfix
+After=stalwart.service network-online.target
+
+[Service]
+Type=oneshot
+TimeoutStartSec=120
+EnvironmentFile=-/etc/default/sync-stalwart-certs
+ExecStart=/usr/local/bin/sync-stalwart-certs.py
+StandardOutput=journal
+StandardError=journal
