@@ -33,41 +33,58 @@ export function AccessTab({ csrf, onBusyChange }: AccessTabProps) {
 
   const onBusyRef = useRef(onBusyChange)
   onBusyRef.current = onBusyChange
+  const loadVersionRef = useRef(0)
+  const mountedRef = useRef(true)
+  const pendingRef = useRef(false)
 
   const { t, formatDate } = useI18n()
   const tRef = useRef(t)
   tRef.current = t
 
   const loadCredentials = useCallback(async (clearSecret = false): Promise<void> => {
+    const version = ++loadVersionRef.current
     if (clearSecret) setSecret('')
     try {
       const result = await api.admin.accessCredentials.list()
+      if (!mountedRef.current || version !== loadVersionRef.current) return
       setCredentials(result.credentials)
     } catch (cause) {
+      if (!mountedRef.current || version !== loadVersionRef.current) return
       toastActions.error(cause instanceof Error ? cause.message : tRef.current('error.accessLoad'))
     }
   }, [])
 
   useEffect(() => {
+    mountedRef.current = true
     void loadCredentials()
+    return () => {
+      mountedRef.current = false
+      loadVersionRef.current += 1
+    }
   }, [loadCredentials])
 
   async function create(
     body: { kind: 'password'; label: string; password: string } | { kind: 'token'; label: string },
   ): Promise<boolean> {
+    if (pendingRef.current) return false
+    pendingRef.current = true
     setPending(true)
     onBusyRef.current?.(true)
     try {
       const created = await api.admin.accessCredentials.create(body, csrf)
+      if (!mountedRef.current) return false
       setSecret(created.secret ?? '')
       setCopied(false)
       await loadCredentials()
       return true
     } catch (cause) {
-      toastActions.error(cause instanceof Error ? cause.message : tRef.current('error.access'))
+      if (mountedRef.current) {
+        toastActions.error(cause instanceof Error ? cause.message : tRef.current('error.access'))
+      }
       return false
     } finally {
-      setPending(false)
+      pendingRef.current = false
+      if (mountedRef.current) setPending(false)
       onBusyRef.current?.(false)
     }
   }
@@ -94,16 +111,22 @@ export function AccessTab({ csrf, onBusyChange }: AccessTabProps) {
 
   const revoke = useCallback(
     async (id: string, label: string): Promise<void> => {
+      if (pendingRef.current) return
       if (!window.confirm(tRef.current('access.revokeConfirm', { label }))) return
+      pendingRef.current = true
       setPending(true)
       onBusyRef.current?.(true)
       try {
         await api.admin.accessCredentials.remove(id, csrf)
+        if (!mountedRef.current) return
         await loadCredentials(true)
       } catch (cause) {
-        toastActions.error(cause instanceof Error ? cause.message : tRef.current('error.access'))
+        if (mountedRef.current) {
+          toastActions.error(cause instanceof Error ? cause.message : tRef.current('error.access'))
+        }
       } finally {
-        setPending(false)
+        pendingRef.current = false
+        if (mountedRef.current) setPending(false)
         onBusyRef.current?.(false)
       }
     },

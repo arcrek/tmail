@@ -56,7 +56,7 @@ npm run test:sandbox-browser   # scripts/message-sandbox-smoke.mjs, real-browser
 
 ### Running the whole app for a live check
 
-Use the `run-tmail` skill (`.claude/skills/run-tmail/`) rather than improvising a manual setup — it starts a fake-JMAP FastAPI backend (real `create_app()` with only the JMAP client mocked), drives the real Vue app with Playwright, probes the policy daemon's MX-health path over a raw socket, and can take screenshots. No root/Stalwart required.
+Use the `run-tmail` skill (`.claude/skills/run-tmail/`) rather than improvising a manual setup — it starts a fake-JMAP FastAPI backend (real `create_app()` with only the JMAP client mocked), drives the real React app with Playwright, probes the policy daemon's MX-health path over a raw socket, and can take screenshots. No root/Stalwart required.
 
 ### Docker Compose
 

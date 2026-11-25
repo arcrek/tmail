@@ -58,6 +58,7 @@ export function QrCodeModal({ address, onClose }: QrCodeModalProps) {
   useEffect(() => {
     const dialog = dialogRef.current
     if (!dialog) return
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
 
     const handleCancel = (event: Event) => {
       event.preventDefault()
@@ -87,6 +88,9 @@ export function QrCodeModal({ address, onClose }: QrCodeModalProps) {
         }
       } else {
         dialog.removeAttribute('open')
+      }
+      if (previousFocus && document.contains(previousFocus)) {
+        previousFocus.focus()
       }
     }
   }, [])

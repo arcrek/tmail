@@ -201,7 +201,10 @@ export function AppIcon({ name, className, sx, ...rest }: AppIconProps) {
       aria-hidden="true"
       className={className ? `app-icon ${className}` : 'app-icon'}
       fontSize="small"
-      sx={{ fontSize: '1.125rem', flexShrink: 0, ...sx }}
+      sx={[
+        { fontSize: '1.125rem', flexShrink: 0 },
+        ...(Array.isArray(sx) ? sx : sx ? [sx] : []),
+      ]}
       {...rest}
     />
   )

@@ -24,7 +24,7 @@ type Tab = 'dashboard' | 'general' | 'mail' | 'domains' | 'access' | 'content' |
 type TabItem = { id: Tab; key: MessageKey; icon: IconName }
 
 // Drawer order follows the two groups; keyboard navigation walks this flat list.
-// Indices map directly to id="admin-tab-0" .. id="admin-tab-6" matching AdminApp.vue.
+// Indices map directly to id="admin-tab-0" .. id="admin-tab-6".
 const tabGroups: Array<{ key: MessageKey; tabs: TabItem[] }> = [
   {
     key: 'admin.groupOperations',
@@ -46,8 +46,20 @@ const tabGroups: Array<{ key: MessageKey; tabs: TabItem[] }> = [
 ]
 const tabs: TabItem[] = tabGroups.flatMap((group) => group.tabs)
 
-export function AdminApp() {
+export interface AdminAppProps {
+  onSiteUpdated?: (site: AdminSettings['site']) => void
+}
+
+export function AdminApp({ onSiteUpdated }: AdminAppProps = {}) {
   const { t } = useI18n()
+
+  const handleSettingsUpdated = useCallback(
+    (next: AdminSettings) => {
+      setSettings(next)
+      onSiteUpdated?.(next.site)
+    },
+    [onSiteUpdated],
+  )
 
   const [password, setPassword] = useState('')
   const [csrf, setCsrf] = useState('')
@@ -601,9 +613,9 @@ export function AdminApp() {
           {activeTab === 'dashboard' ? (
             <DashboardTab onAttention={setDomainAttention} onOpenDomains={() => selectTab('domains')} />
           ) : activeTab === 'general' ? (
-            <GeneralTab site={settings.site} csrf={csrf} onBusyChange={setChildBusy} onUpdated={setSettings} />
+            <GeneralTab site={settings.site} csrf={csrf} onBusyChange={setChildBusy} onUpdated={handleSettingsUpdated} />
           ) : activeTab === 'mail' ? (
-            <MailServerTab mailServer={settings.mailServer} csrf={csrf} onBusyChange={setChildBusy} onUpdated={setSettings} />
+            <MailServerTab mailServer={settings.mailServer} csrf={csrf} onBusyChange={setChildBusy} onUpdated={handleSettingsUpdated} />
           ) : activeTab === 'domains' ? (
             <DomainsTab
               site={settings.site}
@@ -614,14 +626,14 @@ export function AdminApp() {
               csrf={csrf}
               onBusyChange={setChildBusy}
               onSynced={applyDomainSync}
-              onUpdated={setSettings}
+              onUpdated={handleSettingsUpdated}
             />
           ) : activeTab === 'access' ? (
             <AccessTab csrf={csrf} onBusyChange={setChildBusy} />
           ) : activeTab === 'deleted' ? (
             <DeletedMailTab csrf={csrf} onBusyChange={setChildBusy} />
           ) : (
-            <ContentTab site={settings.site} csrf={csrf} onBusyChange={setChildBusy} onUpdated={setSettings} />
+            <ContentTab site={settings.site} csrf={csrf} onBusyChange={setChildBusy} onUpdated={handleSettingsUpdated} />
           )}
         </Box>
       </Box>

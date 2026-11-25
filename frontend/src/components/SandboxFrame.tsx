@@ -161,8 +161,9 @@ export function SandboxFrame({
               minHeight: mode === 'message' ? '31rem' : '14rem',
               border: `1px solid ${theme.palette.m3.outlineVariant}`,
               borderRadius: '16px',
-              // Arbitrary email HTML keeps its own colors on a white sheet in both schemes.
-              bgcolor: '#ffffff',
+              // Arbitrary email HTML keeps its own colors on a white sheet in both schemes;
+              // content previews follow the active light/dark theme surface.
+              bgcolor: mode === 'message' ? '#ffffff' : theme.palette.m3.surfaceContainerLowest,
             }),
         ...(frameHeight ? { height: `${frameHeight}px`, minHeight: `${frameHeight}px` } : {}),
       })}

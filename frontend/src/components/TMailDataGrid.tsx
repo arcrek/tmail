@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import { DataGrid, type DataGridProps, type GridValidRowModel } from '@mui/x-data-grid'
@@ -23,9 +24,39 @@ export function TMailDataGrid<R extends GridValidRowModel = GridValidRowModel>({
   ariaLabel,
   pageSizeOptions = [10, 25, 50],
   initialState,
+  slots: userSlots,
   sx,
   ...rest
 }: TMailDataGridProps<R>) {
+  const NoRowsOverlay = useCallback(
+    () => (
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          p: 3,
+        }}
+      >
+        <Typography variant="body2" color="text.secondary">
+          {emptyText}
+        </Typography>
+      </Box>
+    ),
+    [emptyText],
+  )
+
+  const mergedSlots = useMemo(() => {
+    if (!emptyText) return userSlots
+    return {
+      noRowsOverlay: NoRowsOverlay,
+      ...userSlots,
+    }
+  }, [NoRowsOverlay, emptyText, userSlots])
+
+  const cspNonce = getCspNonce()
+
   return (
     <Box
       sx={{
@@ -38,10 +69,6 @@ export function TMailDataGrid<R extends GridValidRowModel = GridValidRowModel>({
     >
       <Box sx={{ minWidth: minWidth ?? '100%' }}>
         <DataGrid<R>
-          rows={rows}
-          columns={columns}
-          nonce={getCspNonce()}
-          aria-label={ariaLabel}
           disableRowSelectionOnClick
           disableColumnMenu={false}
           disableVirtualization={isJsdom || rows.length <= 100}
@@ -51,27 +78,12 @@ export function TMailDataGrid<R extends GridValidRowModel = GridValidRowModel>({
               pagination: { paginationModel: { pageSize: 10, page: 0 } },
             }
           }
-          slots={
-            emptyText
-              ? {
-                  noRowsOverlay: () => (
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        height: '100%',
-                        p: 3,
-                      }}
-                    >
-                      <Typography variant="body2" color="text.secondary">
-                        {emptyText}
-                      </Typography>
-                    </Box>
-                  ),
-                }
-              : undefined
-          }
+          {...rest}
+          rows={rows}
+          columns={columns}
+          nonce={cspNonce}
+          aria-label={ariaLabel}
+          slots={mergedSlots}
           sx={[
             (theme) => ({
               border: 0,
@@ -113,7 +125,6 @@ export function TMailDataGrid<R extends GridValidRowModel = GridValidRowModel>({
             }),
             ...(Array.isArray(sx) ? sx : sx ? [sx] : []),
           ]}
-          {...rest}
         />
       </Box>
     </Box>

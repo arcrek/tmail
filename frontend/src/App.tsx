@@ -527,7 +527,30 @@ export function App() {
 
           {view === 'admin' ? (
             <Suspense fallback={<ViewFallback />}>
-              <AdminApp />
+              <AdminApp
+                onSiteUpdated={(updated) => {
+                  setSite((prev) =>
+                    prev
+                      ? { ...prev, ...updated }
+                      : {
+                          appName: updated.appName,
+                          logoDataUrl: updated.logoDataUrl,
+                          faviconDataUrl: updated.faviconDataUrl,
+                          primaryColor: updated.primaryColor,
+                          accentColor: updated.accentColor,
+                          language: updated.language,
+                          cookieEnabled: updated.cookieEnabled,
+                          cookieText: updated.cookieText,
+                          fetchSeconds: updated.fetchSeconds,
+                          messageLimit: updated.messageLimit,
+                          headerHtml: updated.headerHtml,
+                          footerHtml: updated.footerHtml,
+                          contentCss: updated.contentCss,
+                          adSlots: updated.adSlots,
+                        },
+                  )
+                }}
+              />
             </Suspense>
           ) : (
             <Box

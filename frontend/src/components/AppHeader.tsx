@@ -79,6 +79,7 @@ export function AppHeader({
     function onKeydown(event: KeyboardEvent): void {
       if (event.key === 'Escape' && mobileOpen) {
         setMobileOpen(false)
+        document.querySelector<HTMLElement>('.mobile-menu-button')?.focus()
       }
     }
     window.addEventListener('keydown', onKeydown)
