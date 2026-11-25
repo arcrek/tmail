@@ -515,6 +515,11 @@ def delete_access_credential(
     return Response(status_code=204)
 
 
+@router.get("/mx-failures")
+def mx_failures(request: Request, _session_value: dict[str, object] = Depends(_session)):
+    return request.app.state.state_store.mx_failures_24h()
+
+
 @router.get("/dashboard")
 def dashboard(request: Request, _session_value: dict[str, object] = Depends(_session)):
     with request.app.state.admin_lock:

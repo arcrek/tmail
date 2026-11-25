@@ -25,7 +25,11 @@ export function loadSessions(): AddressSession[] {
         typeof (item as AddressSession).address === 'string' &&
         typeof (item as AddressSession).token === 'string' &&
         (item as AddressSession).accessKind !== 'admin',
-    ).map(({ address, token }) => ({ address: normalize(address), token }))
+    ).map((item) => ({
+      address: normalize(item.address),
+      token: item.token,
+      ...(item.protected === true ? { protected: true } : {}),
+    }))
   } catch {
     return []
   }
@@ -33,7 +37,11 @@ export function loadSessions(): AddressSession[] {
 
 export function saveSession(session: AddressSession): AddressSession[] {
   if (session.accessKind === 'admin') return loadSessions()
-  const normalized = { address: normalize(session.address), token: session.token }
+  const normalized: AddressSession = {
+    address: normalize(session.address),
+    token: session.token,
+    ...(session.protected === true ? { protected: true } : {}),
+  }
   const sessions = [
     normalized,
     ...loadSessions().filter((item) => normalize(item.address) !== normalized.address),

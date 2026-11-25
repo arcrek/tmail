@@ -168,4 +168,61 @@ describe('DashboardTab', () => {
     fireEvent.click(container.querySelector('.mx-failures-header button')!)
     expect(onOpenDomains).toHaveBeenCalledTimes(1)
   })
+
+  it('warns when auto-sync is enabled and the last sync is overdue (>= 24h)', async () => {
+    const now = Date.now()
+    dashboard.mockResolvedValue({
+      ...response(),
+      autoSyncDomains: true,
+      lastSync: { success: true, created_at: new Date(now - 2 * 86_400_000).toISOString() },
+    })
+    const { container } = renderWithTheme(<DashboardTab />)
+
+    await waitFor(() => {
+      expect(container.querySelectorAll('.status-chip')).toHaveLength(3)
+    })
+
+    const syncChip = container.querySelectorAll('.status-chip')[1]!
+    expect(syncChip.classList.contains('status-chip-warning')).toBe(true)
+    expect(syncChip.textContent?.trim()).toContain('Domain sync overdue')
+    expect(syncChip.querySelector('[data-testid="WarningAmberRoundedIcon"]')).not.toBeNull()
+  })
+
+  it('keeps the healthy check when auto-sync is enabled and the last sync is recent', async () => {
+    const now = Date.now()
+    dashboard.mockResolvedValue({
+      ...response(),
+      autoSyncDomains: true,
+      lastSync: { success: true, created_at: new Date(now - 2 * 3_600_000).toISOString() },
+    })
+    const { container } = renderWithTheme(<DashboardTab />)
+
+    await waitFor(() => {
+      expect(container.querySelectorAll('.status-chip')).toHaveLength(3)
+    })
+
+    const syncChip = container.querySelectorAll('.status-chip')[1]!
+    expect(syncChip.classList.contains('status-chip-warning')).toBe(false)
+    expect(syncChip.textContent?.trim()).toContain('Domain sync ·')
+    expect(syncChip.querySelector('.status-ok')).not.toBeNull()
+  })
+
+  it('does not show an overdue warning when auto-sync is disabled', async () => {
+    const now = Date.now()
+    dashboard.mockResolvedValue({
+      ...response(),
+      autoSyncDomains: false,
+      lastSync: { success: true, created_at: new Date(now - 5 * 86_400_000).toISOString() },
+    })
+    const { container } = renderWithTheme(<DashboardTab />)
+
+    await waitFor(() => {
+      expect(container.querySelectorAll('.status-chip')).toHaveLength(3)
+    })
+
+    const syncChip = container.querySelectorAll('.status-chip')[1]!
+    expect(syncChip.classList.contains('status-chip-warning')).toBe(false)
+    expect(syncChip.textContent?.trim()).toContain('Domain sync ·')
+    expect(syncChip.textContent?.trim()).not.toContain('overdue')
+  })
 })

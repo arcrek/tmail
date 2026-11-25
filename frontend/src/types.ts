@@ -194,6 +194,19 @@ export interface AdminSettingsUpdate {
   mailServer?: Partial<MailServerSettings>
 }
 
+export interface MxFailureDomain {
+  domain: string
+  kind: string
+  detail: string | null
+  last_seen: string
+  count: number
+}
+
+export interface MxFailuresResource {
+  mxFailures24h: number
+  domains: MxFailureDomain[]
+}
+
 export interface DashboardResource extends SyncHistory {
   messages: { stored: number; today: number; sevenDays: number }
   domains: {
@@ -202,6 +215,7 @@ export interface DashboardResource extends SyncHistory {
     domainsSevenDays: number
     recentDomains: Array<{ domain: string; created_at: string }>
     recentMxFailures: Array<{ kind: string; domain: string; detail: string | null; created_at: string }>
+    mxFailureDomains24h?: MxFailureDomain[]
     mxFailures24h: number
   }
   autoSyncDomains: boolean

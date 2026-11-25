@@ -237,4 +237,112 @@ describe('SandboxFrame', () => {
     unmount()
     contentWindow.mockRestore()
   })
+
+  it('collapses empty public site-content frames and expands them when positive height arrives', () => {
+    const mockWindow = { postMessage: vi.fn() } as unknown as Window
+    const contentWindow = vi
+      .spyOn(HTMLIFrameElement.prototype, 'contentWindow', 'get')
+      .mockReturnValue(mockWindow)
+    const { container, unmount } = renderWithTheme(
+      <SandboxFrame
+        className="site-content-frame ad-frame"
+        html="<script async src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js'></script>"
+        mode="content"
+        title="Ad slot"
+      />,
+    )
+    const frame = container.querySelector('iframe')!
+    expect(frame.getAttribute('sandbox')).toContain('allow-top-navigation-by-user-activation')
+    expect(frame.getAttribute('sandbox')).not.toContain('allow-same-origin')
+    expect(frame.getAttribute('data-empty')).toBe('true')
+
+    // Explicitly reporting height 0 keeps the frame collapsed (no empty band).
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: mockWindow,
+          data: { type: 'tmail:sandbox-height', height: 0 },
+        }),
+      )
+    })
+    expect(frame.getAttribute('data-empty')).toBe('true')
+
+    // Reporting rendered content height expands the frame cleanly.
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: mockWindow,
+          data: { type: 'tmail:sandbox-height', height: 96 },
+        }),
+      )
+    })
+    expect(frame.getAttribute('data-empty')).toBe('false')
+
+    // Reverting to 0 collapses it again.
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: mockWindow,
+          data: { type: 'tmail:sandbox-height', height: 0 },
+        }),
+      )
+    })
+    expect(frame.getAttribute('data-empty')).toBe('true')
+
+    unmount()
+    contentWindow.mockRestore()
+  })
+
+  it('keeps message sandbox permissions untouched without top-navigation', () => {
+    const { container, unmount } = renderWithTheme(
+      <SandboxFrame html="<p>Email</p>" mode="message" title="Message" />,
+    )
+    const frame = container.querySelector('iframe')!
+    expect(frame.getAttribute('sandbox')).toBe('allow-scripts allow-popups allow-popups-to-escape-sandbox')
+    unmount()
+  })
+
+  it('ignores invalid, foreign, null-source, and message-mode height events and clamps oversized values', () => {
+    const mockWindow = { postMessage: vi.fn() } as unknown as Window
+    const contentWindow = vi
+      .spyOn(HTMLIFrameElement.prototype, 'contentWindow', 'get')
+      .mockReturnValue(mockWindow)
+    const { container, unmount } = renderWithTheme(
+      <SandboxFrame
+        className="site-content-frame ad-frame"
+        html="<div>Banner</div>"
+        mode="content"
+        title="Ad slot"
+      />,
+    )
+    const frame = container.querySelector('iframe')!
+
+    for (const badEvent of [
+      new MessageEvent('message', { source: null, data: { type: 'tmail:sandbox-height', height: 120 } }),
+      new MessageEvent('message', { source: {} as Window, data: { type: 'tmail:sandbox-height', height: 120 } }),
+      new MessageEvent('message', { source: mockWindow, data: { type: 'tmail:sandbox-height', height: -10 } }),
+      new MessageEvent('message', { source: mockWindow, data: { type: 'tmail:sandbox-height', height: Number.NaN } }),
+      new MessageEvent('message', { source: mockWindow, data: { type: 'tmail:sandbox-height', height: Number.POSITIVE_INFINITY } }),
+    ]) {
+      act(() => {
+        window.dispatchEvent(badEvent)
+      })
+    }
+    expect(frame.getAttribute('data-empty')).toBe('true')
+
+    // Oversized height is clamped safely to MAX_SANDBOX_HEIGHT (4096px).
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: mockWindow,
+          data: { type: 'tmail:sandbox-height', height: 999999 },
+        }),
+      )
+    })
+    expect(frame.getAttribute('data-empty')).toBe('false')
+    expect(getComputedStyle(frame).height).toBe('4096px')
+
+    unmount()
+    contentWindow.mockRestore()
+  })
 })

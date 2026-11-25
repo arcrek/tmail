@@ -21,6 +21,8 @@ const spin = keyframes`
   to { transform: rotate(360deg); }
 `
 
+export const AUTO_SYNC_OVERDUE_MS = 24 * 60 * 60 * 1000
+
 export interface DashboardTabProps {
   onAttention?: (count: number) => void
   onOpenDomains?: () => void
@@ -70,8 +72,13 @@ export function DashboardTab({ onAttention, onOpenDomains }: DashboardTabProps) 
     const last = dashboard?.lastSync
     if (!last?.created_at) return { state: 'never' as const, label: t('dashboard.syncNever') }
     if (last.success === false) return { state: 'failed' as const, label: t('dashboard.syncFailed') }
+    const lastMs = Date.parse(last.created_at)
+    const nowMs = loadedAt?.valueOf() ?? Date.now()
+    if (dashboard?.autoSyncDomains && Number.isFinite(lastMs) && nowMs - lastMs >= AUTO_SYNC_OVERDUE_MS) {
+      return { state: 'overdue' as const, label: t('dashboard.syncOverdue', { time: relativeTime(last.created_at) }) }
+    }
     return { state: 'ok' as const, label: t('dashboard.syncOk', { time: relativeTime(last.created_at) }) }
-  }, [dashboard, relativeTime, t])
+  }, [dashboard, loadedAt, relativeTime, t])
 
   const failureKind = useCallback(
     (kind: string): string => tRef.current(kind === 'mx_mismatch' ? 'dashboard.mxMismatch' : 'dashboard.mxLookupError'),
@@ -287,7 +294,13 @@ export function DashboardTab({ onAttention, onOpenDomains }: DashboardTabProps) 
             </Box>
             <Box
               component="li"
-              className={sync.state === 'failed' ? 'status-chip status-chip-error' : 'status-chip'}
+              className={
+                sync.state === 'failed'
+                  ? 'status-chip status-chip-error'
+                  : sync.state === 'overdue'
+                    ? 'status-chip status-chip-warning'
+                    : 'status-chip'
+              }
               sx={(theme) => ({
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -298,20 +311,35 @@ export function DashboardTab({ onAttention, onOpenDomains }: DashboardTabProps) 
                 borderRadius: '8px',
                 fontSize: '0.875rem',
                 fontWeight: 500,
-                bgcolor: sync.state === 'failed' ? theme.palette.m3.errorContainer : theme.palette.m3.surfaceContainerLow,
-                color: sync.state === 'failed' ? theme.palette.m3.onErrorContainer : theme.palette.m3.onSurface,
-                border: `1px solid ${sync.state === 'failed' ? 'transparent' : theme.palette.m3.outlineVariant}`,
+                bgcolor:
+                  sync.state === 'failed'
+                    ? theme.palette.m3.errorContainer
+                    : sync.state === 'overdue'
+                      ? theme.palette.m3.warningContainer
+                      : theme.palette.m3.surfaceContainerLow,
+                color:
+                  sync.state === 'failed'
+                    ? theme.palette.m3.onErrorContainer
+                    : sync.state === 'overdue'
+                      ? theme.palette.m3.onWarningContainer
+                      : theme.palette.m3.onSurface,
+                border: `1px solid ${
+                  sync.state === 'failed' || sync.state === 'overdue'
+                    ? 'transparent'
+                    : theme.palette.m3.outlineVariant
+                }`,
               })}
             >
               <AppIcon
                 name={sync.state === 'ok' ? 'check' : 'alert-triangle'}
                 className={sync.state === 'ok' ? 'status-ok' : undefined}
                 sx={(theme) => ({
-                  color: sync.state === 'ok'
-                    ? theme.palette.m3.success
-                    : sync.state === 'failed'
-                      ? 'inherit'
-                      : theme.palette.m3.warning,
+                  color:
+                    sync.state === 'ok'
+                      ? theme.palette.m3.success
+                      : sync.state === 'failed' || sync.state === 'overdue'
+                        ? 'inherit'
+                        : theme.palette.m3.warning,
                 })}
               />
               {sync.label}

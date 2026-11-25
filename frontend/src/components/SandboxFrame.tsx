@@ -10,7 +10,10 @@ export interface SandboxFrameProps {
   className?: string
 }
 
-const SANDBOX_PERMISSIONS = 'allow-scripts allow-popups allow-popups-to-escape-sandbox'
+const MESSAGE_SANDBOX_PERMISSIONS = 'allow-scripts allow-popups allow-popups-to-escape-sandbox'
+const CONTENT_SANDBOX_PERMISSIONS =
+  'allow-scripts allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation'
+const MAX_SANDBOX_HEIGHT = 4096
 
 /** Resolved page scheme: an explicit `data-theme` choice wins, otherwise the OS preference. */
 function pageScheme(): 'light' | 'dark' {
@@ -75,7 +78,8 @@ export function SandboxFrame({
 
   useEffect(() => {
     const handleWindowMessage = (event: MessageEvent): void => {
-      if (event.source !== frameRef.current?.contentWindow) return
+      const targetWindow = frameRef.current?.contentWindow
+      if (!targetWindow || event.source !== targetWindow) return
       const data = event.data as { type?: unknown; height?: unknown } | null | undefined
       if (!data || typeof data !== 'object') return
       if (data.type === 'tmail:sandbox-ready') {
@@ -83,11 +87,18 @@ export function SandboxFrame({
         sendContent()
       } else if (
         data.type === 'tmail:sandbox-height' &&
+        latestRef.current.mode === 'content' &&
         typeof data.height === 'number' &&
         Number.isFinite(data.height) &&
-        data.height > 0
+        data.height >= 0
       ) {
-        setHeightState({ revision: latestRef.current.revision, height: Math.ceil(data.height) })
+        const nextRev = latestRef.current.revision
+        const nextHeight = Math.min(MAX_SANDBOX_HEIGHT, Math.ceil(data.height))
+        setHeightState((prev) =>
+          prev.revision === nextRev && prev.height === nextHeight
+            ? prev
+            : { revision: nextRev, height: nextHeight },
+        )
       }
     }
 
@@ -124,9 +135,9 @@ export function SandboxFrame({
   const resolvedTitle = title || (mode === 'message' ? t('app.messageContent') : t('app.siteContent'))
   const classes = className ? `sandbox-frame ${className}` : 'sandbox-frame'
   const isSiteContent = className.split(/\s+/).includes('site-content-frame')
-  const isSiteHeader = className.split(/\s+/).includes('site-header-frame')
   const isSiteFooter = className.split(/\s+/).includes('site-footer-frame')
-  const isAdFrame = className.split(/\s+/).includes('ad-frame')
+  const isCollapsedSiteFrame = isSiteContent && (frameHeight === null || frameHeight <= 0)
+  const sandboxPermissions = mode === 'content' ? CONTENT_SANDBOX_PERMISSIONS : MESSAGE_SANDBOX_PERMISSIONS
 
   return (
     <Box
@@ -134,29 +145,35 @@ export function SandboxFrame({
       ref={frameRef}
       component="iframe"
       className={classes}
-      sandbox={SANDBOX_PERMISSIONS}
+      sandbox={sandboxPermissions}
       src={sourceUrl}
       title={resolvedTitle}
+      data-empty={isSiteContent ? (isCollapsedSiteFrame ? 'true' : 'false') : undefined}
       onLoad={sendContent}
       sx={(theme) => ({
         display: 'block',
+        boxSizing: 'content-box',
         width: '100%',
         ...(isSiteContent
-          ? {
-              minHeight: 0,
-              border: 0,
-              borderRadius: 0,
-              bgcolor: 'transparent',
-              borderBottom: `1px solid ${theme.palette.m3.outlineVariant}`,
-              ...(isSiteHeader ? { height: '68px' } : {}),
-              ...(isSiteFooter
-                ? {
-                    height: '69px',
-                    borderTop: `1px solid ${theme.palette.m3.outlineVariant}`,
-                  }
-                : {}),
-              ...(isAdFrame ? { height: '90px' } : {}),
-            }
+          ? isCollapsedSiteFrame
+            ? {
+                height: 0,
+                minHeight: 0,
+                border: 0,
+                borderRadius: 0,
+                bgcolor: 'transparent',
+                overflow: 'hidden',
+                pointerEvents: 'none',
+              }
+            : {
+                height: `${frameHeight}px`,
+                minHeight: `${frameHeight}px`,
+                border: 0,
+                borderRadius: 0,
+                bgcolor: 'transparent',
+                borderBottom: isSiteFooter ? 0 : `1px solid ${theme.palette.m3.outlineVariant}`,
+                borderTop: isSiteFooter ? `1px solid ${theme.palette.m3.outlineVariant}` : 0,
+              }
           : {
               minHeight: mode === 'message' ? '31rem' : '14rem',
               border: `1px solid ${theme.palette.m3.outlineVariant}`,
@@ -164,8 +181,10 @@ export function SandboxFrame({
               // Arbitrary email HTML keeps its own colors on a white sheet in both schemes;
               // content previews follow the active light/dark theme surface.
               bgcolor: mode === 'message' ? '#ffffff' : theme.palette.m3.surfaceContainerLowest,
+              ...(frameHeight && frameHeight > 0
+                ? { height: `${frameHeight}px`, minHeight: `${frameHeight}px` }
+                : {}),
             }),
-        ...(frameHeight ? { height: `${frameHeight}px`, minHeight: `${frameHeight}px` } : {}),
       })}
     />
   )
