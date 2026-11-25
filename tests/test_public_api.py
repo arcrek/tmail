@@ -774,14 +774,23 @@ def test_sandbox_document_has_isolated_inline_policy_and_bootstrap(client):
 
     assert response.status_code == 200
     assert response.headers["x-frame-options"] == "SAMEORIGIN"
-    assert "script-src 'unsafe-inline'" in csp
-    assert "style-src 'unsafe-inline'" in csp
-    assert "frame-ancestors 'self'" in csp
+    assert csp == api_server._SANDBOX_CSP
     assert "default-src 'none'" in csp
+    assert "script-src 'unsafe-inline' 'unsafe-eval'" in csp
+    assert "https://pagead2.googlesyndication.com" in csp
+    assert "https://googleads.g.doubleclick.net" in csp
+    assert "https://tpc.googlesyndication.com" in csp
+    assert "style-src 'unsafe-inline'" in csp
+    assert "connect-src " in csp
+    assert "frame-src " in csp
+    assert "object-src 'none'" in csp
+    assert "frame-ancestors 'self'" in csp
+    assert "base-uri 'none'" in csp
+    assert "form-action 'none'" in csp
     assert "script-src 'unsafe-inline' https:" not in csp
-    assert "connect-src" not in csp
     assert "tmail:sandbox-content" in response.text
     assert "tmail:sandbox-ready" in response.text
+    assert "tmail:sandbox-height" in response.text
     assert "once: true" not in response.text
     # The page's scheme is reduced to one of two literals before it reaches the document.
     assert 'value.colorScheme === "dark" ? "dark" : "light"' in response.text

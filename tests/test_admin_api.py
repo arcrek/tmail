@@ -611,6 +611,29 @@ def test_settings_and_dashboard_keep_success_and_error_sync_history(admin_client
         assert body["lastSyncError"]["detail"] == "TimeoutError"
 
 
+def test_mx_failures_endpoint_requires_admin_session(client):
+    assert client.get("/admin/api/mx-failures").status_code == 401
+
+
+def test_mx_failures_endpoint_returns_grouped_24h_failures_matching_dashboard(admin_client):
+    state = admin_client.app.state.state_store
+    for index in range(12):
+        state.record_event("mx_mismatch", f"bad-{index}.example", detail=f"expected mail.example ({index})")
+    state.record_event("mx_lookup_error", "bad-0.example", detail="NXDOMAIN")
+
+    failures = admin_client.get("/admin/api/mx-failures").json()
+    dashboard = admin_client.get("/admin/api/dashboard").json()
+
+    assert failures["mxFailures24h"] == 13
+    assert dashboard["domains"]["mxFailures24h"] == 13
+    # Unlike recentMxFailures (capped at 10), mx-failures returns all 12 distinct failing domains.
+    assert len(failures["domains"]) == 12
+    assert failures["domains"][0]["domain"] == "bad-0.example"
+    assert failures["domains"][0]["count"] == 2
+    assert failures["domains"][0]["kind"] == "mx_lookup_error"
+    assert failures["domains"][0]["detail"] == "NXDOMAIN"
+
+
 def test_automatic_sync_does_not_query_after_auto_sync_is_disabled(
     admin_client, fake_jmap, monkeypatch
 ):

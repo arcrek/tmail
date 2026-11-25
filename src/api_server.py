@@ -107,6 +107,25 @@ _SOURCE_RESPONSES = {
 }
 _PUBLIC_BODY_LIMIT = 8 * 1024
 _ADMIN_SETTINGS_BODY_LIMIT = 4 * 1024 * 1024
+_SANDBOX_CSP = (
+    "default-src 'none'; "
+    "script-src 'unsafe-inline' 'unsafe-eval' "
+    "https://pagead2.googlesyndication.com https://partner.googleadservices.com "
+    "https://tpc.googlesyndication.com https://googleads.g.doubleclick.net "
+    "https://adservice.google.com https://ep1.adtrafficquality.google "
+    "https://ep2.adtrafficquality.google; "
+    "style-src 'unsafe-inline'; "
+    "img-src data: https: http:; "
+    "font-src data: https: http:; "
+    "connect-src https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net "
+    "https://tpc.googlesyndication.com https://ep1.adtrafficquality.google "
+    "https://ep2.adtrafficquality.google https://csi.gstatic.com "
+    "https://fundingchoicesmessages.google.com; "
+    "frame-src https://googleads.g.doubleclick.net https://tpc.googlesyndication.com "
+    "https://www.google.com https://ep2.adtrafficquality.google "
+    "https://fundingchoicesmessages.google.com; "
+    "object-src 'none'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'"
+)
 _SANDBOX_DOCUMENT = """<!doctype html>
 <html><head><meta charset="utf-8"><meta name="color-scheme" content="light dark"><title>Sandboxed content</title></head><body>
 <script>
@@ -120,9 +139,11 @@ function onMessage(event) {
   // Match the embedding page's scheme so the browser keeps the frame transparent instead of
   // painting an opaque light canvas behind it in dark mode. Only two literal values pass.
   const scheme = value.colorScheme === "dark" ? "dark" : "light";
+  const heightScript = '<script>(function(){var last=-1,pending=false;function measure(){var b=document.body;if(!b)return 0;var r=b.getBoundingClientRect();return Math.min(4096,Math.ceil(Math.max(b.scrollHeight,r.height)));}function post(){pending=false;var h=measure();if(h!==last){last=h;try{parent.postMessage({type:"tmail:sandbox-height",height:h},"*");}catch(e){}}}function schedule(){if(!pending){pending=true;requestAnimationFrame(post);}}addEventListener("load",schedule);if(typeof ResizeObserver==="function"&&document.body){new ResizeObserver(schedule).observe(document.body);}if(typeof MutationObserver==="function"&&document.body){new MutationObserver(schedule).observe(document.body,{childList:true,subtree:true,attributes:true});}schedule();setTimeout(schedule,150);setTimeout(schedule,800);})();<\\/script>';
   document.open();
-  document.write(`<!doctype html><html><head><meta name="color-scheme" content="${scheme}"><base target="_blank"><style>:root{color-scheme:${scheme}}html,body{background:transparent}</style><style>${value.css}</style></head><body>`);
+  document.write(`<!doctype html><html><head><meta name="color-scheme" content="${scheme}"><base target="_blank"><style>:root{color-scheme:${scheme}}html,body{margin:0;padding:0;background:transparent}</style><style>${value.css}</style></head><body>`);
   document.write(value.html);
+  document.write(heightScript);
   document.write("</body></html>");
   document.close();
 }
@@ -1383,10 +1404,7 @@ def _set_security_headers(request: Request, response: Response) -> None:
         "SAMEORIGIN" if request.url.path in {"/sandbox", "/message-sandbox"} else "DENY"
     )
     if request.url.path == "/sandbox":
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
-            "img-src data: https: http:; frame-ancestors 'self'; base-uri 'none'; form-action 'none'"
-        )
+        response.headers["Content-Security-Policy"] = _SANDBOX_CSP
     elif request.url.path == "/message-sandbox":
         response.headers.setdefault(
             "Content-Security-Policy",

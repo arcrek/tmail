@@ -1,4 +1,5 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
@@ -10,13 +11,13 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { keyframes } from '@mui/material/styles'
 import type { GridColDef } from '@mui/x-data-grid'
-import { api } from '../api'
+import { ApiError, api } from '../api'
 import { AppIcon } from '../components/AppIcon'
 import { TMailDataGrid } from '../components/TMailDataGrid'
 import { useI18n } from '../i18n'
 import { MONO_FONT_FAMILY } from '../muiTheme'
 import { toastActions } from '../toast'
-import type { AdminSettings, AdminSiteSettings, SyncStatus } from '../types'
+import type { AdminSettings, AdminSiteSettings, MxFailureDomain, SyncStatus } from '../types'
 
 const spin = keyframes`
   from { transform: rotate(0deg); }
@@ -33,6 +34,7 @@ export interface DomainsTabProps {
   onUpdated?: (settings: AdminSettings) => void
   onBusyChange?: (busy: boolean) => void
   onSynced?: (domains: string[], lastSync: SyncStatus) => void
+  onAttention?: (count: number) => void
 }
 
 interface DomainsDraft {
@@ -81,6 +83,7 @@ export function DomainsTab({
   onUpdated,
   onBusyChange,
   onSynced,
+  onAttention,
 }: DomainsTabProps) {
   const [draft, setDraft] = useState<DomainsDraft>(() => siteToDraft(site))
   const [manualDomain, setManualDomain] = useState('')
@@ -90,14 +93,49 @@ export function DomainsTab({
   const [displayedSyncError, setDisplayedSyncError] = useState<SyncStatus>(() => ({ ...lastSyncError }))
   const [pending, setPending] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [mxFailures, setMxFailures] = useState<MxFailureDomain[]>([])
+  const [mxFailures24h, setMxFailures24h] = useState(0)
+  const [loadingMxFailures, setLoadingMxFailures] = useState(false)
+  const [mxFailuresError, setMxFailuresError] = useState('')
 
   const busyRef = useRef(false)
   const onBusyRef = useRef(onBusyChange)
   onBusyRef.current = onBusyChange
+  const onAttentionRef = useRef(onAttention)
+  onAttentionRef.current = onAttention
+  const mxLoadVersionRef = useRef(0)
 
   const { t, formatDate, formatNumber } = useI18n()
   const tRef = useRef(t)
   tRef.current = t
+
+  const loadMxFailures = useCallback(async (): Promise<void> => {
+    const version = ++mxLoadVersionRef.current
+    setLoadingMxFailures(true)
+    setMxFailuresError('')
+    try {
+      const data = await api.admin.mxFailures()
+      if (version !== mxLoadVersionRef.current || !data) return
+      setMxFailures(data.domains ?? [])
+      const count = data.mxFailures24h ?? 0
+      setMxFailures24h(count)
+      onAttentionRef.current?.(count)
+    } catch (cause) {
+      if (version !== mxLoadVersionRef.current) return
+      setMxFailuresError(
+        cause instanceof ApiError ? cause.message : tRef.current('error.unavailable'),
+      )
+    } finally {
+      if (version === mxLoadVersionRef.current) setLoadingMxFailures(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadMxFailures()
+    return () => {
+      mxLoadVersionRef.current += 1
+    }
+  }, [loadMxFailures])
 
   const isBusy = pending || syncing
   busyRef.current = isBusy
@@ -335,6 +373,92 @@ export function DomainsTab({
     [isBusy, removeDomain, t],
   )
 
+  const mxFailureRows = useMemo(
+    () =>
+      mxFailures.map((row, index) => ({
+        ...row,
+        id: row.domain || `unknown-${index}`,
+        domain: row.domain || '—',
+      })),
+    [mxFailures],
+  )
+
+  const mxFailureColumns = useMemo<GridColDef<MxFailureDomain & { id: string }>[]>(
+    () => [
+      {
+        field: 'domain',
+        headerName: t('dashboard.colDomain'),
+        flex: 1.2,
+        minWidth: 160,
+        cellClassName: 'tmail-mono-cell',
+      },
+      {
+        field: 'kind',
+        headerName: t('dashboard.colKind'),
+        flex: 1,
+        minWidth: 185,
+        valueGetter: (_value, row) =>
+          tRef.current(row.kind === 'mx_mismatch' ? 'dashboard.mxMismatch' : 'dashboard.mxLookupError'),
+        renderCell: (params) => {
+          const isMismatch = params.row.kind === 'mx_mismatch'
+          return (
+            <Chip
+              size="small"
+              icon={<AppIcon name="alert-triangle" sx={{ fontSize: '1rem' }} />}
+              label={tRef.current(isMismatch ? 'dashboard.mxMismatch' : 'dashboard.mxLookupError')}
+              className={isMismatch ? 'mx-failure-badge badge-amber' : 'mx-failure-badge badge-red'}
+              sx={(theme) => ({
+                bgcolor: isMismatch ? theme.palette.m3.warningContainer : theme.palette.m3.errorContainer,
+                color: isMismatch ? theme.palette.m3.onWarningContainer : theme.palette.m3.onErrorContainer,
+                '& .MuiChip-icon': { color: 'inherit' },
+              })}
+            />
+          )
+        },
+      },
+      {
+        field: 'count',
+        headerName: t('domains.mxColCount'),
+        width: 120,
+        align: 'right',
+        headerAlign: 'right',
+        cellClassName: 'tmail-mono-cell',
+        valueFormatter: (value: number | null | undefined) => (value != null ? formatNumber(value) : '—'),
+      },
+      {
+        field: 'last_seen',
+        headerName: t('domains.mxColLastSeen'),
+        width: 190,
+        cellClassName: 'tmail-mono-cell',
+        valueFormatter: (value: string) =>
+          value ? formatDate(value, { dateStyle: 'medium', timeStyle: 'short' }) : '—',
+      },
+      {
+        field: 'detail',
+        headerName: t('domains.mxColDetail'),
+        flex: 1.4,
+        minWidth: 180,
+        renderCell: (params) => (
+          <Typography
+            variant="body2"
+            title={params.row.detail || undefined}
+            sx={{
+              fontFamily: params.row.detail ? MONO_FONT_FAMILY : undefined,
+              fontSize: '0.82rem',
+              color: params.row.detail ? 'text.primary' : 'text.secondary',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {params.row.detail || '—'}
+          </Typography>
+        ),
+      },
+    ],
+    [formatDate, formatNumber, t],
+  )
+
   return (
     <Box component="section" className="admin-section" aria-labelledby="domains-title" sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
       <Box
@@ -498,6 +622,60 @@ export function DomainsTab({
           </Box>
         </Card>
       </Box>
+
+      <Card
+        component="section"
+        aria-labelledby="domains-mx-failures-title"
+        className="settings-card panel domains-mx-failures"
+        sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}
+      >
+        <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
+            <Typography id="domains-mx-failures-title" component="h2" variant="h6" className="card-title">
+              {t('domains.mxFailuresTitle')}
+            </Typography>
+            <Chip
+              size="small"
+              label={formatNumber(mxFailures24h)}
+              className={mxFailures24h ? 'count-badge mx-failures-count-error' : 'count-badge'}
+              sx={(theme) => ({
+                bgcolor: mxFailures24h ? theme.palette.m3.errorContainer : theme.palette.m3.secondaryContainer,
+                color: mxFailures24h ? theme.palette.m3.onErrorContainer : theme.palette.m3.onSecondaryContainer,
+                fontFamily: MONO_FONT_FAMILY,
+              })}
+            />
+          </Stack>
+          <Button
+            type="button"
+            variant="text"
+            size="small"
+            disabled={loadingMxFailures}
+            onClick={() => { void loadMxFailures() }}
+            startIcon={
+              <AppIcon
+                name="refresh-cw"
+                sx={loadingMxFailures ? { animation: `${spin} 0.8s linear infinite` } : undefined}
+              />
+            }
+          >
+            {loadingMxFailures ? t('inbox.refreshing') : t('inbox.refresh')}
+          </Button>
+        </Stack>
+        {mxFailuresError ? (
+          <Alert severity="error" role="alert">
+            {mxFailuresError}
+          </Alert>
+        ) : (
+          <TMailDataGrid<MxFailureDomain & { id: string }>
+            rows={mxFailureRows}
+            columns={mxFailureColumns}
+            ariaLabel={t('domains.mxFailuresTitle')}
+            emptyText={t('domains.mxFailuresEmpty')}
+            minWidth={760}
+            hideFooter={mxFailureRows.length <= 10}
+          />
+        )}
+      </Card>
 
       <Box component="form" className="settings-form" onSubmit={addManualDomain}>
         <Box component="fieldset" className="settings-fields" disabled={isBusy} sx={{ border: 0, p: 0, m: 0 }}>

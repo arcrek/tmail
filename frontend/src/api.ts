@@ -12,6 +12,7 @@ import type {
   MessageResource,
   MessageSummary,
   MailboxMetadata,
+  MxFailuresResource,
   SiteResource,
   SyncStatus,
   TokenResponse,
@@ -178,6 +179,7 @@ export const api = {
         request<void>(`/admin/api/access-credentials/${encodeURIComponent(id)}`, { method: 'DELETE', csrf }),
     },
     dashboard: () => request<DashboardResource>('/admin/api/dashboard'),
+    mxFailures: () => request<MxFailuresResource>('/admin/api/mx-failures'),
     deletedMessages: {
       list: (page = 1, q = '', limit = 20) => {
         const params = new URLSearchParams({ page: String(page), limit: String(limit) })

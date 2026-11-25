@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   syncDomains: vi.fn(),
   testMail: vi.fn(),
   dashboard: vi.fn(),
+  mxFailures: vi.fn(),
   accessList: vi.fn(),
   accessCreate: vi.fn(),
   accessRemove: vi.fn(),
@@ -210,6 +211,7 @@ describe('administration frontend', () => {
     })
     mocks.testMail.mockResolvedValue({ ok: true, domainCount: 2, messages: dashboard.messages })
     mocks.dashboard.mockResolvedValue(dashboard)
+    mocks.mxFailures.mockResolvedValue({ mxFailures24h: 0, domains: [] })
     mocks.accessList.mockResolvedValue({ credentials: [] })
     mocks.accessCreate.mockResolvedValue({
       id: 'credential-id',
@@ -1163,5 +1165,51 @@ describe('administration frontend', () => {
       expect(mocks.deletedRemove).toHaveBeenCalledWith('del-1', 'csrf-value')
       expect(container.textContent).toContain('No deleted messages match your search.')
     })
+  })
+
+  it('shows grouped 24h failing MX domains in DomainsTab when opened from Dashboard and syncs badge count', async () => {
+    mocks.dashboard.mockResolvedValue({
+      ...dashboard,
+      domains: {
+        ...dashboard.domains,
+        mxFailures24h: 5,
+        recentMxFailures: [
+          { kind: 'mx_mismatch', domain: 'broken.example', detail: 'expected mail.tmail', created_at: '2026-08-14T10:00:00Z' },
+        ],
+      },
+    })
+    mocks.mxFailures.mockResolvedValue({
+      mxFailures24h: 5,
+      domains: [
+        { domain: 'broken.example', kind: 'mx_mismatch', detail: 'expected mail.tmail', last_seen: '2026-08-14T10:00:00Z', count: 3 },
+        { domain: 'dnsfail.example', kind: 'mx_lookup_error', detail: 'DNS timeout', last_seen: '2026-08-14T09:00:00Z', count: 2 },
+      ],
+    })
+
+    const { container } = renderWithTheme(<AdminApp />)
+    await signInAdmin(container)
+
+    await waitFor(() => {
+      expect(container.querySelector('.mx-failures-header button')).not.toBeNull()
+    })
+    // Badge on Domains drawer item shows 5
+    expect(container.querySelector('#admin-tab-1')?.textContent).toContain('5')
+
+    // Clicking "View domains" navigates to Domains & Inbox and shows both grouped failing domains
+    fireEvent.click(container.querySelector('.mx-failures-header button')!)
+    await waitFor(() => {
+      expect(container.querySelector('.domains-mx-failures')?.textContent).toContain('broken.example')
+    })
+
+    const section = container.querySelector('.domains-mx-failures')!
+    expect(section.textContent).toContain('MX failures (24 hours)')
+    expect(section.textContent).toContain('5')
+    expect(section.textContent).toContain('broken.example')
+    expect(section.textContent).toContain('expected mail.tmail')
+    expect(section.textContent).toContain('3')
+    expect(section.textContent).toContain('dnsfail.example')
+    expect(section.textContent).toContain('DNS timeout')
+    expect(section.textContent).toContain('2')
+    expect(container.querySelector('#admin-tab-1')?.textContent).toContain('5')
   })
 })

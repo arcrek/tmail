@@ -55,4 +55,23 @@ describe('address sessions', () => {
     localStorage.setItem('tmail.addresses', JSON.stringify([{ address: 'admin@example.com', token: 'admin', accessKind: 'admin' }, withSecrets]))
     expect(loadSessions()).toEqual([{ address: 'box@example.com', token: 'visitor' }])
   })
+
+  it('persists the protected boolean flag without storing secrets and omits it when false', () => {
+    saveSession({ address: 'locked@example.com', token: 'visitor', protected: true })
+    saveSession({ address: 'public@example.com', token: 'pub', protected: false })
+    expect(JSON.parse(localStorage.getItem('tmail.addresses')!)).toEqual([
+      { address: 'public@example.com', token: 'pub' },
+      { address: 'locked@example.com', token: 'visitor', protected: true },
+    ])
+    expect(loadSessions()).toEqual([
+      { address: 'public@example.com', token: 'pub' },
+      { address: 'locked@example.com', token: 'visitor', protected: true },
+    ])
+    // Clearing protection updates the stored entry cleanly.
+    saveSession({ address: 'locked@example.com', token: 'pub2', protected: false })
+    expect(loadSessions().find((s) => s.address === 'locked@example.com')).toEqual({
+      address: 'locked@example.com',
+      token: 'pub2',
+    })
+  })
 })

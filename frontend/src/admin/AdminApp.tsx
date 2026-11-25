@@ -627,6 +627,7 @@ export function AdminApp({ onSiteUpdated }: AdminAppProps = {}) {
               onBusyChange={setChildBusy}
               onSynced={applyDomainSync}
               onUpdated={handleSettingsUpdated}
+              onAttention={setDomainAttention}
             />
           ) : activeTab === 'access' ? (
             <AccessTab csrf={csrf} onBusyChange={setChildBusy} />

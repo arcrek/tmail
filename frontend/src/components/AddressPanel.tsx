@@ -794,7 +794,12 @@ export function AddressPanel({ accessToken = '', onOpen, onLogin }: AddressPanel
                       },
                     })}
                   >
-                    {session.protected && <AppIcon name="lock" />}
+                    {session.protected && (
+                      <>
+                        <AppIcon name="lock" />
+                        <span className="sr-only">{t('inbox.protected')}</span>
+                      </>
+                    )}
                     {session.address}
                   </Box>
                   <Box

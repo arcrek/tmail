@@ -56,6 +56,32 @@ def test_activity_summary_counts_domains_today_and_seven_days(tmp_path):
     ]
     assert len(summary["recentMxFailures"]) == 10
     assert summary["mxFailures24h"] == 11
+    assert len(summary["mxFailureDomains24h"]) == 11
+    assert summary["mxFailureDomains24h"][0]["domain"] == "failure-10.example"
+    assert summary["mxFailureDomains24h"][0]["count"] == 1
+    assert summary["mxFailureDomains24h"][0]["detail"] == "detail-10"
+
+
+def test_mx_failures_24h_groups_by_domain_with_latest_detail_and_excludes_older(tmp_path):
+    store = StateStore(str(tmp_path / "state.db"))
+    store.record_event("mx_mismatch", "stale.example", detail="old detail")
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "UPDATE activity SET created_at = ? WHERE domain = ?",
+            ((datetime.now(timezone.utc) - timedelta(days=2)).isoformat(), "stale.example"),
+        )
+    store.record_event("mx_mismatch", "repeat.example", detail="first detail")
+    store.record_event("mx_lookup_error", "repeat.example", detail="DNS timeout")
+    store.record_event("mx_mismatch", "single.example", detail=None)
+
+    result = store.mx_failures_24h()
+    assert result["mxFailures24h"] == 3
+    assert [row["domain"] for row in result["domains"]] == ["single.example", "repeat.example"]
+    repeat = next(row for row in result["domains"] if row["domain"] == "repeat.example")
+    assert repeat["count"] == 2
+    assert repeat["kind"] == "mx_lookup_error"
+    assert repeat["detail"] == "DNS timeout"
+    assert repeat["last_seen"]
 
 
 def test_activity_summary_counts_mx_failures_only_within_24_hours(tmp_path):

@@ -476,6 +476,34 @@ class StateStore:
             "lastSyncError": next((item for item in statuses if not item["success"]), {}),
         }
 
+    @staticmethod
+    def _mx_failures_24h_rows(conn: sqlite3.Connection, one_day: str) -> list[dict[str, object]]:
+        return [
+            dict(row)
+            for row in conn.execute(
+                "SELECT COALESCE(a.domain, '') AS domain, a.kind, a.detail, "
+                "a.created_at AS last_seen, g.count "
+                "FROM ("
+                "  SELECT COALESCE(domain, '') AS domain_key, COUNT(*) AS count, MAX(id) AS max_id "
+                "  FROM activity "
+                "  WHERE kind IN ('mx_mismatch', 'mx_lookup_error') AND created_at >= ? "
+                "  GROUP BY domain_key"
+                ") g "
+                "JOIN activity a ON a.id = g.max_id "
+                "ORDER BY g.max_id DESC",
+                (one_day,),
+            )
+        ]
+
+    def mx_failures_24h(self) -> dict[str, object]:
+        one_day = (self.clock() - timedelta(days=1)).isoformat()
+        with self._connect() as conn:
+            domains = self._mx_failures_24h_rows(conn, one_day)
+        return {
+            "mxFailures24h": sum(int(item["count"]) for item in domains),
+            "domains": domains,
+        }
+
     def activity_summary(self) -> dict[str, object]:
         now = self.clock()
         today = now.date().isoformat()
@@ -497,12 +525,9 @@ class StateStore:
                     "ORDER BY id DESC LIMIT 10"
                 )
             ]
-            # Counted separately: the recent-failures list below is capped at 10 rows.
-            mx_failures_24h = conn.execute(
-                "SELECT COUNT(*) FROM activity "
-                "WHERE kind IN ('mx_mismatch', 'mx_lookup_error') AND created_at >= ?",
-                (one_day,),
-            ).fetchone()[0]
+            # Grouped per domain over the last 24h (uncapped) so counts match the Domains MX failures view.
+            mx_failure_domains_24h = self._mx_failures_24h_rows(conn, one_day)
+            mx_failures_24h = sum(int(item["count"]) for item in mx_failure_domains_24h)
             recent_mx_failures = [
                 dict(row)
                 for row in conn.execute(
@@ -515,5 +540,6 @@ class StateStore:
                 "domainsSevenDays": domains_seven_days,
                 "recentDomains": recent_domains,
                 "recentMxFailures": recent_mx_failures,
+                "mxFailureDomains24h": mx_failure_domains_24h,
                 "mxFailures24h": mx_failures_24h,
             }

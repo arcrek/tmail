@@ -667,8 +667,19 @@ describe('address flow', () => {
     fireEvent.change(container.querySelector('#mailbox-login-password')!, { target: { value: password } })
     fireEvent.submit(container.querySelector('.mailbox-login form')!)
     await waitFor(() => expect(container.querySelector('.inbox-view')).toBeTruthy())
-    expect(JSON.parse(localStorage.getItem('tmail.addresses')!)[0]).toEqual({ address: 'box@example.com', token: 'visitor' })
+    expect(JSON.parse(localStorage.getItem('tmail.addresses')!)[0]).toEqual({
+      address: 'box@example.com',
+      token: 'visitor',
+      protected: true,
+    })
     expect(localStorage.getItem('tmail.addresses')).not.toContain(password)
+
+    // Returning home shows the saved protected inbox chip with its lock indicator.
+    fireEvent.click(container.querySelector('.app-header .brand')!)
+    await waitFor(() => expect(container.querySelector('.saved-inboxes')).toBeTruthy())
+    const savedChip = container.querySelector('.saved-address')!
+    expect(savedChip.textContent).toContain('box@example.com')
+    expect(savedChip.querySelector('[data-testid="LockOutlinedIcon"]')).toBeTruthy()
   })
 
   it('validates remembered sessions before rendering messages and removes a stale entry', async () => {
