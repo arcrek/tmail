@@ -20,7 +20,7 @@ import { MONO_FONT_FAMILY } from '../muiTheme'
 import { toastActions } from '../toast'
 import type { DeletedMessageResource, DeletedMessageSummary } from '../types'
 import { extractVerificationCode } from '../verificationCode'
-import { AdminSandboxFrame } from './ContentTab'
+import { SandboxFrame } from '../components/SandboxFrame'
 
 export interface DeletedMailTabProps {
   csrf: string
@@ -565,7 +565,7 @@ export function DeletedMailTab({ csrf, onBusyChange }: DeletedMailTabProps) {
                   )}
 
                   {detail.html.length > 0 && bodyMode === 'html' ? (
-                    <AdminSandboxFrame
+                    <SandboxFrame
                       html={detail.html.join('\n')}
                       mode="message"
                       title={t('reader.title', { subject: detail.subject || t('inbox.noSubject') })}

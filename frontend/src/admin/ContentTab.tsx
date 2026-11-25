@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
@@ -7,6 +7,7 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { api } from '../api'
 import { AppIcon } from '../components/AppIcon'
+import { SandboxFrame } from '../components/SandboxFrame'
 import { useI18n } from '../i18n'
 import { MONO_FONT_FAMILY } from '../muiTheme'
 import { useToast } from '../toast'
@@ -32,109 +33,6 @@ interface ContentDraft {
 }
 
 const MAX_CONTENT_LENGTH = 100_000
-const SANDBOX_ATTR = 'allow-scripts allow-popups allow-popups-to-escape-sandbox'
-
-function pageScheme(): 'light' | 'dark' {
-  if (typeof document !== 'undefined') {
-    const explicit = document.documentElement.dataset.theme
-    if (explicit === 'light' || explicit === 'dark') return explicit
-  }
-  return typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-color-scheme: dark)').matches
-    ? 'dark'
-    : 'light'
-}
-
-export interface AdminSandboxFrameProps {
-  html: string
-  mode: 'message' | 'content'
-  css?: string
-  title?: string
-}
-
-/** Sandboxed iframe renderer matching SandboxFrame's postMessage protocol (never allow-same-origin). */
-export function AdminSandboxFrame({ html, mode, css = '', title = '' }: AdminSandboxFrameProps) {
-  const frameRef = useRef<HTMLIFrameElement | null>(null)
-  const sentRevisionRef = useRef(-1)
-  const [colorScheme, setColorScheme] = useState<'light' | 'dark'>(() => pageScheme())
-  const [revision, setRevision] = useState(0)
-  const { t } = useI18n()
-
-  const schemeKey = mode === 'content' ? colorScheme : ''
-
-  useEffect(() => {
-    setRevision((prev) => prev + 1)
-    sentRevisionRef.current = -1
-  }, [html, css, mode, schemeKey])
-
-  const sendContent = useCallback(() => {
-    const target = frameRef.current?.contentWindow
-    if (!target || (mode === 'message' && sentRevisionRef.current === revision)) return
-    if (mode === 'message') sentRevisionRef.current = revision
-    target.postMessage(
-      {
-        type: 'tmail:sandbox-content',
-        html,
-        css,
-        mode,
-        ...(mode === 'content' ? { colorScheme } : {}),
-      },
-      '*',
-    )
-  }, [colorScheme, css, html, mode, revision])
-
-  useEffect(() => {
-    const handleWindowMessage = (event: MessageEvent) => {
-      if (event.source !== frameRef.current?.contentWindow) return
-      if (event.data && event.data.type === 'tmail:sandbox-ready') {
-        sentRevisionRef.current = -1
-        sendContent()
-      }
-    }
-    window.addEventListener('message', handleWindowMessage)
-    return () => {
-      window.removeEventListener('message', handleWindowMessage)
-    }
-  }, [sendContent])
-
-  useEffect(() => {
-    if (mode !== 'content') return
-    const update = () => setColorScheme(pageScheme())
-    const observer =
-      typeof MutationObserver !== 'undefined' ? new MutationObserver(update) : null
-    observer?.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
-    const media = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null
-    media?.addEventListener?.('change', update)
-    return () => {
-      observer?.disconnect()
-      media?.removeEventListener?.('change', update)
-    }
-  }, [mode])
-
-  const sourceUrl = `${mode === 'message' ? '/message-sandbox' : '/sandbox'}?revision=${revision}`
-
-  return (
-    <Box
-      component="iframe"
-      key={revision}
-      ref={frameRef}
-      className="sandbox-frame"
-      sandbox={SANDBOX_ATTR}
-      src={sourceUrl}
-      title={title || (mode === 'message' ? t('app.messageContent') : t('app.siteContent'))}
-      onLoad={sendContent}
-      sx={(theme) => ({
-        width: '100%',
-        minHeight: mode === 'message' ? 320 : 200,
-        borderRadius: '16px',
-        border: `1px solid ${theme.palette.m3.outlineVariant}`,
-        bgcolor: mode === 'message' ? '#FFFFFF' : theme.palette.m3.surfaceContainerLowest,
-        display: 'block',
-      })}
-    />
-  )
-}
 
 function adRows(value: Record<string, unknown>): AdRow[] {
   return Object.entries(value)
@@ -293,7 +191,7 @@ export function ContentTab({ site, csrf, onUpdated, onBusyChange }: ContentTabPr
                 <Typography component="span" variant="body2" color="text.secondary" className="preview-label">
                   {t('content.headerPreview')}
                 </Typography>
-                <AdminSandboxFrame html={draft.headerHtml} css={draft.contentCss} mode="content" title={t('content.headerPreview')} />
+                <SandboxFrame html={draft.headerHtml} css={draft.contentCss} mode="content" title={t('content.headerPreview')} />
               </Stack>
             </Box>
           </Card>
@@ -339,7 +237,7 @@ export function ContentTab({ site, csrf, onUpdated, onBusyChange }: ContentTabPr
                 <Typography component="span" variant="body2" color="text.secondary" className="preview-label">
                   {t('content.footerPreview')}
                 </Typography>
-                <AdminSandboxFrame html={draft.footerHtml} css={draft.contentCss} mode="content" title={t('content.footerPreview')} />
+                <SandboxFrame html={draft.footerHtml} css={draft.contentCss} mode="content" title={t('content.footerPreview')} />
               </Stack>
             </Box>
           </Card>
@@ -460,7 +358,7 @@ export function ContentTab({ site, csrf, onUpdated, onBusyChange }: ContentTabPr
                   <Typography component="span" variant="body2" color="text.secondary" className="preview-label">
                     {t('content.preview', { name: slot.name || t('content.ad') })}
                   </Typography>
-                  <AdminSandboxFrame
+                  <SandboxFrame
                     html={slot.html}
                     css={draft.contentCss}
                     mode="content"

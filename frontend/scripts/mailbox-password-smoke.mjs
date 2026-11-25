@@ -261,8 +261,9 @@ try {
   await fresh.locator('.bulk-code-link').click()
   await fresh.locator('#bulk-code-addresses').fill(address)
   await fresh.locator('.bulk-controls button[type="submit"]').click()
-  await fresh.locator('tbody a').waitFor()
-  assert.equal(await fresh.locator('tbody a').getAttribute('href'), `/${encodeURIComponent(address)}`)
+  const bulkRowLink = fresh.locator('[role="grid"] a, tbody a').first()
+  await bulkRowLink.waitFor()
+  assert.equal(await bulkRowLink.getAttribute('href'), `/${encodeURIComponent(address)}`)
   await visitor.close()
 
   const adminContext = await browser.newContext()
