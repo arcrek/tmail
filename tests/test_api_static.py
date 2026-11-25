@@ -15,7 +15,10 @@ def frontend_dist(tmp_path):
     dist = tmp_path / "dist"
     assets = dist / "assets"
     assets.mkdir(parents=True)
-    (dist / "index.html").write_text('<link rel="canonical" href="__BASE_URL__/"><div id="app"></div>')
+    (dist / "index.html").write_text(
+        '<meta name="csp-nonce" content="__CSP_NONCE__">'
+        '<link rel="canonical" href="__BASE_URL__/"><div id="app"></div>'
+    )
     (assets / "app.js").write_text("console.log('tmail')")
     return dist
 
@@ -61,6 +64,32 @@ def test_spa_serves_home_admin_and_address_routes(client, frontend_dist):
         response = client.get(path)
         assert response.status_code == 200
         assert '<div id="app"></div>' in response.text
+
+
+def test_spa_index_injects_unique_per_request_csp_nonce(client):
+    import re
+
+    first = client.get("/")
+    second = client.get("/")
+    csp1 = first.headers["content-security-policy"]
+    csp2 = second.headers["content-security-policy"]
+
+    assert "script-src 'self'" in csp1
+    assert "script-src 'unsafe-inline'" not in csp1
+    assert "style-src-attr 'unsafe-inline'" in csp1
+    assert "img-src 'self' data:" in csp1
+    assert "frame-src 'self'" in csp1
+    assert "frame-ancestors 'none'" in csp1
+
+    m1 = re.search(r"style-src-elem 'self' 'nonce-([^']+)'", csp1)
+    m2 = re.search(r"style-src-elem 'self' 'nonce-([^']+)'", csp2)
+    assert m1 is not None and m2 is not None
+    assert m1.group(1) != m2.group(1)
+    assert f'<meta name="csp-nonce" content="{m1.group(1)}">' in first.text
+    assert "__CSP_NONCE__" not in first.text
+
+    shell = (Path(__file__).resolve().parents[1] / "frontend/index.html").read_text(encoding="utf-8")
+    assert '<meta name="csp-nonce" content="__CSP_NONCE__" />' in shell
 
 
 def test_api_and_docs_are_not_shadowed_by_spa(client):

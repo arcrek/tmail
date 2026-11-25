@@ -1,11 +1,9 @@
 // @vitest-environment jsdom
 
-import { defineComponent, h } from 'vue'
-import { mount } from '@vue/test-utils'
+import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { initTheme, useTheme } from '../theme'
 
-/** Minimal MediaQueryList stand-in with a controllable `matches` and a fake change event. */
 class FakeMediaQueryList {
   matches: boolean
   private listeners = new Set<(event: { matches: boolean }) => void>()
@@ -38,10 +36,6 @@ function stubMatchMedia(initiallyDark: boolean): FakeMediaQueryList {
   return mediaQuery
 }
 
-/**
- * Stand-in for Safari <=13.1 / old WebView MediaQueryList: only the deprecated addListener /
- * removeListener pair, no addEventListener at all (calling it would throw a TypeError).
- */
 class LegacyMediaQueryList {
   matches: boolean
   private listeners: Array<(event: { matches: boolean }) => void> = []
@@ -74,7 +68,6 @@ function stubLegacyMatchMedia(initiallyDark: boolean): LegacyMediaQueryList {
   return mediaQuery
 }
 
-/** index.html declares these two metas; jsdom starts with an empty <head>, so recreate them. */
 function addThemeColorMetas(): void {
   for (const mode of ['light', 'dark'] as const) {
     const meta = document.createElement('meta')
@@ -90,19 +83,6 @@ function metaFor(mode: 'light' | 'dark'): HTMLMetaElement {
   const meta = document.querySelector<HTMLMetaElement>(`meta[data-theme-color="${mode}"]`)
   if (!meta) throw new Error(`missing ${mode} theme-color meta`)
   return meta
-}
-
-function mountUseTheme() {
-  let api!: ReturnType<typeof useTheme>
-  const wrapper = mount(
-    defineComponent({
-      setup() {
-        api = useTheme()
-        return () => h('div')
-      },
-    }),
-  )
-  return { wrapper, api }
 }
 
 describe('theme', () => {
@@ -170,84 +150,83 @@ describe('theme', () => {
   describe('useTheme', () => {
     it('resolves to the OS preference when nothing is stored', () => {
       stubMatchMedia(true)
-      const { wrapper, api } = mountUseTheme()
-      expect(api.resolved.value).toBe('dark')
-      wrapper.unmount()
+      const { result, unmount } = renderHook(() => useTheme())
+      expect(result.current.resolved).toBe('dark')
+      unmount()
     })
 
     it('resolves to the stored preference over the OS default', () => {
       localStorage.setItem('tmail.theme', 'light')
       stubMatchMedia(true)
-      const { wrapper, api } = mountUseTheme()
-      expect(api.resolved.value).toBe('light')
-      wrapper.unmount()
+      const { result, unmount } = renderHook(() => useTheme())
+      expect(result.current.resolved).toBe('light')
+      unmount()
     })
 
     it('follows a live OS preference change while in system mode', () => {
       const mediaQuery = stubMatchMedia(false)
-      const { wrapper, api } = mountUseTheme()
-      expect(api.resolved.value).toBe('light')
+      const { result, unmount } = renderHook(() => useTheme())
+      expect(result.current.resolved).toBe('light')
 
-      mediaQuery.set(true)
-      expect(api.resolved.value).toBe('dark')
-      wrapper.unmount()
+      act(() => { mediaQuery.set(true) })
+      expect(result.current.resolved).toBe('dark')
+      unmount()
     })
 
     it('ignores OS preference changes once the user has an explicit choice', () => {
       localStorage.setItem('tmail.theme', 'light')
       const mediaQuery = stubMatchMedia(false)
-      const { wrapper, api } = mountUseTheme()
-      expect(api.resolved.value).toBe('light')
+      const { result, unmount } = renderHook(() => useTheme())
+      expect(result.current.resolved).toBe('light')
 
-      mediaQuery.set(true)
-      expect(api.resolved.value).toBe('light')
-      wrapper.unmount()
+      act(() => { mediaQuery.set(true) })
+      expect(result.current.resolved).toBe('light')
+      unmount()
     })
 
     it('toggle() persists the explicit opposite and updates the DOM immediately', () => {
       stubMatchMedia(false)
-      const { wrapper, api } = mountUseTheme()
-      expect(api.resolved.value).toBe('light')
+      const { result, unmount } = renderHook(() => useTheme())
+      expect(result.current.resolved).toBe('light')
 
-      api.toggle()
+      act(() => { result.current.toggle() })
 
-      expect(api.resolved.value).toBe('dark')
+      expect(result.current.resolved).toBe('dark')
       expect(localStorage.getItem('tmail.theme')).toBe('dark')
       expect(document.documentElement.dataset.theme).toBe('dark')
-      wrapper.unmount()
+      unmount()
     })
 
     it('toggle() sticks across a simulated reload even against the OS default', () => {
       stubMatchMedia(true)
-      const { wrapper, api } = mountUseTheme()
-      expect(api.resolved.value).toBe('dark')
+      const { result, unmount } = renderHook(() => useTheme())
+      expect(result.current.resolved).toBe('dark')
 
-      api.toggle()
-      expect(api.resolved.value).toBe('light')
-      wrapper.unmount()
+      act(() => { result.current.toggle() })
+      expect(result.current.resolved).toBe('light')
+      unmount()
 
-      // Simulate a fresh page load with the OS still set to dark.
       initTheme()
       expect(document.documentElement.dataset.theme).toBe('light')
     })
 
     it('falls back to legacy addListener/removeListener without throwing when mounted/unmounted', () => {
       const mediaQuery = stubLegacyMatchMedia(false)
-      const { wrapper } = mountUseTheme()
+      const { unmount } = renderHook(() => useTheme())
       expect(mediaQuery.listenerCount).toBe(1)
 
-      wrapper.unmount()
+      unmount()
       expect(mediaQuery.listenerCount).toBe(0)
     })
 
     it('stops listening for OS preference changes once unmounted', () => {
       const mediaQuery = stubMatchMedia(false)
-      const { wrapper, api } = mountUseTheme()
+      const { result, unmount } = renderHook(() => useTheme())
       expect(mediaQuery.listenerCount).toBe(1)
 
-      wrapper.unmount()
+      unmount()
       mediaQuery.set(true)
-      expect(api.resolved.value).toBe('light')
+      expect(result.current.resolved).toBe('light')
       expect(mediaQuery.listenerCount).toBe(0)
     })
   })

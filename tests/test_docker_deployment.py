@@ -105,6 +105,9 @@ def test_nginx_adds_spa_security_headers():
     nginx = (ROOT / "docker/nginx.conf.template").read_text()
 
     for header in (
+        'Content-Security-Policy "default-src \'self\'; script-src \'self\'; '
+        'style-src-elem \'self\' \'nonce-$request_id\'; style-src-attr \'unsafe-inline\'; '
+        'img-src \'self\' data:; frame-src \'self\'; frame-ancestors \'none\'" always;',
         'Content-Security-Policy "default-src \'self\'; img-src \'self\' data:; '
         'frame-src \'self\'; frame-ancestors \'none\'" always;',
         'X-Frame-Options "DENY" always;',
@@ -112,6 +115,7 @@ def test_nginx_adds_spa_security_headers():
         'Referrer-Policy "no-referrer" always;',
     ):
         assert f"add_header {header}" in nginx
+    assert "sub_filter '__CSP_NONCE__' '$request_id';" in nginx
 
 
 def test_images_build_without_copying_runtime_secrets():

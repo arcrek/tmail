@@ -1,4 +1,4 @@
-import { readonly, ref } from 'vue'
+import { useSyncExternalStore } from 'react'
 import { en } from './locales/en'
 import { vi } from './locales/vi'
 import { ru } from './locales/ru'
@@ -18,9 +18,23 @@ export const catalogs: Record<Locale, Partial<Record<MessageKey, string>>> = {
   zh,
 }
 
-const locale = ref<Locale>('en')
+let currentLocale: Locale = 'en'
 let siteLocale: Locale | null = null
 let visitorLocale: Locale | null = null
+const listeners = new Set<() => void>()
+
+function emitLocaleChange(): void {
+  for (const listener of listeners) listener()
+}
+
+export function subscribeLocale(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => { listeners.delete(listener) }
+}
+
+export function getLocale(): Locale {
+  return currentLocale
+}
 
 export function normalizeLocale(value?: string): Locale {
   const code = value?.trim().toLowerCase().split(/[-_]/)[0]
@@ -51,10 +65,20 @@ function browserLocale(): Locale {
   return 'en'
 }
 
-function resolveLocale(): void { locale.value = visitorLocale ?? siteLocale ?? browserLocale() }
+function updateLocale(next: Locale): void {
+  if (currentLocale === next) return
+  currentLocale = next
+  emitLocaleChange()
+}
+
+function resolveLocale(): void {
+  updateLocale(visitorLocale ?? siteLocale ?? browserLocale())
+}
 
 /** Compatibility helper for tests and one-off in-memory locale changes. */
-export function setLocale(value?: string): void { locale.value = normalizeLocale(value) }
+export function setLocale(value?: string): void {
+  updateLocale(normalizeLocale(value))
+}
 
 export function setSiteLocale(value?: string): void {
   siteLocale = value === undefined ? null : normalizeLocale(value)
@@ -76,17 +100,41 @@ export function initLocale(): void {
   resolveLocale()
 }
 
+export function translate(key: MessageKey, params: Params = {}, activeLocale: Locale = currentLocale): string {
+  const raw = catalogs[activeLocale]?.[key] ?? en[key] ?? key
+  return raw.replace(/\{(\w+)\}/g, (_, name) =>
+    Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : `{${name}}`,
+  )
+}
+
+export function formatLocaleDate(value: string, options: Intl.DateTimeFormatOptions, activeLocale: Locale = currentLocale): string {
+  const date = new Date(value)
+  return Number.isNaN(date.valueOf()) ? value : new Intl.DateTimeFormat(activeLocale, options).format(date)
+}
+
+export function formatLocaleNumber(value: number, options?: Intl.NumberFormatOptions, activeLocale: Locale = currentLocale): string {
+  return new Intl.NumberFormat(activeLocale, options).format(value)
+}
+
+/** Non-hook helper for imperative callers and pure-TS tests. */
+export function getI18n() {
+  return {
+    get locale(): Locale { return currentLocale },
+    selectLocale,
+    t: (key: MessageKey, params: Params = {}) => translate(key, params, currentLocale),
+    formatDate: (value: string, options: Intl.DateTimeFormatOptions) => formatLocaleDate(value, options, currentLocale),
+    formatNumber: (value: number, options?: Intl.NumberFormatOptions) => formatLocaleNumber(value, options, currentLocale),
+  }
+}
+
+/** React hook that subscribes to locale changes. */
 export function useI18n() {
-  const t = (key: MessageKey, params: Params = {}) => {
-    const raw = catalogs[locale.value]?.[key] ?? en[key] ?? key
-    return raw.replace(/\{(\w+)\}/g, (_, name) =>
-      Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : `{${name}}`
-    )
+  const locale = useSyncExternalStore(subscribeLocale, getLocale, getLocale)
+  return {
+    locale,
+    selectLocale,
+    t: (key: MessageKey, params: Params = {}) => translate(key, params, locale),
+    formatDate: (value: string, options: Intl.DateTimeFormatOptions) => formatLocaleDate(value, options, locale),
+    formatNumber: (value: number, options?: Intl.NumberFormatOptions) => formatLocaleNumber(value, options, locale),
   }
-  const formatDate = (value: string, options: Intl.DateTimeFormatOptions) => {
-    const date = new Date(value)
-    return Number.isNaN(date.valueOf()) ? value : new Intl.DateTimeFormat(locale.value, options).format(date)
-  }
-  const formatNumber = (value: number, options?: Intl.NumberFormatOptions) => new Intl.NumberFormat(locale.value, options).format(value)
-  return { locale: readonly(locale), selectLocale, t, formatDate, formatNumber }
 }
