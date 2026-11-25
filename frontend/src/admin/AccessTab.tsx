@@ -124,7 +124,7 @@ export function AccessTab({ csrf, onBusyChange }: AccessTabProps) {
       {
         field: 'kind',
         headerName: t('access.kind'),
-        width: 120,
+        width: 104,
         renderCell: (params) => (
           <Chip
             size="small"
@@ -152,7 +152,7 @@ export function AccessTab({ csrf, onBusyChange }: AccessTabProps) {
       {
         field: 'createdAt',
         headerName: t('access.created'),
-        width: 170,
+        width: 205,
         cellClassName: 'tmail-mono-cell',
         renderCell: (params) => (
           <Box component="time" dateTime={params.row.createdAt} className="credential-date font-mono" sx={{ fontFamily: MONO_FONT_FAMILY }}>
@@ -287,7 +287,7 @@ export function AccessTab({ csrf, onBusyChange }: AccessTabProps) {
             columns={columns}
             ariaLabel={t('access.list')}
             emptyText={t('access.none')}
-            minWidth={520}
+            minWidth={600}
             hideFooter={credentials.length <= 10}
           />
         </Card>
