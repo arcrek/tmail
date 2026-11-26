@@ -877,4 +877,34 @@ describe('address flow', () => {
     expect(JSON.parse(localStorage.getItem('tmail.addresses')!)[0].token).toBe('replacement')
     expect(mocks.messages).toHaveBeenLastCalledWith('replacement', 1)
   })
+
+  it('suppresses inner focus-visible outline on composer inputs inside the outer focus-within pill', async () => {
+    const { container } = renderWithTheme(<AddressPanel onOpen={() => {}} />)
+    await waitFor(() => expect(container.querySelector('#local-part')).toBeTruthy())
+
+    const emotionCss = Array.from(document.querySelectorAll('style[data-emotion]'))
+      .map((style) => style.textContent ?? '')
+      .join('\n')
+
+    for (const selector of ['#local-part', '#quick-email']) {
+      const input = container.querySelector<HTMLInputElement>(selector)!
+      expect(input).toBeTruthy()
+      const classes = Array.from(input.classList).filter((cls) => cls.startsWith('css-'))
+      expect(classes.length).toBeGreaterThan(0)
+      const hasSuppressedFocusOutline = classes.some((cls) =>
+        new RegExp(`\\.${cls}:focus-visible[^}]*outline:\\s*none`).test(emotionCss),
+      )
+      expect(hasSuppressedFocusOutline).toBe(true)
+    }
+
+    const composers = Array.from(container.querySelectorAll<HTMLFormElement>('form.composer'))
+    expect(composers).toHaveLength(2)
+    for (const composer of composers) {
+      const classes = Array.from(composer.classList).filter((cls) => cls.startsWith('css-'))
+      const hasForcedColorsFocusWithin = classes.some((cls) =>
+        new RegExp(`\\.${cls}:focus-within[^}]*outline:\\s*2px solid transparent`).test(emotionCss),
+      )
+      expect(hasForcedColorsFocusWithin).toBe(true)
+    }
+  })
 })

@@ -390,6 +390,8 @@ export function AddressPanel({ accessToken = '', onOpen, onLogin }: AddressPanel
                   transition: 'border-color 150ms cubic-bezier(0.2, 0, 0, 1)',
                   '&:focus-within': {
                     borderColor: theme.palette.primary.main,
+                    boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, 0.22)}`,
+                    outline: '2px solid transparent',
                   },
                 })}
               >
@@ -435,6 +437,9 @@ export function AddressPanel({ accessToken = '', onOpen, onLogin }: AddressPanel
                       '&::placeholder': {
                         color: theme.palette.m3.onSurfaceVariant,
                         opacity: 0.8,
+                      },
+                      '&:focus, &:focus-visible': {
+                        outline: 'none',
                       },
                     })}
                   />
@@ -645,6 +650,8 @@ export function AddressPanel({ accessToken = '', onOpen, onLogin }: AddressPanel
               transition: 'border-color 150ms cubic-bezier(0.2, 0, 0, 1)',
               '&:focus-within': {
                 borderColor: theme.palette.primary.main,
+                boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, 0.22)}`,
+                outline: '2px solid transparent',
               },
             })}
           >
@@ -687,6 +694,9 @@ export function AddressPanel({ accessToken = '', onOpen, onLogin }: AddressPanel
                   '&::placeholder': {
                     color: theme.palette.m3.onSurfaceVariant,
                     opacity: 0.8,
+                  },
+                  '&:focus, &:focus-visible': {
+                    outline: 'none',
                   },
                 })}
               />
