@@ -29,6 +29,7 @@ jobs:
 
   frontend-checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -54,6 +55,11 @@ jobs:
           npm run build
           npm run test:sandbox-browser
           npm run test:mailbox-browser
+      - name: Run E2E tests
+        working-directory: frontend
+        env:
+          PYTHON: ${{ github.workspace }}/.venv/bin/python
+        run: npm run test:e2e
 
   build-push:
     needs: [backend-checks, frontend-checks]
