@@ -112,3 +112,77 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  deploy:
+    needs: [build-push]
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy and verify on production host
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          TARGET_TAG="sha-${TARGET_SHA:0:7}"
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "TARGET_TAG='$TARGET_TAG' TARGET_SHA='$TARGET_SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd /home/ubuntu/tmail
+
+          PREV_IMAGE=$(sudo docker inspect tmail-frontend-1 --format '{{.Config.Image}}' 2>/dev/null || true)
+          PREV_TAG="${PREV_IMAGE##*:}"
+
+          rollback() {
+            echo "::error::Deployment verification failed; attempting rollback to ${PREV_TAG:-none}"
+            if [[ -n "${PREV_TAG:-}" && "$PREV_TAG" != "$TARGET_TAG" ]]; then
+              sudo TMAIL_IMAGE_TAG="$PREV_TAG" docker compose -f compose.yaml up -d --wait || true
+            fi
+          }
+
+          git pull --ff-only origin main
+          sudo TMAIL_IMAGE_TAG="$TARGET_TAG" docker compose -f compose.yaml pull
+
+          if ! sudo TMAIL_IMAGE_TAG="$TARGET_TAG" docker compose -f compose.yaml up -d --wait; then
+            rollback
+            exit 1
+          fi
+
+          verify() {
+            local fe_rev api_rev fe_http api_http
+            fe_rev=$(sudo docker inspect tmail-frontend-1 --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
+            api_rev=$(sudo docker inspect tmail-api-1 --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
+            [[ "$fe_rev" == "$TARGET_SHA" ]] || { echo "frontend revision mismatch: $fe_rev != $TARGET_SHA"; return 1; }
+            [[ "$api_rev" == "$TARGET_SHA" ]] || { echo "api revision mismatch: $api_rev != $TARGET_SHA"; return 1; }
+            fe_http=$(curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:8081/)
+            api_http=$(curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:8081/domains)
+            [[ "$fe_http" == "200" && "$api_http" == "200" ]] || { echo "health check failed: fe=$fe_http api=$api_http"; return 1; }
+            echo "Verified revision=${TARGET_SHA} frontend_http=${fe_http} domains_api_http=${api_http}"
+          }
+
+          if ! verify; then
+            rollback
+            exit 1
+          fi
+          REMOTE
+
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/id_ed25519
