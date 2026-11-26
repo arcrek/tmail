@@ -1,4 +1,4 @@
-import { defineConfig, mergeConfig } from 'vitest/config'
+import { configDefaults, defineConfig, mergeConfig } from 'vitest/config'
 import viteConfig from './vite.config'
 
 // Node 25+ enables experimental global Web Storage by default, which can shadow jsdom's
@@ -12,6 +12,7 @@ export default mergeConfig(
   viteConfig,
   defineConfig({
     test: {
+      exclude: [...configDefaults.exclude, 'e2e/**'],
       testTimeout: 15000,
       setupFiles: ['./src/tests/setup.ts'],
       poolOptions: {
