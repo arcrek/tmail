@@ -35,6 +35,8 @@ from src.api_auth import (
     PasswordServiceError,
     _domain,
     _domain_matches_rule,
+    _domain_rule,
+    _matches_normalized_rule,
     _safe_domain,
     _token_address,
     active_domains,
@@ -325,16 +327,29 @@ def _stable_id(kind: str, value: str) -> str:
 
 
 def current_domains(
-    request: Request, config: Config | None = None, elevated: bool = False
+    request: Request,
+    config: Config | None = None,
+    elevated: bool = False,
+    *,
+    settings: dict[str, object] | None = None,
 ) -> list[str]:
-    domains = active_domains(request.app.state.domain_cache, request.app.state.state_store)
-    settings = request.app.state.state_store.get_settings()
+    if settings is None:
+        settings = request.app.state.state_store.get_settings()
+    domains = active_domains(
+        request.app.state.domain_cache,
+        request.app.state.state_store,
+        settings=settings,
+    )
     if elevated:
         return domains
     manual = {_domain(value) for value in settings["manual_domains"]}
-    return [domain for domain in domains if domain in manual or not any(
-        _domain_matches_rule(domain, rule) for rule in settings["blacklisted_domains"]
-    )]
+    blacklisted_rules = [_domain_rule(rule) for rule in settings["blacklisted_domains"]]
+    if not blacklisted_rules:
+        return domains
+    return [
+        domain for domain in domains
+        if domain in manual or not any(_matches_normalized_rule(domain, rule) for rule in blacklisted_rules)
+    ]
 
 
 def _address(
@@ -736,13 +751,21 @@ def register_public_routes(app: FastAPI) -> None:
     def domains(
         request: Request, page: int = Query(1, ge=1), elevated: bool = Depends(elevated_access)
     ):
-        if request.app.state.state_store.get_settings()["auto_sync_domains"]:
+        settings = request.app.state.state_store.get_settings()
+        if settings["auto_sync_domains"]:
+            last_sync_before = getattr(request.app.state, "_last_auto_sync_time", None)
             try:
-                refresh_domains(request, require_auto=True)
+                refresh_domains(request, require_auto=True, settings=settings, return_domains=False)
             except Exception:
                 pass
+            if getattr(request.app.state, "_last_auto_sync_time", None) != last_sync_before:
+                settings = None
+        all_domains = current_domains(request, elevated=elevated, settings=settings)
+        total = len(all_domains)
+        view, search = _collection_metadata("/domains", page, total, 100)
+        start = (page - 1) * 100
         members = []
-        for domain in current_domains(request, elevated=elevated):
+        for domain in all_domains[start:start + 100]:
             domain_id = _stable_id("domain", domain)
             members.append(DomainResource(
                 iri=f"/domains/{domain_id}",
@@ -752,10 +775,7 @@ def register_public_routes(app: FastAPI) -> None:
                 created_at=_EPOCH,
                 updated_at=_EPOCH,
             ))
-        total = len(members)
-        view, search = _collection_metadata("/domains", page, total, 100)
-        start = (page - 1) * 100
-        return HydraDomains(total_items=total, member=members[start:start + 100], view=view, search=search)
+        return HydraDomains(total_items=total, member=members, view=view, search=search)
 
     @app.get("/domains/{domain_id}", response_model=DomainResource, responses=_ERROR_RESPONSES)
     def domain(request: Request, domain_id: str, elevated: bool = Depends(elevated_access)):

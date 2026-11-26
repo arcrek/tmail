@@ -175,7 +175,6 @@ class StateStore:
     def _connect(self):
         with closing(sqlite3.connect(self.path)) as conn:
             conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA journal_mode=WAL")
             with conn:
                 yield conn
 

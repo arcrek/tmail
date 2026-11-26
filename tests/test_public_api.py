@@ -4,8 +4,9 @@ import asyncio
 import json
 import re
 import sqlite3
-from types import SimpleNamespace
 import threading
+import time
+from types import SimpleNamespace
 from unittest.mock import MagicMock, call
 
 import pytest
@@ -1043,6 +1044,69 @@ def test_delete_message_skips_source_blob_when_message_exceeds_size_cap(client, 
     assert archived is not None
     assert archived["hasSource"] is False
     assert client.app.state.deleted_mail_store.get_source("m1") is None
+
+
+def test_domains_reads_settings_once_when_auto_sync_debounced(client, monkeypatch):
+    client.app.state.state_store.update_settings({
+        "auto_sync_domains": True,
+        "blacklisted_domains": ["*.blocked.example"],
+        "manual_domains": ["keep.blocked.example"],
+    })
+    client.app.state.domain_cache.replace([
+        "alpha.example",
+        "drop.blocked.example",
+        "keep.blocked.example",
+    ])
+    client.app.state._last_auto_sync_time = time.monotonic()
+
+    real_get_settings = client.app.state.state_store.get_settings
+    calls = 0
+
+    def counting_get_settings():
+        nonlocal calls
+        calls += 1
+        return real_get_settings()
+
+    monkeypatch.setattr(client.app.state.state_store, "get_settings", counting_get_settings)
+
+    response = client.get("/domains")
+
+    assert response.status_code == 200
+    assert calls == 1
+    assert [m["domain"] for m in response.json()["hydra:member"]] == [
+        "alpha.example",
+        "keep.blocked.example",
+    ]
+
+
+def test_domains_pagination_slices_across_pages(client):
+    client.app.state.state_store.update_settings({"auto_sync_domains": False})
+    all_domains = [f"d{i:03d}.example" for i in range(105)]
+    client.app.state.state_store.replace_frozen_domains(all_domains)
+
+    page1 = client.get("/domains?page=1")
+    page2 = client.get("/domains?page=2")
+    page3 = client.get("/domains?page=3")
+
+    assert page1.status_code == 200
+    body1 = page1.json()
+    assert body1["hydra:totalItems"] == 105
+    assert len(body1["hydra:member"]) == 100
+    assert body1["hydra:member"][0]["domain"] == "d000.example"
+    assert body1["hydra:member"][-1]["domain"] == "d099.example"
+    assert body1["hydra:view"]["hydra:next"] == "/domains?page=2"
+
+    assert page2.status_code == 200
+    body2 = page2.json()
+    assert body2["hydra:totalItems"] == 105
+    assert [m["domain"] for m in body2["hydra:member"]] == [
+        f"d{i:03d}.example" for i in range(100, 105)
+    ]
+
+    assert page3.status_code == 200
+    assert page3.json()["hydra:member"] == []
+
+
 
 
 
