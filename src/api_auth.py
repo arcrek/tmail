@@ -4,6 +4,7 @@ import asyncio
 import base64
 import binascii
 from contextvars import ContextVar
+from functools import lru_cache
 import hashlib
 import hmac
 import json
@@ -25,14 +26,27 @@ class AddressValidationError(ValueError):
     pass
 
 
-def _domain(value: str) -> str:
+def _validate_domain(value: str) -> str:
     try:
         domain = value.encode("idna").decode("ascii").lower()
-    except (AttributeError, UnicodeError):
+    except UnicodeError:
         raise AddressValidationError("Invalid domain") from None
     if len(domain) > 253 or not domain or any(not _DOMAIN_LABEL.fullmatch(label) for label in domain.split(".")):
         raise AddressValidationError("Invalid domain")
     return domain
+
+
+@lru_cache(maxsize=4096)
+def _domain_cached(value: str) -> str:
+    return _validate_domain(value)
+
+
+def _domain(value: str) -> str:
+    if not isinstance(value, str):
+        raise AddressValidationError("Invalid domain")
+    if value.isascii() and len(value) <= 253:
+        return _domain_cached(value)
+    return _validate_domain(value)
 
 
 def _safe_domain(value: object) -> str:
@@ -45,19 +59,20 @@ def _safe_domain(value: object) -> str:
         return raw.lower()
 
 
-
 def _domain_rule(value: str) -> str:
     if isinstance(value, str) and value.startswith("*."):
         return f"*.{_domain(value[2:])}"
     return _domain(value)
 
 
-def _domain_matches_rule(domain: str, rule: str) -> bool:
-    domain = _domain(domain)
-    rule = _domain_rule(rule)
+def _matches_normalized_rule(domain: str, rule: str) -> bool:
     return domain == rule or rule.startswith("*.") and (
         domain == rule[2:] or domain.endswith(f".{rule[2:]}")
     )
+
+
+def _domain_matches_rule(domain: str, rule: str) -> bool:
+    return _matches_normalized_rule(_domain(domain), _domain_rule(rule))
 
 
 def _token_address(address: str) -> str:
@@ -320,8 +335,14 @@ class MailboxAuth:
             self.state.delete_mailbox_session(self.token_hash(token))
 
 
-def active_domains(cache_file: str | DomainCache, state) -> list[str]:
-    settings = state.get_settings()
+def active_domains(
+    cache_file: str | DomainCache,
+    state,
+    *,
+    settings: dict[str, object] | None = None,
+) -> list[str]:
+    if settings is None:
+        settings = state.get_settings()
     manual = settings.get("manual_domains", [])
     if settings["auto_sync_domains"]:
         cache = cache_file if isinstance(cache_file, DomainCache) else DomainCache(cache_file)

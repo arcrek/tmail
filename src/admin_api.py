@@ -239,7 +239,11 @@ def _validate_access_credential(body: dict[str, object]) -> tuple[str, str, str 
 
 
 def _active_domains(request: Request, settings: dict[str, object] | None = None) -> list[str]:
-    return active_domains(request.app.state.domain_cache, request.app.state.state_store)
+    return active_domains(
+        request.app.state.domain_cache,
+        request.app.state.state_store,
+        settings=settings,
+    )
 
 
 @router.post("/login")
@@ -389,15 +393,22 @@ def update_settings(
 _AUTO_SYNC_DEBOUNCE_SECONDS = 60.0
 
 
-def refresh_domains(request: Request, *, require_auto: bool = False) -> list[str]:
+def refresh_domains(
+    request: Request,
+    *,
+    require_auto: bool = False,
+    settings: dict[str, object] | None = None,
+    return_domains: bool = True,
+) -> list[str]:
     state = request.app.state.state_store
     if require_auto:
-        if not state.get_settings()["auto_sync_domains"]:
-            return _active_domains(request)
+        current_settings = settings if settings is not None else state.get_settings()
+        if not current_settings["auto_sync_domains"]:
+            return _active_domains(request, current_settings) if return_domains else []
         now = time.monotonic()
         last_sync = getattr(request.app.state, "_last_auto_sync_time", None)
         if last_sync is not None and now - last_sync < _AUTO_SYNC_DEBOUNCE_SECONDS:
-            return _active_domains(request)
+            return _active_domains(request, current_settings) if return_domains else []
     if not require_auto:
         with request.app.state.admin_lock:
             _config, jmap = _rebuild_jmap_if_stale(request)
@@ -407,12 +418,12 @@ def refresh_domains(request: Request, *, require_auto: bool = False) -> list[str
             if require_auto:
                 with request.app.state.admin_lock:
                     if not state.get_settings()["auto_sync_domains"]:
-                        return _active_domains(request)
+                        return _active_domains(request) if return_domains else []
                     if _attempt == 0:
                         now = time.monotonic()
                         last_sync = getattr(request.app.state, "_last_auto_sync_time", None)
                         if last_sync is not None and now - last_sync < _AUTO_SYNC_DEBOUNCE_SECONDS:
-                            return _active_domains(request)
+                            return _active_domains(request) if return_domains else []
                         request.app.state._last_auto_sync_time = now
                     _config, jmap = _rebuild_jmap_if_stale(request)
                 values = jmap.list_domains()
@@ -434,7 +445,7 @@ def refresh_domains(request: Request, *, require_auto: bool = False) -> list[str
                 if request.app.state.jmap is not jmap:
                     raise RuntimeError("JMAP client changed during sync")
                 if require_auto and not state.get_settings()["auto_sync_domains"]:
-                    return _active_domains(request)
+                    return _active_domains(request) if return_domains else []
                 if not request.app.state.domain_cache.replace(
                     domains, expected_generation=generation
                 ):
